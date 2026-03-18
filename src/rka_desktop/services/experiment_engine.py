@@ -30,13 +30,22 @@ class EngineUpdate:
 
 
 class ExperimentEngine:
-    def __init__(self, steps: list[RecipeStepRuntime], target_tolerance_c: float = 5.0) -> None:
+    def __init__(
+        self,
+        steps: list[RecipeStepRuntime],
+        target_tolerance_c: float = 5.0,
+        step_heatup_grace_seconds: int = 120,
+        step_total_grace_seconds: int = 180,
+    ) -> None:
         self.steps = steps
         self.target_tolerance_c = target_tolerance_c
+        self.step_heatup_grace_seconds = step_heatup_grace_seconds
+        self.step_total_grace_seconds = step_total_grace_seconds
         self.state = ExperimentState.IDLE
         self.current_step_index = 0
         self._step_started_at: datetime | None = None
         self._target_reached_at: datetime | None = None
+        self._step_start_temp_c: float | None = None
 
     @property
     def total_steps(self) -> int:
@@ -57,6 +66,7 @@ class ExperimentEngine:
         self.current_step_index = 0
         self._step_started_at = None
         self._target_reached_at = None
+        self._step_start_temp_c = None
         return self._build_update("实验已启动，等待进入第 1 步", step_changed=True)
 
     def pause(self) -> EngineUpdate:
@@ -99,9 +109,14 @@ class ExperimentEngine:
 
         if self._step_started_at is None:
             self._step_started_at = measurement.sampled_at
+            self._step_start_temp_c = measurement.temperature_c
 
         step_changed = False
         status_text = f"执行第 {step.step_no}/{self.total_steps} 步"
+        step_elapsed = int((measurement.sampled_at - self._step_started_at).total_seconds())
+
+        if self._should_fault_step_total_timeout(step, step_elapsed):
+            return self.fail(f"第 {step.step_no} 步执行超时，实验已故障停止")
 
         if measurement.temperature_c >= step.target_temp_c - self.target_tolerance_c:
             if self._target_reached_at is None:
@@ -116,6 +131,7 @@ class ExperimentEngine:
                     self.current_step_index += 1
                     self._step_started_at = measurement.sampled_at
                     self._target_reached_at = None
+                    self._step_start_temp_c = measurement.temperature_c
                     step_changed = True
 
                     if self.current_step_index >= len(self.steps):
@@ -129,9 +145,27 @@ class ExperimentEngine:
                         step_changed=step_changed,
                     )
         else:
+            if self._should_fault_heatup_timeout(step, measurement.temperature_c, step_elapsed):
+                return self.fail(f"第 {step.step_no} 步升温超时，未达到目标温度，实验已故障停止")
             status_text = f"第 {step.step_no} 步升温中，目标 {step.target_temp_c:.1f}℃"
 
         return self._build_update(status_text, step_changed=step_changed)
+
+    def _expected_heatup_seconds(self, step: RecipeStepRuntime) -> int:
+        start_temp = self._step_start_temp_c if self._step_start_temp_c is not None else step.target_temp_c
+        delta_temp = max(0.0, step.target_temp_c - start_temp)
+        ramp_rate = max(step.ramp_rate_cpm, 0.1)
+        return int((delta_temp / ramp_rate) * 60)
+
+    def _should_fault_heatup_timeout(self, step: RecipeStepRuntime, current_temp_c: float, step_elapsed: int) -> bool:
+        if current_temp_c >= step.target_temp_c - self.target_tolerance_c:
+            return False
+        allowed_heatup = self._expected_heatup_seconds(step) + self.step_heatup_grace_seconds
+        return step_elapsed > allowed_heatup
+
+    def _should_fault_step_total_timeout(self, step: RecipeStepRuntime, step_elapsed: int) -> bool:
+        allowed_total = self._expected_heatup_seconds(step) + step.hold_seconds + self.step_total_grace_seconds
+        return step_elapsed > allowed_total
 
     def _build_update(self, status_text: str, step_changed: bool = False, completed: bool = False) -> EngineUpdate:
         step = self.current_step

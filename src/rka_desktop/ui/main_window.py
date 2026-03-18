@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from rka_desktop.core.alarm_rules import decode_alarm_word, has_interlock_alarm
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.db.database import DatabaseManager
@@ -150,7 +151,11 @@ class MainWindow(QMainWindow):
             return
         recipe_name = recipe["name"] if recipe else f"配方{recipe_id}"
         self.experiment_id = self.db.create_experiment(name=f"实验-{recipe_name}", recipe_id=int(recipe_id))
-        self.engine = ExperimentEngine(build_recipe_runtime(recipe_steps))
+        self.engine = ExperimentEngine(
+            build_recipe_runtime(recipe_steps),
+            step_heatup_grace_seconds=self.settings.step_heatup_grace_seconds,
+            step_total_grace_seconds=self.settings.step_total_grace_seconds,
+        )
         start_update = self.engine.start()
         if not self._apply_current_step_setpoints():
             return
@@ -360,35 +365,57 @@ class MainWindow(QMainWindow):
                     return
                 self._append_log(update.status_text)
             if update.completed:
-                self._append_log("执行引擎判定实验完成")
-                self._finalize_experiment_stop(
-                    final_status=ExperimentState.COMPLETED.value,
-                    final_update=update,
-                    terminate_engine=False,
-                    audit_action="EXPERIMENT_COMPLETE",
-                    log_message=f"实验完成，ID={self.experiment_id}" if self.experiment_id is not None else None,
-                )
+                if update.state == ExperimentState.COMPLETED:
+                    self._append_log("执行引擎判定实验完成")
+                    self._finalize_experiment_stop(
+                        final_status=ExperimentState.COMPLETED.value,
+                        final_update=update,
+                        terminate_engine=False,
+                        audit_action="EXPERIMENT_COMPLETE",
+                        log_message=f"实验完成，ID={self.experiment_id}" if self.experiment_id is not None else None,
+                    )
+                elif update.state == ExperimentState.FAULTED:
+                    self._fail_active_experiment(
+                        update.status_text,
+                        audit_action="STEP_TIMEOUT_FAULT",
+                        detail=f"id={self.experiment_id},step={update.current_step_no}" if self.experiment_id is not None else "step_timeout",
+                        final_update=update,
+                    )
                 return
 
     def _on_error(self, message: str) -> None:
-        self._append_log(f"采集异常: {message}")
+        self._fail_active_experiment(
+            f"采集异常，实验已故障停止: {message}",
+            audit_action="ACQUISITION_FAILED",
+            detail=f"id={self.experiment_id},error={message}" if self.experiment_id is not None else f"error={message}",
+        )
 
     def _handle_alarm(self, snapshot: DeviceSnapshot) -> None:
         alarm_msg = alarm_text(snapshot)
         self.alarm_page.set_current_alarm(f"当前报警: {alarm_msg}")
 
         if snapshot.alarm_word != 0:
+            active_alarms = decode_alarm_word(snapshot.alarm_word)
             self.monitor_page.update_alarm_text(f"状态: {alarm_msg}", "color: #b71c1c; font-weight: bold;")
             self.alarm_page.btn_ack_alarm.setEnabled(True)
             if snapshot.alarm_word != self._alarm_active_word:
                 self._alarm_active_word = snapshot.alarm_word
                 if self.experiment_id is not None:
-                    code = f"ALM-{snapshot.alarm_word:04X}"
-                    message = f"报警触发，报警字={snapshot.alarm_word}"
-                    self.db.create_alarm(self.experiment_id, code=code, level="HIGH", message=message)
-                    self.db.log_action("system", "ALARM_RAISED", f"experiment_id={self.experiment_id},{code}")
+                    for alarm in active_alarms:
+                        self.db.create_alarm(
+                            self.experiment_id,
+                            code=alarm.code,
+                            level=alarm.level,
+                            message=alarm.message,
+                        )
+                    self.db.log_action("system", "ALARM_RAISED", f"experiment_id={self.experiment_id},word={snapshot.alarm_word:04X}")
                 self._append_log(f"报警触发：报警字={snapshot.alarm_word}")
-            if self.engine is not None and self.experiment_id is not None and self.engine.state == ExperimentState.RUNNING:
+            if (
+                self.engine is not None
+                and self.experiment_id is not None
+                and self.engine.state == ExperimentState.RUNNING
+                and has_interlock_alarm(snapshot.alarm_word)
+            ):
                 update = self.engine.interrupt()
                 self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
                 self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
@@ -529,15 +556,32 @@ class MainWindow(QMainWindow):
             return False
 
     def _handle_setpoint_dispatch_failure(self, exc: Exception) -> None:
-        if self.engine is not None:
-            update = self.engine.fail(f"步骤设定下发失败，实验已故障停止: {exc}")
+        self._fail_active_experiment(
+            f"步骤设定下发失败，实验已故障停止: {exc}",
+            audit_action="SETPOINT_APPLY_FAILED",
+            detail=f"id={self.experiment_id},error={exc}" if self.experiment_id is not None else f"error={exc}",
+        )
+
+    def _fail_active_experiment(
+        self,
+        reason: str,
+        *,
+        audit_action: str,
+        detail: str,
+        final_update=None,
+    ) -> None:
+        update = final_update
+        if self.engine is not None and update is None:
+            update = self.engine.fail(reason)
+        if update is not None:
             self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
         if self.experiment_id is not None:
             self.db.set_experiment_status(self.experiment_id, ExperimentState.FAULTED.value)
-            self.db.log_action("system", "SETPOINT_APPLY_FAILED", f"id={self.experiment_id},error={exc}")
-        self._append_log(f"步骤设定下发失败: {exc}")
+            self.db.log_action("system", audit_action, detail)
+        self._append_log(reason)
         self._finalize_experiment_stop(
             final_status=ExperimentState.FAULTED.value,
+            final_update=update,
             terminate_engine=False,
             audit_action="EXPERIMENT_FAULT",
             log_message=f"实验故障退出，ID={self.experiment_id}" if self.experiment_id is not None else None,

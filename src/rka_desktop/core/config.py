@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     modbus_unit_id: int = 1
     simulation_mode: bool = True
     poll_interval_ms: int = 500
+    step_heatup_grace_seconds: int = 120
+    step_total_grace_seconds: int = 180
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

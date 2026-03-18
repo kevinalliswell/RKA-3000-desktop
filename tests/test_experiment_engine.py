@@ -126,3 +126,56 @@ def test_engine_fail_marks_terminal_fault():
     fail_update = engine.fail("setpoint write failed")
     assert fail_update.state == ExperimentState.FAULTED
     assert fail_update.completed is True
+
+
+def test_engine_faults_when_heatup_exceeds_expected_time():
+    steps = build_recipe_runtime(
+        [
+            {
+                "step_no": 1,
+                "target_temp_c": 100,
+                "ramp_rate_cpm": 60,
+                "hold_seconds": 30,
+                "n2_lpm": 4.0,
+                "h2_lpm": 1.0,
+                "co_lpm": 0.5,
+                "notes": "",
+            }
+        ]
+    )
+    engine = ExperimentEngine(steps, step_heatup_grace_seconds=0, step_total_grace_seconds=300)
+    engine.start()
+
+    t0 = datetime.now()
+    engine.on_measurement(_measurement(t0, 20))
+    timeout_update = engine.on_measurement(_measurement(t0 + timedelta(seconds=81), 40))
+
+    assert timeout_update.state == ExperimentState.FAULTED
+    assert "升温超时" in timeout_update.status_text
+
+
+def test_engine_faults_when_step_total_duration_exceeds_limit():
+    steps = build_recipe_runtime(
+        [
+            {
+                "step_no": 1,
+                "target_temp_c": 50,
+                "ramp_rate_cpm": 60,
+                "hold_seconds": 10,
+                "n2_lpm": 4.0,
+                "h2_lpm": 1.0,
+                "co_lpm": 0.5,
+                "notes": "",
+            }
+        ]
+    )
+    engine = ExperimentEngine(steps, step_heatup_grace_seconds=0, step_total_grace_seconds=0)
+    engine.start()
+
+    t0 = datetime.now()
+    engine.on_measurement(_measurement(t0, 49))
+    engine.on_measurement(_measurement(t0 + timedelta(seconds=5), 50))
+    timeout_update = engine.on_measurement(_measurement(t0 + timedelta(seconds=12), 50))
+
+    assert timeout_update.state == ExperimentState.FAULTED
+    assert "执行超时" in timeout_update.status_text
