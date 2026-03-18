@@ -12,8 +12,10 @@ class ExperimentState(str, Enum):
     IDLE = "IDLE"
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"
+    INTERRUPTED = "INTERRUPTED"
     STOPPED = "STOPPED"
     COMPLETED = "COMPLETED"
+    FAULTED = "FAULTED"
 
 
 @dataclass
@@ -63,18 +65,29 @@ class ExperimentEngine:
         return self._build_update("实验已暂停")
 
     def resume(self) -> EngineUpdate:
-        if self.state == ExperimentState.PAUSED:
+        if self.state in (ExperimentState.PAUSED, ExperimentState.INTERRUPTED):
             self.state = ExperimentState.RUNNING
         return self._build_update("实验已恢复")
+
+    def interrupt(self, reason: str = "实验已因报警联锁中断") -> EngineUpdate:
+        if self.state == ExperimentState.RUNNING:
+            self.state = ExperimentState.INTERRUPTED
+        return self._build_update(reason)
 
     def stop(self) -> EngineUpdate:
         self.state = ExperimentState.STOPPED
         return self._build_update("实验已终止", completed=True)
 
+    def fail(self, reason: str) -> EngineUpdate:
+        self.state = ExperimentState.FAULTED
+        return self._build_update(reason, completed=True)
+
     def on_measurement(self, measurement: Measurement) -> EngineUpdate:
         if self.state == ExperimentState.PAUSED:
             return self._build_update("实验暂停中")
-        if self.state in (ExperimentState.STOPPED, ExperimentState.COMPLETED):
+        if self.state == ExperimentState.INTERRUPTED:
+            return self._build_update("实验联锁中断中，待报警解除并确认")
+        if self.state in (ExperimentState.STOPPED, ExperimentState.COMPLETED, ExperimentState.FAULTED):
             return self._build_update("实验已结束", completed=self.state == ExperimentState.COMPLETED)
         if self.state == ExperimentState.IDLE:
             return self._build_update("实验尚未启动")
@@ -145,4 +158,3 @@ class ExperimentEngine:
             step_changed=step_changed,
             completed=completed,
         )
-

@@ -75,3 +75,54 @@ def test_engine_pause_and_resume():
 
     resume_update = engine.resume()
     assert resume_update.state == ExperimentState.RUNNING
+
+
+def test_engine_interrupt_requires_manual_resume():
+    steps = build_recipe_runtime(
+        [
+            {
+                "step_no": 1,
+                "target_temp_c": 900,
+                "ramp_rate_cpm": 10,
+                "hold_seconds": 30,
+                "n2_lpm": 4.0,
+                "h2_lpm": 1.0,
+                "co_lpm": 0.5,
+                "notes": "",
+            }
+        ]
+    )
+    engine = ExperimentEngine(steps)
+    engine.start()
+
+    interrupt_update = engine.interrupt()
+    assert interrupt_update.state == ExperimentState.INTERRUPTED
+
+    interrupted_measurement_update = engine.on_measurement(_measurement(datetime.now(), 910))
+    assert interrupted_measurement_update.state == ExperimentState.INTERRUPTED
+
+    resume_update = engine.resume()
+    assert resume_update.state == ExperimentState.RUNNING
+
+
+def test_engine_fail_marks_terminal_fault():
+    steps = build_recipe_runtime(
+        [
+            {
+                "step_no": 1,
+                "target_temp_c": 900,
+                "ramp_rate_cpm": 10,
+                "hold_seconds": 30,
+                "n2_lpm": 4.0,
+                "h2_lpm": 1.0,
+                "co_lpm": 0.5,
+                "notes": "",
+            }
+        ]
+    )
+    engine = ExperimentEngine(steps)
+    engine.start()
+
+    fail_update = engine.fail("setpoint write failed")
+    assert fail_update.state == ExperimentState.FAULTED
+    assert fail_update.completed is True

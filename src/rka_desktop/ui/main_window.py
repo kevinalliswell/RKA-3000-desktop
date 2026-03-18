@@ -152,7 +152,8 @@ class MainWindow(QMainWindow):
         self.experiment_id = self.db.create_experiment(name=f"实验-{recipe_name}", recipe_id=int(recipe_id))
         self.engine = ExperimentEngine(build_recipe_runtime(recipe_steps))
         start_update = self.engine.start()
-        self._apply_current_step_setpoints()
+        if not self._apply_current_step_setpoints():
+            return
 
         self._alarm_active_word = 0
         self.monitor_page.reset_runtime()
@@ -180,6 +181,8 @@ class MainWindow(QMainWindow):
     def pause_experiment(self) -> None:
         if self.worker is None or self.engine is None or self.experiment_id is None:
             return
+        if self.engine.state != ExperimentState.RUNNING:
+            return
 
         update = self.engine.pause()
         self.db.set_experiment_status(self.experiment_id, ExperimentState.PAUSED.value)
@@ -192,11 +195,18 @@ class MainWindow(QMainWindow):
     def resume_experiment(self) -> None:
         if self.worker is None or self.engine is None or self.experiment_id is None:
             return
+        if self._alarm_active_word != 0:
+            QMessageBox.warning(self, "无法恢复", "当前仍有活动报警，请先排除报警")
+            return
+        if self.engine.state == ExperimentState.INTERRUPTED and self.db.list_unacknowledged_alarms(self.experiment_id):
+            QMessageBox.warning(self, "无法恢复", "报警已解除，但仍有未确认报警")
+            return
 
         update = self.engine.resume()
         self.db.set_experiment_status(self.experiment_id, ExperimentState.RUNNING.value)
         self.db.log_action("operator", "EXPERIMENT_RESUME", f"id={self.experiment_id}")
-        self._apply_current_step_setpoints()
+        if not self._apply_current_step_setpoints():
+            return
         self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
         self._append_log(update.status_text)
         self.btn_pause.setEnabled(True)
@@ -209,25 +219,38 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "确认停止", "确定停止当前实验吗？") != QMessageBox.StandardButton.Yes:
             return
 
-        self._finalize_experiment_stop()
+        self._finalize_experiment_stop(
+            final_status=ExperimentState.STOPPED.value,
+            audit_action="EXPERIMENT_STOP",
+            log_message=f"实验终止，ID={self.experiment_id}" if self.experiment_id is not None else None,
+        )
 
-    def _finalize_experiment_stop(self) -> None:
+    def _finalize_experiment_stop(
+        self,
+        *,
+        final_status: str = ExperimentState.STOPPED.value,
+        final_update=None,
+        terminate_engine: bool = True,
+        audit_action: str = "EXPERIMENT_STOP",
+        log_message: str | None = None,
+    ) -> None:
         if self.engine is not None:
-            update = self.engine.stop()
-            self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
+            update = final_update
+            if update is None and terminate_engine:
+                update = self.engine.stop()
+            if update is not None:
+                self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
             self.engine = None
 
-        if self.worker is None:
-            return
-
-        self.worker.stop()
-        self.worker = None
+        if self.worker is not None:
+            self.worker.stop()
+            self.worker = None
 
         if self.experiment_id is not None:
             exp_id = self.experiment_id
-            self.db.finish_experiment(exp_id)
-            self.db.log_action("operator", "EXPERIMENT_STOP", f"id={exp_id}")
-            self._append_log(f"实验结束，ID={exp_id}")
+            self.db.finish_experiment(exp_id, status=final_status)
+            self.db.log_action("operator", audit_action, f"id={exp_id},status={final_status}")
+            self._append_log(log_message or f"实验结束，ID={exp_id}，状态={final_status}")
             self.experiment_id = None
 
         self.btn_start.setEnabled(True)
@@ -252,6 +275,16 @@ class MainWindow(QMainWindow):
             self._append_log("没有待确认报警")
 
         self._refresh_alarm_page()
+        if (
+            ok
+            and self.engine is not None
+            and self.engine.state == ExperimentState.INTERRUPTED
+            and self._alarm_active_word == 0
+            and not self.db.list_unacknowledged_alarms(self.experiment_id)
+        ):
+            setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
+            self.monitor_page.update_execution_state("报警已确认，可恢复实验", setpoints_text)
+            self.btn_resume.setEnabled(True)
 
     def export_csv(self) -> None:
         self._export_data("csv")
@@ -296,7 +329,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         try:
-            self._finalize_experiment_stop()
+            self._finalize_experiment_stop(
+                final_status=ExperimentState.STOPPED.value,
+                audit_action="EXPERIMENT_STOP",
+            )
             self.client.close()
         finally:
             event.accept()
@@ -308,17 +344,31 @@ class MainWindow(QMainWindow):
         self.monitor_page.update_snapshot(snapshot)
         self.monitor_page.push_measurement(measurement)
         self.monitor_page.update_chart(snapshot)
+        self._handle_alarm(snapshot)
         if self.engine is not None:
             update = self.engine.on_measurement(measurement)
             self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
+            if self.engine.state == ExperimentState.INTERRUPTED and self._alarm_active_word == 0:
+                setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
+                if self.experiment_id is not None and not self.db.list_unacknowledged_alarms(self.experiment_id):
+                    self.monitor_page.update_execution_state("报警已解除并确认，可恢复实验", setpoints_text)
+                    self.btn_resume.setEnabled(True)
+                else:
+                    self.monitor_page.update_execution_state("报警已解除，待确认后可恢复实验", setpoints_text)
             if update.step_changed:
-                self._apply_current_step_setpoints()
+                if not self._apply_current_step_setpoints():
+                    return
                 self._append_log(update.status_text)
             if update.completed:
                 self._append_log("执行引擎判定实验完成")
-                self._finalize_experiment_stop()
+                self._finalize_experiment_stop(
+                    final_status=ExperimentState.COMPLETED.value,
+                    final_update=update,
+                    terminate_engine=False,
+                    audit_action="EXPERIMENT_COMPLETE",
+                    log_message=f"实验完成，ID={self.experiment_id}" if self.experiment_id is not None else None,
+                )
                 return
-        self._handle_alarm(snapshot)
 
     def _on_error(self, message: str) -> None:
         self._append_log(f"采集异常: {message}")
@@ -338,6 +388,14 @@ class MainWindow(QMainWindow):
                     self.db.create_alarm(self.experiment_id, code=code, level="HIGH", message=message)
                     self.db.log_action("system", "ALARM_RAISED", f"experiment_id={self.experiment_id},{code}")
                 self._append_log(f"报警触发：报警字={snapshot.alarm_word}")
+            if self.engine is not None and self.experiment_id is not None and self.engine.state == ExperimentState.RUNNING:
+                update = self.engine.interrupt()
+                self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
+                self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
+                self.db.log_action("system", "EXPERIMENT_INTERRUPTED", f"id={self.experiment_id},alarm={snapshot.alarm_word}")
+                self._append_log(update.status_text)
+                self.btn_pause.setEnabled(False)
+                self.btn_resume.setEnabled(False)
             self._refresh_alarm_page()
             return
 
@@ -346,6 +404,14 @@ class MainWindow(QMainWindow):
             self._append_log("报警解除")
         self._alarm_active_word = 0
         self._refresh_alarm_page()
+        if self.engine is not None and self.engine.state == ExperimentState.INTERRUPTED:
+            setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
+            if self.experiment_id is not None and not self.db.list_unacknowledged_alarms(self.experiment_id):
+                self.monitor_page.update_execution_state("报警已解除并确认，可恢复实验", setpoints_text)
+                self.btn_resume.setEnabled(True)
+            else:
+                self.monitor_page.update_execution_state("报警已解除，待确认后可恢复实验", setpoints_text)
+            self.btn_pause.setEnabled(False)
 
     def _refresh_alarm_page(self) -> None:
         if self.experiment_id is None:
@@ -438,9 +504,9 @@ class MainWindow(QMainWindow):
         logger.info(text)
         self.monitor_page.append_log(text)
 
-    def _apply_current_step_setpoints(self) -> None:
+    def _apply_current_step_setpoints(self) -> bool:
         if self.engine is None or self.engine.current_step is None:
-            return
+            return True
 
         step = self.engine.current_step
         try:
@@ -457,5 +523,22 @@ class MainWindow(QMainWindow):
                 f"Ramp={applied['ramp_rate_setpoint_cpm']:.1f}℃/min, "
                 f"N2/H2/CO={applied['n2_setpoint_lpm']:.1f}/{applied['h2_setpoint_lpm']:.1f}/{applied['co_setpoint_lpm']:.1f}"
             )
+            return True
         except Exception as exc:
-            self._append_log(f"步骤设定下发失败: {exc}")
+            self._handle_setpoint_dispatch_failure(exc)
+            return False
+
+    def _handle_setpoint_dispatch_failure(self, exc: Exception) -> None:
+        if self.engine is not None:
+            update = self.engine.fail(f"步骤设定下发失败，实验已故障停止: {exc}")
+            self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
+        if self.experiment_id is not None:
+            self.db.set_experiment_status(self.experiment_id, ExperimentState.FAULTED.value)
+            self.db.log_action("system", "SETPOINT_APPLY_FAILED", f"id={self.experiment_id},error={exc}")
+        self._append_log(f"步骤设定下发失败: {exc}")
+        self._finalize_experiment_stop(
+            final_status=ExperimentState.FAULTED.value,
+            terminate_engine=False,
+            audit_action="EXPERIMENT_FAULT",
+            log_message=f"实验故障退出，ID={self.experiment_id}" if self.experiment_id is not None else None,
+        )

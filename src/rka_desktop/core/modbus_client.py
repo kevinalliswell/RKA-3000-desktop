@@ -110,15 +110,32 @@ class ModbusRtuClient:
 
         if self.simulation_mode:
             self.last_applied_setpoints = values
+            self.last_error = None
             logger.info("Applied simulated setpoints: %s", values)
             return values
 
-        self._write_register(TEMPERATURE_SP.address, TEMPERATURE_SP.encode(values["temperature_setpoint_c"])[0])
-        self._write_register(RAMP_RATE_SP.address, RAMP_RATE_SP.encode(values["ramp_rate_setpoint_cpm"])[0])
-        self._write_register(N2_FLOW_SP.address, N2_FLOW_SP.encode(values["n2_setpoint_lpm"])[0])
-        self._write_register(H2_FLOW_SP.address, H2_FLOW_SP.encode(values["h2_setpoint_lpm"])[0])
-        self._write_register(CO_FLOW_SP.address, CO_FLOW_SP.encode(values["co_setpoint_lpm"])[0])
+        previous_values = dict(self.last_applied_setpoints) if self.last_applied_setpoints is not None else None
+        try:
+            self._write_setpoint_values(values)
+        except ModbusWriteError as exc:
+            rollback_error: ModbusWriteError | None = None
+            if previous_values is not None:
+                try:
+                    self._write_setpoint_values(previous_values)
+                    logger.warning("Setpoint write failed, rolled back to previous values")
+                except ModbusWriteError as rollback_exc:
+                    rollback_error = rollback_exc
+
+            if rollback_error is not None:
+                self.last_error = ModbusWriteError(f"{exc}; rollback failed: {rollback_error}")
+            elif previous_values is not None:
+                self.last_error = ModbusWriteError(f"{exc}; rollback applied")
+            else:
+                self.last_error = exc
+            raise self.last_error from exc
+
         self.last_applied_setpoints = values
+        self.last_error = None
         logger.info("Applied hardware setpoints: %s", values)
         return values
 
@@ -163,3 +180,10 @@ class ModbusRtuClient:
         result = self._client.write_register(address=address, value=value, slave=self.unit_id)
         if result.isError():
             raise ModbusWriteError(f"Modbus write error at address {hex(address)}")
+
+    def _write_setpoint_values(self, values: dict[str, float]) -> None:
+        self._write_register(TEMPERATURE_SP.address, TEMPERATURE_SP.encode(values["temperature_setpoint_c"])[0])
+        self._write_register(RAMP_RATE_SP.address, RAMP_RATE_SP.encode(values["ramp_rate_setpoint_cpm"])[0])
+        self._write_register(N2_FLOW_SP.address, N2_FLOW_SP.encode(values["n2_setpoint_lpm"])[0])
+        self._write_register(H2_FLOW_SP.address, H2_FLOW_SP.encode(values["h2_setpoint_lpm"])[0])
+        self._write_register(CO_FLOW_SP.address, CO_FLOW_SP.encode(values["co_setpoint_lpm"])[0])
