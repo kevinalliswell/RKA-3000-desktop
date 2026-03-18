@@ -44,6 +44,7 @@ python -m rka_desktop.main
 - `docs/Emma_阶段验收报告_v1.0.md`：Emma 执行引擎阶段验收结果
 - `docs/Emma_安全加固阶段验收报告_v1.0.md`：Emma 执行安全加固阶段验收结果
 - `docs/正式映射Profile_contract_v1.md`：当前正式寄存器与报警位 profile 定义
+- `docs/Leo_正式映射接入验收报告_v1.0.md`：Leo 正式映射接入验收结果
 - `docs/安装部署手册_v1.0.md`：环境安装与首次启动说明
 - `docs/环境依赖与串口配置_v1.0.md`：依赖与串口配置说明
 - `docs/联调SOP_v1.0.md`：现场联调标准流程
