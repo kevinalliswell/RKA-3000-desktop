@@ -5,6 +5,7 @@ from datetime import datetime
 
 from PySide6.QtCore import QThread, Signal
 
+from rka_desktop.core.alarm_rules import alarm_text_from_word
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
 
@@ -50,6 +51,4 @@ class AcquisitionWorker(QThread):
 
 
 def alarm_text(snapshot: DeviceSnapshot) -> str:
-    if snapshot.alarm_word == 0:
-        return "正常"
-    return f"报警字: {snapshot.alarm_word}"
+    return alarm_text_from_word(snapshot.alarm_word)
