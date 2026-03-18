@@ -35,3 +35,14 @@ python -m rka_desktop.main
 
 - 设备参数冲突项已按合同附件冻结，详见 `docs/硬件规格书_v1.0.md`。
 - 默认开启 `SIMULATION_MODE=true`，便于离线开发。
+
+## 5. Release 工作流
+
+- 仓库已配置 GitHub Actions 自动 release：`.github/workflows/release.yml`
+- 当推送形如 `v0.1.0`、`v1.0.0` 的 tag 时，工作流会安装依赖、执行 `pytest`，然后自动创建 GitHub Release
+- 也支持在 GitHub Actions 页面手动触发
+
+## 6. 协作约束
+
+- 任何分支合并都必须同步更新 README
+- README 需要反映最新的功能、工作流、开发与发布方式
