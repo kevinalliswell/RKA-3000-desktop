@@ -22,6 +22,7 @@ python -m rka_desktop.main
 - 实验数据导出（CSV / Excel）
 - SQLite 自动建库建表
 - Modbus RTU 客户端封装（支持模拟模式）
+- 通信层已开始拆分寄存器定义与设备映射，便于后续对接正式寄存器表
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
