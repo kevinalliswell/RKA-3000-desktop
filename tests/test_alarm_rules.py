@@ -6,13 +6,13 @@ def test_decode_alarm_word_returns_configured_definitions():
 
     assert [alarm.code for alarm in active] == ["ALM-0002", "ALM-0008"]
     assert has_interlock_alarm(0x000A) is True
-    assert "炉温超限" in alarm_text_from_word(0x000A)
+    assert "超压报警" in alarm_text_from_word(0x000A)
 
 
 def test_decode_alarm_word_generates_unknown_alarm_definition():
-    active = decode_alarm_word(0x0040)
+    active = decode_alarm_word(0x0100)
 
     assert len(active) == 1
-    assert active[0].code == "ALM-0040"
+    assert active[0].code == "ALM-0100"
     assert active[0].interlock is True
     assert "未定义报警位" in active[0].message

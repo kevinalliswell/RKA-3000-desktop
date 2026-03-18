@@ -63,6 +63,9 @@ def test_hardware_snapshot_uses_register_map():
             0x0021: [120],
             0x0022: [80],
             0x0050: [2],
+            0x0051: [1],
+            0x0060: [1],
+            0x0061: [0],
         }
     )
 
@@ -75,6 +78,9 @@ def test_hardware_snapshot_uses_register_map():
     assert snapshot.h2_lpm == 1.2
     assert snapshot.co_lpm == 0.8
     assert snapshot.alarm_word == 2
+    assert snapshot.interlock_word == 1
+    assert snapshot.run_control_word == 1
+    assert snapshot.estop_status == 0
 
 
 def test_hardware_read_raises_classified_error():

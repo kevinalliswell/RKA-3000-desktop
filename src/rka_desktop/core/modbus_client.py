@@ -4,15 +4,7 @@ import logging
 import random
 from typing import Optional
 
-from rka_desktop.core.device_map import (
-    CO_FLOW_SP,
-    H2_FLOW_SP,
-    N2_FLOW_SP,
-    RAMP_RATE_SP,
-    SNAPSHOT_REGISTERS,
-    TEMPERATURE_SP,
-    build_snapshot,
-)
+from rka_desktop.core.device_map import DeviceMap, get_device_map
 from rka_desktop.models.entities import DeviceSnapshot
 
 logger = logging.getLogger(__name__)
@@ -45,11 +37,13 @@ class ModbusRtuClient:
         serial_port: str,
         baudrate: int,
         unit_id: int,
+        device_map: DeviceMap | None = None,
         simulation_mode: bool = True,
     ) -> None:
         self.serial_port = serial_port
         self.baudrate = baudrate
         self.unit_id = unit_id
+        self.device_map = device_map or get_device_map()
         self.simulation_mode = simulation_mode
         self._client: Optional[object] = None
         self._sim_counter = 0
@@ -152,19 +146,22 @@ class ModbusRtuClient:
             "h2_lpm": round(1.2 + random.uniform(-0.05, 0.05), 2),
             "co_lpm": round(0.8 + random.uniform(-0.05, 0.05), 2),
             "alarm_word": alarm_word,
+            "interlock_word": 1 if alarm_word else 0,
+            "run_control_word": 1 if self.last_applied_setpoints else 0,
+            "estop_status": 0,
         }
-        return build_snapshot(values)
+        return self.device_map.build_snapshot(values)
 
     def _read_snapshot_hardware(self) -> DeviceSnapshot:
         if self._client is None:
             raise ModbusReadError("Modbus client is not connected")
 
         values = {}
-        for field in SNAPSHOT_REGISTERS:
+        for field in self.device_map.snapshot_registers:
             registers = self._read_registers(field.address, field.count)
             values[field.name] = field.decode(registers)
 
-        return build_snapshot(values)
+        return self.device_map.build_snapshot(values)
 
     def _read_registers(self, address: int, count: int) -> list[int]:
         assert self._client is not None
@@ -182,8 +179,5 @@ class ModbusRtuClient:
             raise ModbusWriteError(f"Modbus write error at address {hex(address)}")
 
     def _write_setpoint_values(self, values: dict[str, float]) -> None:
-        self._write_register(TEMPERATURE_SP.address, TEMPERATURE_SP.encode(values["temperature_setpoint_c"])[0])
-        self._write_register(RAMP_RATE_SP.address, RAMP_RATE_SP.encode(values["ramp_rate_setpoint_cpm"])[0])
-        self._write_register(N2_FLOW_SP.address, N2_FLOW_SP.encode(values["n2_setpoint_lpm"])[0])
-        self._write_register(H2_FLOW_SP.address, H2_FLOW_SP.encode(values["h2_setpoint_lpm"])[0])
-        self._write_register(CO_FLOW_SP.address, CO_FLOW_SP.encode(values["co_setpoint_lpm"])[0])
+        for field_name, field in self.device_map.setpoint_fields.items():
+            self._write_register(field.address, field.encode(values[field_name])[0])

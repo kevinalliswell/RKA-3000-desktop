@@ -50,5 +50,5 @@ class AcquisitionWorker(QThread):
         self.wait(2000)
 
 
-def alarm_text(snapshot: DeviceSnapshot) -> str:
-    return alarm_text_from_word(snapshot.alarm_word)
+def alarm_text(snapshot: DeviceSnapshot, profile_name: str = "contract_v1") -> str:
+    return alarm_text_from_word(snapshot.alarm_word, profile_name=profile_name)

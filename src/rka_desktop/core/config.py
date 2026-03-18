@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     serial_port: str = "/dev/tty.usbserial-0001"
     baudrate: int = 9600
     modbus_unit_id: int = 1
+    mapping_profile: str = "contract_v1"
     simulation_mode: bool = True
     poll_interval_ms: int = 500
     step_heatup_grace_seconds: int = 120
