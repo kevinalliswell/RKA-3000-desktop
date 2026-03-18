@@ -30,6 +30,7 @@ python -m rka_desktop.main
 - `docs/`：PRD、硬件规格、技术栈文档
 - `docs/多Agent并行开发清单_v1.0.md`：多 agent 并行开发任务拆解
 - `docs/Sprint1_任务分解与验收_v1.0.md`：Sprint 1 并行任务包与 Alex 验收标准
+- `docs/Sprint1_并行Checklist_v1.0.md`：Sprint 1 各 agent 可直接执行的 checklist
 - `src/rka_desktop/`：应用源码
 - `tests/`：测试代码
 
