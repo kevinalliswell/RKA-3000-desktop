@@ -46,3 +46,7 @@ python -m rka_desktop.main
 
 - 任何分支合并都必须同步更新 README
 - README 需要反映最新的功能、工作流、开发与发布方式
+
+## 7. 许可
+
+- 本项目为商业项目，采用保留所有权利的专有许可，详见 `LICENSE`
