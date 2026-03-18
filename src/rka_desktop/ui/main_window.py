@@ -159,6 +159,8 @@ class MainWindow(QMainWindow):
         start_update = self.engine.start()
         if not self._apply_current_step_setpoints():
             return
+        if not self._issue_run_control_command("start", "启动"):
+            return
 
         self._alarm_active_word = 0
         self.monitor_page.reset_runtime()
@@ -188,6 +190,8 @@ class MainWindow(QMainWindow):
             return
         if self.engine.state != ExperimentState.RUNNING:
             return
+        if not self._issue_run_control_command("pause", "暂停"):
+            return
 
         update = self.engine.pause()
         self.db.set_experiment_status(self.experiment_id, ExperimentState.PAUSED.value)
@@ -206,6 +210,8 @@ class MainWindow(QMainWindow):
         if self.engine.state == ExperimentState.INTERRUPTED and self.db.list_unacknowledged_alarms(self.experiment_id):
             QMessageBox.warning(self, "无法恢复", "报警已解除，但仍有未确认报警")
             return
+        if not self._issue_run_control_command("resume", "恢复"):
+            return
 
         update = self.engine.resume()
         self.db.set_experiment_status(self.experiment_id, ExperimentState.RUNNING.value)
@@ -222,6 +228,8 @@ class MainWindow(QMainWindow):
             return
 
         if QMessageBox.question(self, "确认停止", "确定停止当前实验吗？") != QMessageBox.StandardButton.Yes:
+            return
+        if not self._issue_run_control_command("stop", "停止"):
             return
 
         self._finalize_experiment_stop(
@@ -287,6 +295,8 @@ class MainWindow(QMainWindow):
             and self._alarm_active_word == 0
             and not self.db.list_unacknowledged_alarms(self.experiment_id)
         ):
+            if not self._issue_run_control_command("reset", "复位"):
+                return
             setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
             self.monitor_page.update_execution_state("报警已确认，可恢复实验", setpoints_text)
             self.btn_resume.setEnabled(True)
@@ -586,3 +596,20 @@ class MainWindow(QMainWindow):
             audit_action="EXPERIMENT_FAULT",
             log_message=f"实验故障退出，ID={self.experiment_id}" if self.experiment_id is not None else None,
         )
+
+    def _issue_run_control_command(self, command: str, action_label: str) -> bool:
+        try:
+            word = self.client.issue_run_control(command)
+            self._append_log(f"已下发运行控制命令: {action_label} ({word:#06x})")
+            return True
+        except Exception as exc:
+            self._fail_active_experiment(
+                f"运行控制命令下发失败[{action_label}]，实验已故障停止: {exc}",
+                audit_action="RUN_CONTROL_FAILED",
+                detail=(
+                    f"id={self.experiment_id},command={command},error={exc}"
+                    if self.experiment_id is not None
+                    else f"command={command},error={exc}"
+                ),
+            )
+            return False

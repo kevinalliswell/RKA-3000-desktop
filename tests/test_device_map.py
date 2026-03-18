@@ -12,3 +12,5 @@ def test_contract_v1_device_map_contains_formal_registers():
     assert 0x0061 in snapshot_addresses
     assert device_map.setpoint_fields["temperature_setpoint_c"].address == 0x0002
     assert device_map.setpoint_fields["n2_setpoint_lpm"].address == 0x0030
+    assert device_map.run_control_commands["start"] == 0x0001
+    assert device_map.run_control_commands["reset"] == 0x0010

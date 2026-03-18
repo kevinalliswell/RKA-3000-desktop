@@ -49,6 +49,8 @@ class ModbusRtuClient:
         self._sim_counter = 0
         self.last_error: ModbusClientError | None = None
         self.last_applied_setpoints: dict[str, float] | None = None
+        self.last_run_control_command: str | None = None
+        self.last_run_control_word: int = 0
 
     def connect(self) -> bool:
         self.last_error = None
@@ -133,6 +135,31 @@ class ModbusRtuClient:
         logger.info("Applied hardware setpoints: %s", values)
         return values
 
+    def issue_run_control(self, command: str) -> int:
+        if command not in self.device_map.run_control_commands:
+            raise ModbusWriteError(f"Unknown run control command: {command}")
+
+        word = int(self.device_map.run_control_commands[command])
+        if self.simulation_mode:
+            self.last_run_control_command = command
+            self.last_run_control_word = word
+            self.last_error = None
+            logger.info("Applied simulated run control command: %s (%s)", command, hex(word))
+            return word
+
+        try:
+            self._write_register(self.device_map.run_control_word_field.address, word)
+            self._write_register(self.device_map.run_control_word_field.address, 0)
+        except ModbusWriteError as exc:
+            self.last_error = exc
+            raise
+
+        self.last_run_control_command = command
+        self.last_run_control_word = word
+        self.last_error = None
+        logger.info("Applied hardware run control command: %s (%s)", command, hex(word))
+        return word
+
     def _read_snapshot_simulated(self) -> DeviceSnapshot:
         self._sim_counter += 1
         base_t = 800 + (self._sim_counter % 120) * 0.3
@@ -147,7 +174,7 @@ class ModbusRtuClient:
             "co_lpm": round(0.8 + random.uniform(-0.05, 0.05), 2),
             "alarm_word": alarm_word,
             "interlock_word": 1 if alarm_word else 0,
-            "run_control_word": 1 if self.last_applied_setpoints else 0,
+            "run_control_word": self.last_run_control_word,
             "estop_status": 0,
         }
         return self.device_map.build_snapshot(values)
