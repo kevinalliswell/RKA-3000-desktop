@@ -1,4 +1,4 @@
-from rka_desktop.core.modbus_client import ModbusConnectError, ModbusReadError, ModbusRtuClient
+from rka_desktop.core.modbus_client import ModbusConnectError, ModbusReadError, ModbusRtuClient, ModbusWriteError
 from rka_desktop.core.registers import RegisterField
 
 
@@ -12,14 +12,23 @@ class _FakeResponse:
 
 
 class _FakeSerialClient:
-    def __init__(self, register_map):
+    def __init__(self, register_map, fail_addresses=None):
         self._register_map = register_map
+        self._fail_counts = {address: 1 for address in (fail_addresses or [])}
+        self.writes = []
 
     def read_holding_registers(self, address, count, slave):
         if address not in self._register_map:
             return _FakeResponse([], is_error=True)
         registers = self._register_map[address]
         return _FakeResponse(registers[:count], is_error=False)
+
+    def write_register(self, address, value, slave):
+        self.writes.append((address, value, slave))
+        is_error = self._fail_counts.get(address, 0) > 0
+        if is_error:
+            self._fail_counts[address] -= 1
+        return _FakeResponse([], is_error=is_error)
 
     def close(self):
         return None
@@ -88,3 +97,83 @@ def test_connect_sets_classified_error_when_driver_missing(monkeypatch):
 
     assert client.connect() is False
     assert isinstance(client.last_error, ModbusConnectError)
+
+
+def test_register_field_encodes_scaled_u16():
+    field = RegisterField(name="temperature_setpoint_c", address=0x0002, scale=10.0)
+    assert field.encode(915.0) == [9150]
+
+
+def test_simulation_mode_applies_setpoints():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    applied = client.apply_setpoints(
+        temperature_c=900.0,
+        ramp_rate_cpm=10.0,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+    )
+
+    assert applied["temperature_setpoint_c"] == 900.0
+    assert client.last_applied_setpoints == applied
+
+
+def test_hardware_mode_applies_setpoints_to_registers():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=3, simulation_mode=False)
+    fake = _FakeSerialClient({})
+    client._client = fake
+
+    client.apply_setpoints(
+        temperature_c=900.0,
+        ramp_rate_cpm=10.0,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+    )
+
+    assert fake.writes == [
+        (0x0002, 9000, 3),
+        (0x0003, 100, 3),
+        (0x0030, 400, 3),
+        (0x0031, 100, 3),
+        (0x0032, 50, 3),
+    ]
+
+
+def test_hardware_mode_rolls_back_previous_setpoints_on_write_failure():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=3, simulation_mode=False)
+    fake = _FakeSerialClient({}, fail_addresses={0x0031})
+    client._client = fake
+    client.last_applied_setpoints = {
+        "temperature_setpoint_c": 850.0,
+        "ramp_rate_setpoint_cpm": 8.0,
+        "n2_setpoint_lpm": 3.5,
+        "h2_setpoint_lpm": 0.8,
+        "co_setpoint_lpm": 0.3,
+    }
+
+    try:
+        client.apply_setpoints(
+            temperature_c=900.0,
+            ramp_rate_cpm=10.0,
+            n2_lpm=4.0,
+            h2_lpm=1.0,
+            co_lpm=0.5,
+        )
+    except ModbusWriteError as exc:
+        assert "rollback applied" in str(exc)
+    else:
+        assert False, "expected ModbusWriteError"
+
+    assert client.last_applied_setpoints["temperature_setpoint_c"] == 850.0
+    assert fake.writes == [
+        (0x0002, 9000, 3),
+        (0x0003, 100, 3),
+        (0x0030, 400, 3),
+        (0x0031, 100, 3),
+        (0x0002, 8500, 3),
+        (0x0003, 80, 3),
+        (0x0030, 350, 3),
+        (0x0031, 80, 3),
+        (0x0032, 30, 3),
+    ]

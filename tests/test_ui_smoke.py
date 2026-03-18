@@ -25,7 +25,8 @@ def test_main_window_smoke(tmp_path):
     assert window.tabs.count() == 4
     assert window.recipe_page.recipe_table.columnCount() == 8
     assert window.alarm_page.btn_ack_alarm.isEnabled() is False
+    assert window.btn_pause.isEnabled() is False
+    assert window.btn_resume.isEnabled() is False
 
     window.close()
     app.quit()
-

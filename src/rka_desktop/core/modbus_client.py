@@ -4,7 +4,15 @@ import logging
 import random
 from typing import Optional
 
-from rka_desktop.core.device_map import SNAPSHOT_REGISTERS, build_snapshot
+from rka_desktop.core.device_map import (
+    CO_FLOW_SP,
+    H2_FLOW_SP,
+    N2_FLOW_SP,
+    RAMP_RATE_SP,
+    SNAPSHOT_REGISTERS,
+    TEMPERATURE_SP,
+    build_snapshot,
+)
 from rka_desktop.models.entities import DeviceSnapshot
 
 logger = logging.getLogger(__name__)
@@ -27,6 +35,10 @@ class ModbusReadError(ModbusClientError):
     pass
 
 
+class ModbusWriteError(ModbusClientError):
+    pass
+
+
 class ModbusRtuClient:
     def __init__(
         self,
@@ -42,6 +54,7 @@ class ModbusRtuClient:
         self._client: Optional[object] = None
         self._sim_counter = 0
         self.last_error: ModbusClientError | None = None
+        self.last_applied_setpoints: dict[str, float] | None = None
 
     def connect(self) -> bool:
         self.last_error = None
@@ -78,6 +91,54 @@ class ModbusRtuClient:
             return self._read_snapshot_simulated()
         return self._read_snapshot_hardware()
 
+    def apply_setpoints(
+        self,
+        *,
+        temperature_c: float,
+        ramp_rate_cpm: float,
+        n2_lpm: float,
+        h2_lpm: float,
+        co_lpm: float,
+    ) -> dict[str, float]:
+        values = {
+            "temperature_setpoint_c": float(temperature_c),
+            "ramp_rate_setpoint_cpm": float(ramp_rate_cpm),
+            "n2_setpoint_lpm": float(n2_lpm),
+            "h2_setpoint_lpm": float(h2_lpm),
+            "co_setpoint_lpm": float(co_lpm),
+        }
+
+        if self.simulation_mode:
+            self.last_applied_setpoints = values
+            self.last_error = None
+            logger.info("Applied simulated setpoints: %s", values)
+            return values
+
+        previous_values = dict(self.last_applied_setpoints) if self.last_applied_setpoints is not None else None
+        try:
+            self._write_setpoint_values(values)
+        except ModbusWriteError as exc:
+            rollback_error: ModbusWriteError | None = None
+            if previous_values is not None:
+                try:
+                    self._write_setpoint_values(previous_values)
+                    logger.warning("Setpoint write failed, rolled back to previous values")
+                except ModbusWriteError as rollback_exc:
+                    rollback_error = rollback_exc
+
+            if rollback_error is not None:
+                self.last_error = ModbusWriteError(f"{exc}; rollback failed: {rollback_error}")
+            elif previous_values is not None:
+                self.last_error = ModbusWriteError(f"{exc}; rollback applied")
+            else:
+                self.last_error = exc
+            raise self.last_error from exc
+
+        self.last_applied_setpoints = values
+        self.last_error = None
+        logger.info("Applied hardware setpoints: %s", values)
+        return values
+
     def _read_snapshot_simulated(self) -> DeviceSnapshot:
         self._sim_counter += 1
         base_t = 800 + (self._sim_counter % 120) * 0.3
@@ -111,3 +172,18 @@ class ModbusRtuClient:
         if result.isError():
             raise ModbusReadError(f"Modbus read error at address {hex(address)}")
         return [int(register) for register in result.registers]
+
+    def _write_register(self, address: int, value: int) -> None:
+        if self._client is None:
+            raise ModbusWriteError("Modbus client is not connected")
+
+        result = self._client.write_register(address=address, value=value, slave=self.unit_id)
+        if result.isError():
+            raise ModbusWriteError(f"Modbus write error at address {hex(address)}")
+
+    def _write_setpoint_values(self, values: dict[str, float]) -> None:
+        self._write_register(TEMPERATURE_SP.address, TEMPERATURE_SP.encode(values["temperature_setpoint_c"])[0])
+        self._write_register(RAMP_RATE_SP.address, RAMP_RATE_SP.encode(values["ramp_rate_setpoint_cpm"])[0])
+        self._write_register(N2_FLOW_SP.address, N2_FLOW_SP.encode(values["n2_setpoint_lpm"])[0])
+        self._write_register(H2_FLOW_SP.address, H2_FLOW_SP.encode(values["h2_setpoint_lpm"])[0])
+        self._write_register(CO_FLOW_SP.address, CO_FLOW_SP.encode(values["co_setpoint_lpm"])[0])

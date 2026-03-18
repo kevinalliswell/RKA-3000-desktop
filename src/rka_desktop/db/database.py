@@ -119,15 +119,25 @@ class DatabaseManager:
             conn.commit()
             return int(cursor.lastrowid)
 
-    def finish_experiment(self, experiment_id: int) -> None:
+    def finish_experiment(self, experiment_id: int, status: str = "FINISHED") -> None:
         sql = """
         UPDATE experiments
-        SET status = 'FINISHED', finished_at = ?
+        SET status = ?, finished_at = ?
         WHERE id = ?
         """
         now = datetime.now().isoformat()
         with self._lock, self._connect() as conn:
-            conn.execute(sql, (now, experiment_id))
+            conn.execute(sql, (status, now, experiment_id))
+            conn.commit()
+
+    def set_experiment_status(self, experiment_id: int, status: str) -> None:
+        sql = """
+        UPDATE experiments
+        SET status = ?
+        WHERE id = ?
+        """
+        with self._lock, self._connect() as conn:
+            conn.execute(sql, (status, experiment_id))
             conn.commit()
 
     def get_latest_experiment_id(self) -> int | None:

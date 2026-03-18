@@ -116,3 +116,18 @@ def test_history_queries_and_schema_version(tmp_path):
     assert summary["sample_count"] == 1
     assert alarms[0]["code"] == "ALM-1001"
     assert logs[0]["action"] == "EXP_START"
+
+
+def test_finish_experiment_can_persist_terminal_status(tmp_path):
+    db_file = tmp_path / "terminal_status.db"
+    db = DatabaseManager(db_file)
+    db.init_schema()
+
+    exp_id = db.create_experiment("fault-exp")
+    db.finish_experiment(exp_id, status="FAULTED")
+
+    detail = db.get_experiment_detail(exp_id)
+
+    assert detail is not None
+    assert detail["status"] == "FAULTED"
+    assert detail["finished_at"] is not None

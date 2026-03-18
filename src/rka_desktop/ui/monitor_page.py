@@ -38,12 +38,16 @@ class MonitorPage(QWidget):
         self.lbl_pressure = QLabel("压力: -- MPa")
         self.lbl_flow = QLabel("流量 N2/H2/CO: --/--/-- L/min")
         self.lbl_alarm = QLabel("状态: 未连接")
+        self.lbl_execution = QLabel("执行状态: 未启动")
+        self.lbl_setpoints = QLabel("步骤设定: --")
 
         metrics.addWidget(self.lbl_temp, 0, 0)
         metrics.addWidget(self.lbl_weight, 0, 1)
         metrics.addWidget(self.lbl_pressure, 1, 0)
         metrics.addWidget(self.lbl_flow, 1, 1)
         metrics.addWidget(self.lbl_alarm, 2, 0, 1, 2)
+        metrics.addWidget(self.lbl_execution, 3, 0, 1, 2)
+        metrics.addWidget(self.lbl_setpoints, 4, 0, 1, 2)
         layout.addLayout(metrics)
 
         if CHARTS_AVAILABLE:
@@ -106,6 +110,10 @@ class MonitorPage(QWidget):
         self.lbl_alarm.setText("状态: 已连接")
         self.lbl_alarm.setStyleSheet("")
 
+    def update_execution_state(self, text: str, setpoints: str) -> None:
+        self.lbl_execution.setText(f"执行状态: {text}")
+        self.lbl_setpoints.setText(f"步骤设定: {setpoints}")
+
     def update_snapshot(self, snapshot: DeviceSnapshot) -> None:
         self.lbl_temp.setText(f"温度: {snapshot.temperature_c:.2f} ℃")
         self.lbl_weight.setText(f"重量: {snapshot.weight_g:.3f} g")
@@ -157,4 +165,3 @@ class MonitorPage(QWidget):
             self.table.setItem(row, 4, QTableWidgetItem(f"{measurement.n2_lpm:.2f}"))
             self.table.setItem(row, 5, QTableWidgetItem(f"{measurement.h2_lpm:.2f}"))
             self.table.setItem(row, 6, QTableWidgetItem(f"{measurement.co_lpm:.2f}"))
-
