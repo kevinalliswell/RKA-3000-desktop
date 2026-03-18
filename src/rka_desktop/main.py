@@ -5,6 +5,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from rka_desktop.core.config import Settings
+from rka_desktop.core.device_map import get_device_map
 from rka_desktop.core.logging_config import setup_logging
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.db.database import DatabaseManager
@@ -22,6 +23,7 @@ def main() -> int:
         serial_port=settings.serial_port,
         baudrate=settings.baudrate,
         unit_id=settings.modbus_unit_id,
+        device_map=get_device_map(settings.mapping_profile),
         simulation_mode=settings.simulation_mode,
     )
 

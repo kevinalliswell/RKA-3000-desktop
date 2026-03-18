@@ -23,3 +23,6 @@ class DeviceSnapshot:
     h2_lpm: float
     co_lpm: float
     alarm_word: int
+    interlock_word: int = 0
+    run_control_word: int = 0
+    estop_status: int = 0

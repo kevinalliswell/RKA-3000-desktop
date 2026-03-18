@@ -391,11 +391,11 @@ class MainWindow(QMainWindow):
         )
 
     def _handle_alarm(self, snapshot: DeviceSnapshot) -> None:
-        alarm_msg = alarm_text(snapshot)
+        alarm_msg = alarm_text(snapshot, profile_name=self.settings.mapping_profile)
         self.alarm_page.set_current_alarm(f"当前报警: {alarm_msg}")
 
         if snapshot.alarm_word != 0:
-            active_alarms = decode_alarm_word(snapshot.alarm_word)
+            active_alarms = decode_alarm_word(snapshot.alarm_word, profile_name=self.settings.mapping_profile)
             self.monitor_page.update_alarm_text(f"状态: {alarm_msg}", "color: #b71c1c; font-weight: bold;")
             self.alarm_page.btn_ack_alarm.setEnabled(True)
             if snapshot.alarm_word != self._alarm_active_word:
@@ -414,7 +414,7 @@ class MainWindow(QMainWindow):
                 self.engine is not None
                 and self.experiment_id is not None
                 and self.engine.state == ExperimentState.RUNNING
-                and has_interlock_alarm(snapshot.alarm_word)
+                and has_interlock_alarm(snapshot.alarm_word, profile_name=self.settings.mapping_profile)
             ):
                 update = self.engine.interrupt()
                 self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
