@@ -22,6 +22,7 @@ python -m rka_desktop.main
 - 实验数据导出（CSV / Excel）
 - SQLite 自动建库建表
 - Modbus RTU 客户端封装（支持模拟模式）
+- UI 已拆分为配方、监控、报警、设置四个页面，主窗口只负责流程编排
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
