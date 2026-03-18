@@ -14,12 +14,17 @@ class _FakeResponse:
 class _FakeSerialClient:
     def __init__(self, register_map):
         self._register_map = register_map
+        self.writes = []
 
     def read_holding_registers(self, address, count, slave):
         if address not in self._register_map:
             return _FakeResponse([], is_error=True)
         registers = self._register_map[address]
         return _FakeResponse(registers[:count], is_error=False)
+
+    def write_register(self, address, value, slave):
+        self.writes.append((address, value, slave))
+        return _FakeResponse([], is_error=False)
 
     def close(self):
         return None
@@ -88,3 +93,44 @@ def test_connect_sets_classified_error_when_driver_missing(monkeypatch):
 
     assert client.connect() is False
     assert isinstance(client.last_error, ModbusConnectError)
+
+
+def test_register_field_encodes_scaled_u16():
+    field = RegisterField(name="temperature_setpoint_c", address=0x0002, scale=10.0)
+    assert field.encode(915.0) == [9150]
+
+
+def test_simulation_mode_applies_setpoints():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    applied = client.apply_setpoints(
+        temperature_c=900.0,
+        ramp_rate_cpm=10.0,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+    )
+
+    assert applied["temperature_setpoint_c"] == 900.0
+    assert client.last_applied_setpoints == applied
+
+
+def test_hardware_mode_applies_setpoints_to_registers():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=3, simulation_mode=False)
+    fake = _FakeSerialClient({})
+    client._client = fake
+
+    client.apply_setpoints(
+        temperature_c=900.0,
+        ramp_rate_cpm=10.0,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+    )
+
+    assert fake.writes == [
+        (0x0002, 9000, 3),
+        (0x0003, 100, 3),
+        (0x0030, 400, 3),
+        (0x0031, 100, 3),
+        (0x0032, 50, 3),
+    ]

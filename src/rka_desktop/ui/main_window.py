@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
         self.experiment_id = self.db.create_experiment(name=f"实验-{recipe_name}", recipe_id=int(recipe_id))
         self.engine = ExperimentEngine(build_recipe_runtime(recipe_steps))
         start_update = self.engine.start()
+        self._apply_current_step_setpoints()
 
         self._alarm_active_word = 0
         self.monitor_page.reset_runtime()
@@ -195,6 +196,7 @@ class MainWindow(QMainWindow):
         update = self.engine.resume()
         self.db.set_experiment_status(self.experiment_id, ExperimentState.RUNNING.value)
         self.db.log_action("operator", "EXPERIMENT_RESUME", f"id={self.experiment_id}")
+        self._apply_current_step_setpoints()
         self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
         self._append_log(update.status_text)
         self.btn_pause.setEnabled(True)
@@ -310,6 +312,7 @@ class MainWindow(QMainWindow):
             update = self.engine.on_measurement(measurement)
             self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
             if update.step_changed:
+                self._apply_current_step_setpoints()
                 self._append_log(update.status_text)
             if update.completed:
                 self._append_log("执行引擎判定实验完成")
@@ -434,3 +437,25 @@ class MainWindow(QMainWindow):
     def _append_log(self, text: str) -> None:
         logger.info(text)
         self.monitor_page.append_log(text)
+
+    def _apply_current_step_setpoints(self) -> None:
+        if self.engine is None or self.engine.current_step is None:
+            return
+
+        step = self.engine.current_step
+        try:
+            applied = self.client.apply_setpoints(
+                temperature_c=step.target_temp_c,
+                ramp_rate_cpm=step.ramp_rate_cpm,
+                n2_lpm=step.n2_lpm,
+                h2_lpm=step.h2_lpm,
+                co_lpm=step.co_lpm,
+            )
+            self._append_log(
+                "已下发步骤设定: "
+                f"T={applied['temperature_setpoint_c']:.1f}℃, "
+                f"Ramp={applied['ramp_rate_setpoint_cpm']:.1f}℃/min, "
+                f"N2/H2/CO={applied['n2_setpoint_lpm']:.1f}/{applied['h2_setpoint_lpm']:.1f}/{applied['co_setpoint_lpm']:.1f}"
+            )
+        except Exception as exc:
+            self._append_log(f"步骤设定下发失败: {exc}")

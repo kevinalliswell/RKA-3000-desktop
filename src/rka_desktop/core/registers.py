@@ -31,3 +31,19 @@ class RegisterField:
 
         return raw / self.scale
 
+    def encode(self, value: float) -> list[int]:
+        raw = int(round(value * self.scale))
+
+        if self.count == 1:
+            if self.signed and raw < 0:
+                raw = (1 << 16) + raw
+            return [raw & 0xFFFF]
+
+        bit_width = self.count * 16
+        if self.signed and raw < 0:
+            raw = (1 << bit_width) + raw
+
+        registers: list[int] = []
+        for shift in range(self.count - 1, -1, -1):
+            registers.append((raw >> (shift * 16)) & 0xFFFF)
+        return registers
