@@ -38,3 +38,29 @@ def test_export_csv_and_excel(tmp_path):
 
     assert csv_path.exists()
     assert xlsx_path.exists()
+
+
+def test_export_summary_csv(tmp_path):
+    db_file = tmp_path / "summary.db"
+    db = DatabaseManager(db_file)
+    db.init_schema()
+
+    exp_id = db.create_experiment("exp-summary")
+    db.insert_measurement(
+        Measurement(
+            experiment_id=exp_id,
+            sampled_at=datetime.now(),
+            temperature_c=900.0,
+            weight_g=80.0,
+            pressure_mpa=0.02,
+            n2_lpm=4.0,
+            h2_lpm=1.1,
+            co_lpm=0.6,
+        )
+    )
+
+    service = ExportService(db)
+    summary_path = tmp_path / "summary.csv"
+    service.export_experiment_summary_csv(exp_id, summary_path)
+
+    assert summary_path.exists()

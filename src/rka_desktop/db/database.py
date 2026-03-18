@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from rka_desktop.db.migrations import apply_migrations, get_schema_version
 from rka_desktop.models.entities import Measurement
 
 
@@ -98,6 +99,7 @@ class DatabaseManager:
             conn.executescript(ddl)
             self._ensure_column(conn, "experiments", "recipe_id", "INTEGER")
             self._ensure_column(conn, "alarms", "acknowledged_by", "TEXT")
+            apply_migrations(conn)
             conn.commit()
 
     def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, col_type: str) -> None:
@@ -134,6 +136,10 @@ class DatabaseManager:
             row = conn.execute(sql).fetchone()
             return int(row["id"]) if row else None
 
+    def get_schema_version(self) -> int:
+        with self._lock, self._connect() as conn:
+            return get_schema_version(conn)
+
     def insert_measurement(self, m: Measurement) -> None:
         sql = """
         INSERT INTO measurements(
@@ -167,6 +173,48 @@ class DatabaseManager:
         with self._lock, self._connect() as conn:
             rows = conn.execute(sql, (experiment_id,)).fetchall()
             return [dict(row) for row in rows]
+
+    def list_experiments(self, limit: int = 100) -> list[dict[str, Any]]:
+        sql = """
+        SELECT e.id, e.name, e.status, e.recipe_id, e.started_at, e.finished_at, r.name AS recipe_name
+        FROM experiments e
+        LEFT JOIN recipes r ON r.id = e.recipe_id
+        ORDER BY e.id DESC
+        LIMIT ?
+        """
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(sql, (limit,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_experiment_detail(self, experiment_id: int) -> dict[str, Any] | None:
+        sql = """
+        SELECT e.id, e.name, e.status, e.recipe_id, e.started_at, e.finished_at, r.name AS recipe_name
+        FROM experiments e
+        LEFT JOIN recipes r ON r.id = e.recipe_id
+        WHERE e.id = ?
+        """
+        with self._lock, self._connect() as conn:
+            row = conn.execute(sql, (experiment_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_experiment_summary(self, experiment_id: int) -> dict[str, Any] | None:
+        sql = """
+        SELECT
+            experiment_id,
+            COUNT(*) AS sample_count,
+            MIN(sampled_at) AS first_sampled_at,
+            MAX(sampled_at) AS last_sampled_at,
+            MIN(temperature_c) AS min_temperature_c,
+            MAX(temperature_c) AS max_temperature_c,
+            MIN(weight_g) AS min_weight_g,
+            MAX(weight_g) AS max_weight_g
+        FROM measurements
+        WHERE experiment_id = ?
+        GROUP BY experiment_id
+        """
+        with self._lock, self._connect() as conn:
+            row = conn.execute(sql, (experiment_id,)).fetchone()
+            return dict(row) if row else None
 
     def create_recipe(self, name: str, steps: list[dict[str, Any]]) -> int:
         now = datetime.now().isoformat()
@@ -278,9 +326,40 @@ class DatabaseManager:
             rows = conn.execute(sql, (experiment_id,)).fetchall()
             return [dict(row) for row in rows]
 
+    def list_alarm_history(self, experiment_id: int | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        sql = """
+        SELECT id, experiment_id, code, level, message, created_at, acknowledged_at, acknowledged_by
+        FROM alarms
+        {where_clause}
+        ORDER BY id DESC
+        LIMIT ?
+        """
+        params: tuple[Any, ...]
+        if experiment_id is None:
+            params = (limit,)
+            final_sql = sql.format(where_clause="")
+        else:
+            params = (experiment_id, limit)
+            final_sql = sql.format(where_clause="WHERE experiment_id = ?")
+
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(final_sql, params).fetchall()
+            return [dict(row) for row in rows]
+
     def log_action(self, actor: str, action: str, detail: str = "") -> None:
         sql = "INSERT INTO audit_logs(actor, action, detail, created_at) VALUES(?, ?, ?, ?)"
         now = datetime.now().isoformat()
         with self._lock, self._connect() as conn:
             conn.execute(sql, (actor, action, detail, now))
             conn.commit()
+
+    def list_audit_logs(self, limit: int = 100) -> list[dict[str, Any]]:
+        sql = """
+        SELECT id, actor, action, detail, created_at
+        FROM audit_logs
+        ORDER BY id DESC
+        LIMIT ?
+        """
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(sql, (limit,)).fetchall()
+            return [dict(row) for row in rows]
