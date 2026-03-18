@@ -13,3 +13,6 @@ __pycache__/
 logs/
 exports/
 data/*.db
+build/
+dist/
+*.spec
