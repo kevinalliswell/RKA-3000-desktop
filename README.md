@@ -28,6 +28,7 @@ python -m rka_desktop.main
 ## 3. 目录
 
 - `docs/`：PRD、硬件规格、技术栈文档
+- `docs/多Agent并行开发清单_v1.0.md`：多 agent 并行开发任务拆解
 - `src/rka_desktop/`：应用源码
 - `tests/`：测试代码
 
@@ -47,6 +48,12 @@ python -m rka_desktop.main
 - 任何分支合并都必须同步更新 README
 - README 需要反映最新的功能、工作流、开发与发布方式
 
-## 7. 许可
+## 7. 多 Agent 协作
+
+- 主控 Agent：`Alex`，由 Codex 负责任务分解、集成协调和验收
+- 模块 Agent：`Leo`（通信）、`Emma`（执行引擎）、`Mia`（UI）、`Ryan`（数据）、`Lily`（测试 CI）、`Owen`（文档交付）
+- 详细拆分见 `docs/多Agent并行开发清单_v1.0.md`
+
+## 8. 许可
 
 - 本项目为商业项目，采用保留所有权利的专有许可，详见 `LICENSE`
