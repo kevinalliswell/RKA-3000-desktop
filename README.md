@@ -53,8 +53,11 @@ python -m rka_desktop.main
 
 ## 5. Release 工作流
 
+- 仓库已配置 GitHub Actions CI：`.github/workflows/ci.yml`
 - 仓库已配置 GitHub Actions 自动 release：`.github/workflows/release.yml`
+- PR 和 `main` push 会自动执行测试与编译检查
 - 当推送形如 `v0.1.0`、`v1.0.0` 的 tag 时，工作流会安装依赖、执行 `pytest`，然后自动创建 GitHub Release
+- release 前会校验 git tag 版本与 `pyproject.toml` 中的版本号一致
 - 也支持在 GitHub Actions 页面手动触发
 
 ## 6. 协作约束

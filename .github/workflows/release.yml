@@ -27,6 +27,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Verify tag matches pyproject version
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: python scripts/checks/verify_tag_version.py
+
       - name: Run tests
         run: pytest -q
 
