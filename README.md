@@ -39,6 +39,7 @@ python -m rka_desktop.main
 - `docs/Sprint1_任务分解与验收_v1.0.md`：Sprint 1 并行任务包与 Alex 验收标准
 - `docs/Sprint1_并行Checklist_v1.0.md`：Sprint 1 各 agent 可直接执行的 checklist
 - `docs/Sprint1_阶段验收报告_v1.0.md`：Sprint 1 阶段验收结果与下一阶段建议
+- `docs/Emma_阶段验收报告_v1.0.md`：Emma 执行引擎阶段验收结果
 - `docs/安装部署手册_v1.0.md`：环境安装与首次启动说明
 - `docs/环境依赖与串口配置_v1.0.md`：依赖与串口配置说明
 - `docs/联调SOP_v1.0.md`：现场联调标准流程
