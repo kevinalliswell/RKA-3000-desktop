@@ -130,6 +130,16 @@ class DatabaseManager:
             conn.execute(sql, (now, experiment_id))
             conn.commit()
 
+    def set_experiment_status(self, experiment_id: int, status: str) -> None:
+        sql = """
+        UPDATE experiments
+        SET status = ?
+        WHERE id = ?
+        """
+        with self._lock, self._connect() as conn:
+            conn.execute(sql, (status, experiment_id))
+            conn.commit()
+
     def get_latest_experiment_id(self) -> int | None:
         sql = "SELECT id FROM experiments ORDER BY id DESC LIMIT 1"
         with self._lock, self._connect() as conn:
