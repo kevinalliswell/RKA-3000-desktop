@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
+from dataclasses import dataclass
 from typing import Optional
 
 from rka_desktop.core.device_map import DeviceMap, get_device_map
@@ -31,6 +32,15 @@ class ModbusWriteError(ModbusClientError):
     pass
 
 
+@dataclass(frozen=True)
+class RunControlFeedbackStatus:
+    command: str | None
+    expected_word: int
+    feedback_word: int
+    is_consistent: bool
+    message: str
+
+
 class ModbusRtuClient:
     def __init__(
         self,
@@ -52,6 +62,8 @@ class ModbusRtuClient:
         self.last_applied_setpoints: dict[str, float] | None = None
         self.last_run_control_command: str | None = None
         self.last_run_control_word: int = 0
+        self._sim_run_control_echo_word: int = 0
+        self._sim_run_control_echo_reads: int = 0
 
     def connect(self) -> bool:
         self.last_error = None
@@ -146,6 +158,8 @@ class ModbusRtuClient:
                 self._sim_interlock_word = 0
             self.last_run_control_command = command
             self.last_run_control_word = word
+            self._sim_run_control_echo_word = word
+            self._sim_run_control_echo_reads = 1
             self.last_error = None
             logger.info("Applied simulated run control command: %s (%s)", command, hex(word))
             return word
@@ -163,6 +177,53 @@ class ModbusRtuClient:
         logger.info("Applied hardware run control command: %s (%s)", command, hex(word))
         return word
 
+    def evaluate_run_control_feedback(self, feedback_word: int) -> RunControlFeedbackStatus:
+        if self.last_run_control_command is None:
+            if feedback_word == 0:
+                return RunControlFeedbackStatus(
+                    command=None,
+                    expected_word=0,
+                    feedback_word=feedback_word,
+                    is_consistent=True,
+                    message="控制反馈: 空闲",
+                )
+            return RunControlFeedbackStatus(
+                command=None,
+                expected_word=0,
+                feedback_word=feedback_word,
+                is_consistent=False,
+                message=f"控制反馈: 收到未请求字 0x{feedback_word:04X}",
+            )
+
+        expected_word = int(self.device_map.run_control_commands[self.last_run_control_command])
+        if feedback_word == expected_word:
+            return RunControlFeedbackStatus(
+                command=self.last_run_control_command,
+                expected_word=expected_word,
+                feedback_word=feedback_word,
+                is_consistent=True,
+                message=f"控制反馈: {self.last_run_control_command} 回显 0x{feedback_word:04X}",
+            )
+        if feedback_word == 0:
+            return RunControlFeedbackStatus(
+                command=self.last_run_control_command,
+                expected_word=expected_word,
+                feedback_word=feedback_word,
+                is_consistent=True,
+                message=f"控制反馈: {self.last_run_control_command} 脉冲已释放",
+            )
+        return RunControlFeedbackStatus(
+            command=self.last_run_control_command,
+            expected_word=expected_word,
+            feedback_word=feedback_word,
+            is_consistent=False,
+            message=(
+                "控制反馈: 不一致，"
+                f"期望 0x{expected_word:04X} 或 0x0000，"
+                f"实际 0x{feedback_word:04X}"
+            ),
+        )
+
     def _read_snapshot_simulated(self) -> DeviceSnapshot:
         self._sim_counter += 1
         base_t = 800 + (self._sim_counter % 120) * 0.3
@@ -170,6 +231,10 @@ class ModbusRtuClient:
         alarm_word = 0x0002 if 120 <= (self._sim_counter % 180) <= 135 else 0
         if alarm_word:
             self._sim_interlock_word |= alarm_word
+        run_control_word = self._sim_run_control_echo_word if self._sim_run_control_echo_reads > 0 else 0
+        if self._sim_run_control_echo_reads > 0:
+            self._sim_run_control_echo_reads -= 1
+
         values = {
             "temperature_c": round(base_t + random.uniform(-0.8, 0.8), 2),
             "weight_g": round(max(base_w, 10.0), 3),
@@ -179,7 +244,7 @@ class ModbusRtuClient:
             "co_lpm": round(0.8 + random.uniform(-0.05, 0.05), 2),
             "alarm_word": alarm_word,
             "interlock_word": self._sim_interlock_word,
-            "run_control_word": self.last_run_control_word,
+            "run_control_word": run_control_word,
             "estop_status": 1 if self._sim_interlock_word & 0x0010 else 0,
         }
         return self.device_map.build_snapshot(values)

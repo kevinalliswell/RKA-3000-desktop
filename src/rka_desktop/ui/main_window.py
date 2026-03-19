@@ -53,6 +53,7 @@ class MainWindow(QMainWindow):
         self._alarm_active_word = 0
         self._interlock_active_word = 0
         self._estop_active = False
+        self._run_control_feedback_inconsistent = False
 
         self.setWindowTitle(f"{settings.app_name} - v1.1")
         self.resize(1380, 840)
@@ -174,6 +175,7 @@ class MainWindow(QMainWindow):
         self._alarm_active_word = 0
         self._interlock_active_word = 0
         self._estop_active = False
+        self._run_control_feedback_inconsistent = False
         self.monitor_page.reset_runtime()
         self.monitor_page.update_execution_state(start_update.status_text, start_update.active_setpoints_text)
         self.alarm_page.set_current_alarm("当前报警: 无")
@@ -292,6 +294,7 @@ class MainWindow(QMainWindow):
         self.alarm_page.set_current_interlock("当前联锁: 无联锁")
         self._interlock_active_word = 0
         self._estop_active = False
+        self._run_control_feedback_inconsistent = False
 
     def acknowledge_alarm(self) -> None:
         if self.experiment_id is None:
@@ -398,7 +401,15 @@ class MainWindow(QMainWindow):
         snapshot, measurement = payload
 
         self.monitor_page.update_snapshot(snapshot)
-        self.monitor_page.update_control_state(snapshot.run_control_word, snapshot.estop_status)
+        feedback = self.client.evaluate_run_control_feedback(snapshot.run_control_word)
+        feedback_style = "color: #1b5e20;" if feedback.is_consistent else "color: #b71c1c; font-weight: bold;"
+        self.monitor_page.update_control_state(
+            snapshot.run_control_word,
+            snapshot.estop_status,
+            feedback.message,
+            feedback_style,
+        )
+        self._handle_run_control_feedback(feedback.message, feedback.is_consistent)
         self.monitor_page.push_measurement(measurement)
         self.monitor_page.update_chart(snapshot)
         self._handle_alarm(snapshot)
@@ -515,6 +526,27 @@ class MainWindow(QMainWindow):
         self.alarm_page.set_pending_alarms(unacked)
         self.alarm_page.btn_ack_alarm.setEnabled(bool(unacked))
         self.alarm_page.btn_reset_interlock.setEnabled(False)
+
+    def _handle_run_control_feedback(self, feedback_message: str, is_consistent: bool) -> None:
+        if is_consistent:
+            if self._run_control_feedback_inconsistent:
+                self._append_log("运行控制反馈已恢复一致")
+                if self.experiment_id is not None:
+                    self.db.log_action("system", "RUN_CONTROL_FEEDBACK_RESTORED", f"id={self.experiment_id}")
+            self._run_control_feedback_inconsistent = False
+            return
+
+        if self._run_control_feedback_inconsistent:
+            return
+
+        self._run_control_feedback_inconsistent = True
+        self._append_log(feedback_message)
+        if self.experiment_id is not None:
+            self.db.log_action(
+                "system",
+                "RUN_CONTROL_FEEDBACK_MISMATCH",
+                f"id={self.experiment_id},detail={feedback_message}",
+            )
 
     def _interrupt_experiment(self, detail: str) -> None:
         if self.engine is None or self.experiment_id is None:
