@@ -33,6 +33,7 @@ python -m rka_desktop.main
 - 执行保护已补充步骤升温超时、步骤总超时、采集异常故障停机，以及报警字典/等级/联锁配置
 - 已接入 `contract_v1` 映射 profile，寄存器表和报警位定义可按 profile 切换
 - `0x0060` 运行控制字 MVP 已接通，支持 start/stop/pause/resume/reset 脉冲下发
+- Sprint 2 已开始接入 `0x0051` 联锁状态字展示、联锁复位按钮和恢复前置条件闭环
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 

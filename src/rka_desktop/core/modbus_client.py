@@ -47,6 +47,7 @@ class ModbusRtuClient:
         self.simulation_mode = simulation_mode
         self._client: Optional[object] = None
         self._sim_counter = 0
+        self._sim_interlock_word = 0
         self.last_error: ModbusClientError | None = None
         self.last_applied_setpoints: dict[str, float] | None = None
         self.last_run_control_command: str | None = None
@@ -141,6 +142,8 @@ class ModbusRtuClient:
 
         word = int(self.device_map.run_control_commands[command])
         if self.simulation_mode:
+            if command == "reset" and self._sim_counter % 180 not in range(120, 136):
+                self._sim_interlock_word = 0
             self.last_run_control_command = command
             self.last_run_control_word = word
             self.last_error = None
@@ -165,6 +168,8 @@ class ModbusRtuClient:
         base_t = 800 + (self._sim_counter % 120) * 0.3
         base_w = 95 - (self._sim_counter % 500) * 0.01
         alarm_word = 0x0002 if 120 <= (self._sim_counter % 180) <= 135 else 0
+        if alarm_word:
+            self._sim_interlock_word |= alarm_word
         values = {
             "temperature_c": round(base_t + random.uniform(-0.8, 0.8), 2),
             "weight_g": round(max(base_w, 10.0), 3),
@@ -173,9 +178,9 @@ class ModbusRtuClient:
             "h2_lpm": round(1.2 + random.uniform(-0.05, 0.05), 2),
             "co_lpm": round(0.8 + random.uniform(-0.05, 0.05), 2),
             "alarm_word": alarm_word,
-            "interlock_word": 1 if alarm_word else 0,
+            "interlock_word": self._sim_interlock_word,
             "run_control_word": self.last_run_control_word,
-            "estop_status": 0,
+            "estop_status": 1 if self._sim_interlock_word & 0x0010 else 0,
         }
         return self.device_map.build_snapshot(values)
 
