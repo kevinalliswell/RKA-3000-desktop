@@ -151,6 +151,12 @@ class DatabaseManager:
             return get_schema_version(conn)
 
     def insert_measurement(self, m: Measurement) -> None:
+        self.insert_measurements([m])
+
+    def insert_measurements(self, measurements: list[Measurement]) -> int:
+        if not measurements:
+            return 0
+
         sql = """
         INSERT INTO measurements(
             experiment_id, sampled_at, temperature_c, weight_g, pressure_mpa,
@@ -158,20 +164,21 @@ class DatabaseManager:
         ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
         """
         with self._lock, self._connect() as conn:
-            conn.execute(
-                sql,
-                (
-                    m.experiment_id,
-                    m.sampled_at.isoformat(),
-                    m.temperature_c,
-                    m.weight_g,
-                    m.pressure_mpa,
-                    m.n2_lpm,
-                    m.h2_lpm,
-                    m.co_lpm,
-                ),
-            )
+            conn.executemany(sql, [self._measurement_params(measurement) for measurement in measurements])
             conn.commit()
+            return len(measurements)
+
+    def _measurement_params(self, measurement: Measurement) -> tuple[object, ...]:
+        return (
+            measurement.experiment_id,
+            measurement.sampled_at.isoformat(),
+            measurement.temperature_c,
+            measurement.weight_g,
+            measurement.pressure_mpa,
+            measurement.n2_lpm,
+            measurement.h2_lpm,
+            measurement.co_lpm,
+        )
 
     def fetch_measurements(self, experiment_id: int) -> list[dict[str, Any]]:
         sql = """
