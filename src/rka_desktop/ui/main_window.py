@@ -16,7 +16,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from rka_desktop.core.alarm_rules import decode_alarm_word, has_interlock_alarm
+from rka_desktop.core.alarm_rules import (
+    decode_alarm_word,
+    has_active_interlock,
+    has_interlock_alarm,
+    interlock_text_from_word,
+    is_interlock_resettable,
+)
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.db.database import DatabaseManager
@@ -45,6 +51,8 @@ class MainWindow(QMainWindow):
         self.engine: ExperimentEngine | None = None
         self.experiment_id: int | None = None
         self._alarm_active_word = 0
+        self._interlock_active_word = 0
+        self._estop_active = False
 
         self.setWindowTitle(f"{settings.app_name} - v1.1")
         self.resize(1380, 840)
@@ -117,6 +125,7 @@ class MainWindow(QMainWindow):
         self.recipe_page.btn_recipe_update.clicked.connect(self._update_current_recipe)
 
         self.alarm_page.btn_ack_alarm.clicked.connect(self.acknowledge_alarm)
+        self.alarm_page.btn_reset_interlock.clicked.connect(self.reset_interlock)
 
     def connect_device(self) -> None:
         if self.client.connect():
@@ -163,9 +172,12 @@ class MainWindow(QMainWindow):
             return
 
         self._alarm_active_word = 0
+        self._interlock_active_word = 0
+        self._estop_active = False
         self.monitor_page.reset_runtime()
         self.monitor_page.update_execution_state(start_update.status_text, start_update.active_setpoints_text)
         self.alarm_page.set_current_alarm("当前报警: 无")
+        self.alarm_page.set_current_interlock("当前联锁: 无联锁")
         self.alarm_page.set_pending_alarms([])
 
         self.worker = AcquisitionWorker(
@@ -206,6 +218,9 @@ class MainWindow(QMainWindow):
             return
         if self._alarm_active_word != 0:
             QMessageBox.warning(self, "无法恢复", "当前仍有活动报警，请先排除报警")
+            return
+        if self._interlock_active_word != 0 or self._estop_active:
+            QMessageBox.warning(self, "无法恢复", "联锁尚未解除，请先执行复位或解除急停")
             return
         if self.engine.state == ExperimentState.INTERRUPTED and self.db.list_unacknowledged_alarms(self.experiment_id):
             QMessageBox.warning(self, "无法恢复", "报警已解除，但仍有未确认报警")
@@ -271,6 +286,10 @@ class MainWindow(QMainWindow):
         self.btn_resume.setEnabled(False)
         self.btn_stop.setEnabled(False)
         self.alarm_page.btn_ack_alarm.setEnabled(False)
+        self.alarm_page.btn_reset_interlock.setEnabled(False)
+        self.alarm_page.set_current_interlock("当前联锁: 无联锁")
+        self._interlock_active_word = 0
+        self._estop_active = False
 
     def acknowledge_alarm(self) -> None:
         if self.experiment_id is None:
@@ -292,14 +311,35 @@ class MainWindow(QMainWindow):
             ok
             and self.engine is not None
             and self.engine.state == ExperimentState.INTERRUPTED
-            and self._alarm_active_word == 0
-            and not self.db.list_unacknowledged_alarms(self.experiment_id)
+            and self.experiment_id is not None
         ):
-            if not self._issue_run_control_command("reset", "复位"):
-                return
-            setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
-            self.monitor_page.update_execution_state("报警已确认，可恢复实验", setpoints_text)
-            self.btn_resume.setEnabled(True)
+            self._update_recovery_actions()
+
+    def reset_interlock(self) -> None:
+        if self.experiment_id is None:
+            QMessageBox.information(self, "提示", "当前无运行中的实验")
+            return
+        if self._alarm_active_word != 0:
+            QMessageBox.warning(self, "无法复位", "当前仍有活动报警，请先排除报警")
+            return
+        if self.db.list_unacknowledged_alarms(self.experiment_id):
+            QMessageBox.warning(self, "无法复位", "仍有未确认报警，请先确认")
+            return
+        if self._interlock_active_word == 0 and not self._estop_active:
+            QMessageBox.information(self, "提示", "当前没有需要复位的联锁")
+            return
+        if not is_interlock_resettable(self._interlock_active_word, profile_name=self.settings.mapping_profile):
+            QMessageBox.warning(self, "无法复位", "当前联锁状态不允许软件复位，请先解除急停/硬件闭锁")
+            return
+        if QMessageBox.question(self, "确认复位", "确定下发联锁复位命令吗？") != QMessageBox.StandardButton.Yes:
+            return
+
+        if not self._issue_run_control_command("reset", "联锁复位"):
+            return
+        self.db.log_action("operator", "INTERLOCK_RESET", f"id={self.experiment_id},word={self._interlock_active_word:04X}")
+        self._append_log("已请求联锁复位，等待状态解除")
+        self.alarm_page.btn_reset_interlock.setEnabled(False)
+        self._update_recovery_actions()
 
     def export_csv(self) -> None:
         self._export_data("csv")
@@ -357,19 +397,16 @@ class MainWindow(QMainWindow):
         self.db.insert_measurement(measurement)
 
         self.monitor_page.update_snapshot(snapshot)
+        self.monitor_page.update_control_state(snapshot.run_control_word, snapshot.estop_status)
         self.monitor_page.push_measurement(measurement)
         self.monitor_page.update_chart(snapshot)
         self._handle_alarm(snapshot)
+        self._handle_interlock(snapshot)
         if self.engine is not None:
             update = self.engine.on_measurement(measurement)
             self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-            if self.engine.state == ExperimentState.INTERRUPTED and self._alarm_active_word == 0:
-                setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
-                if self.experiment_id is not None and not self.db.list_unacknowledged_alarms(self.experiment_id):
-                    self.monitor_page.update_execution_state("报警已解除并确认，可恢复实验", setpoints_text)
-                    self.btn_resume.setEnabled(True)
-                else:
-                    self.monitor_page.update_execution_state("报警已解除，待确认后可恢复实验", setpoints_text)
+            if self.engine.state == ExperimentState.INTERRUPTED:
+                self._update_recovery_actions()
             if update.step_changed:
                 if not self._apply_current_step_setpoints():
                     return
@@ -426,13 +463,7 @@ class MainWindow(QMainWindow):
                 and self.engine.state == ExperimentState.RUNNING
                 and has_interlock_alarm(snapshot.alarm_word, profile_name=self.settings.mapping_profile)
             ):
-                update = self.engine.interrupt()
-                self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
-                self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-                self.db.log_action("system", "EXPERIMENT_INTERRUPTED", f"id={self.experiment_id},alarm={snapshot.alarm_word}")
-                self._append_log(update.status_text)
-                self.btn_pause.setEnabled(False)
-                self.btn_resume.setEnabled(False)
+                self._interrupt_experiment(f"id={self.experiment_id},alarm={snapshot.alarm_word}")
             self._refresh_alarm_page()
             return
 
@@ -441,24 +472,93 @@ class MainWindow(QMainWindow):
             self._append_log("报警解除")
         self._alarm_active_word = 0
         self._refresh_alarm_page()
-        if self.engine is not None and self.engine.state == ExperimentState.INTERRUPTED:
-            setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
-            if self.experiment_id is not None and not self.db.list_unacknowledged_alarms(self.experiment_id):
-                self.monitor_page.update_execution_state("报警已解除并确认，可恢复实验", setpoints_text)
-                self.btn_resume.setEnabled(True)
-            else:
-                self.monitor_page.update_execution_state("报警已解除，待确认后可恢复实验", setpoints_text)
-            self.btn_pause.setEnabled(False)
+        self._update_recovery_actions()
+
+    def _handle_interlock(self, snapshot: DeviceSnapshot) -> None:
+        self._estop_active = bool(snapshot.estop_status)
+        interlock_text = interlock_text_from_word(snapshot.interlock_word, profile_name=self.settings.mapping_profile)
+        self.alarm_page.set_current_interlock(f"当前联锁: {interlock_text}")
+
+        if snapshot.interlock_word != 0 or snapshot.estop_status:
+            self.monitor_page.update_interlock_text(
+                f"联锁: {interlock_text}",
+                "color: #b71c1c; font-weight: bold;",
+            )
+            if snapshot.interlock_word != self._interlock_active_word:
+                self._interlock_active_word = snapshot.interlock_word
+                self._append_log(f"联锁激活：状态字=0x{snapshot.interlock_word:04X}")
+                if self.experiment_id is not None:
+                    self.db.log_action("system", "INTERLOCK_ACTIVE", f"id={self.experiment_id},word={snapshot.interlock_word:04X}")
+            if self.engine is not None and self.experiment_id is not None and self.engine.state == ExperimentState.RUNNING:
+                self._interrupt_experiment(f"id={self.experiment_id},interlock={snapshot.interlock_word:04X}")
+            self._update_recovery_actions()
+            return
+
+        self.monitor_page.update_interlock_text("联锁: 无联锁", "color: #1b5e20;")
+        if self._interlock_active_word != 0:
+            self._append_log("联锁解除")
+            if self.experiment_id is not None:
+                self.db.log_action("system", "INTERLOCK_CLEARED", f"id={self.experiment_id}")
+        self._interlock_active_word = 0
+        self._update_recovery_actions()
 
     def _refresh_alarm_page(self) -> None:
         if self.experiment_id is None:
             self.alarm_page.set_pending_alarms([])
             self.alarm_page.btn_ack_alarm.setEnabled(False)
+            self.alarm_page.btn_reset_interlock.setEnabled(False)
             return
 
         unacked = self.db.list_unacknowledged_alarms(self.experiment_id)
         self.alarm_page.set_pending_alarms(unacked)
         self.alarm_page.btn_ack_alarm.setEnabled(bool(unacked))
+        self.alarm_page.btn_reset_interlock.setEnabled(False)
+
+    def _interrupt_experiment(self, detail: str) -> None:
+        if self.engine is None or self.experiment_id is None:
+            return
+        update = self.engine.interrupt()
+        self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
+        self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
+        self.db.log_action("system", "EXPERIMENT_INTERRUPTED", detail)
+        self._append_log(update.status_text)
+        self.btn_pause.setEnabled(False)
+        self.btn_resume.setEnabled(False)
+
+    def _update_recovery_actions(self) -> None:
+        if self.engine is None or self.engine.state != ExperimentState.INTERRUPTED:
+            self.alarm_page.btn_reset_interlock.setEnabled(False)
+            return
+
+        setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
+        unacked = bool(self.experiment_id is not None and self.db.list_unacknowledged_alarms(self.experiment_id))
+        has_interlock = has_active_interlock(self._interlock_active_word, profile_name=self.settings.mapping_profile)
+        reset_allowed = (
+            self._alarm_active_word == 0
+            and not unacked
+            and has_interlock
+            and not self._estop_active
+            and is_interlock_resettable(self._interlock_active_word, profile_name=self.settings.mapping_profile)
+        )
+        resume_allowed = self._alarm_active_word == 0 and not unacked and not has_interlock and not self._estop_active
+
+        if self._alarm_active_word != 0:
+            status_text = "报警处理中，联锁保持中"
+        elif unacked and has_interlock:
+            status_text = "报警已解除，待确认后可执行联锁复位"
+        elif unacked:
+            status_text = "报警已解除，待确认后可恢复实验"
+        elif self._estop_active:
+            status_text = "急停仍处于触发状态，禁止恢复"
+        elif has_interlock:
+            status_text = "联锁保持中，可执行复位"
+        else:
+            status_text = "联锁已解除，可恢复实验"
+
+        self.monitor_page.update_execution_state(status_text, setpoints_text)
+        self.btn_pause.setEnabled(False)
+        self.btn_resume.setEnabled(resume_allowed)
+        self.alarm_page.btn_reset_interlock.setEnabled(reset_allowed)
 
     def _refresh_recipe_combo(self) -> None:
         previous_id = self.recipe_combo.currentData()

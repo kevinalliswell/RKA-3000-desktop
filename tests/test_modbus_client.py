@@ -133,6 +133,19 @@ def test_simulation_mode_applies_run_control_command():
     assert client.last_run_control_word == 0x0001
 
 
+def test_simulation_mode_reset_clears_latched_interlock_when_alarm_is_inactive():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    client._sim_counter = 119
+    assert client.read_snapshot().interlock_word != 0
+
+    client._sim_counter = 10
+    client.issue_run_control("reset")
+    snapshot = client.read_snapshot()
+
+    assert snapshot.alarm_word == 0
+    assert snapshot.interlock_word == 0
+
+
 def test_hardware_mode_applies_setpoints_to_registers():
     client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=3, simulation_mode=False)
     fake = _FakeSerialClient({})
