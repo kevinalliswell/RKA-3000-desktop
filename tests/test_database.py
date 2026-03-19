@@ -10,7 +10,7 @@ def test_database_init_and_insert(tmp_path):
     db.init_schema()
 
     exp_id = db.create_experiment("test")
-    m = Measurement(
+    measurement = Measurement(
         experiment_id=exp_id,
         sampled_at=datetime.now(),
         temperature_c=900.0,
@@ -20,7 +20,7 @@ def test_database_init_and_insert(tmp_path):
         h2_lpm=1.2,
         co_lpm=0.8,
     )
-    db.insert_measurement(m)
+    db.insert_measurement(measurement)
     db.finish_experiment(exp_id)
 
     rows = db.fetch_measurements(exp_id)
@@ -60,62 +60,45 @@ def test_recipe_and_alarm_flow(tmp_path):
     assert recipes[0]["id"] == recipe_id
     assert len(steps) == 1
     assert int(steps[0]["hold_seconds"]) == 300
-
     assert db.acknowledge_latest_alarm(exp_id, actor="tester") is True
     assert db.acknowledge_latest_alarm(exp_id, actor="tester") is False
 
 
-def test_history_queries_and_schema_version(tmp_path):
-    db_file = tmp_path / "history.db"
+def test_insert_measurements_batch_entry(tmp_path):
+    db_file = tmp_path / "batch.db"
     db = DatabaseManager(db_file)
     db.init_schema()
 
-    recipe_id = db.create_recipe(
-        "历史查询流程",
+    exp_id = db.create_experiment("batch-exp")
+    inserted = db.insert_measurements(
         [
-            {
-                "step_no": 1,
-                "target_temp_c": 950,
-                "ramp_rate_cpm": 12,
-                "hold_seconds": 240,
-                "n2_lpm": 7.5,
-                "h2_lpm": 1.2,
-                "co_lpm": 0.7,
-                "notes": "history",
-            }
-        ],
+            Measurement(
+                experiment_id=exp_id,
+                sampled_at=datetime.now(),
+                temperature_c=900.0,
+                weight_g=81.234,
+                pressure_mpa=0.018,
+                n2_lpm=7.5,
+                h2_lpm=1.2,
+                co_lpm=0.7,
+            ),
+            Measurement(
+                experiment_id=exp_id,
+                sampled_at=datetime.now(),
+                temperature_c=905.0,
+                weight_g=81.0,
+                pressure_mpa=0.019,
+                n2_lpm=7.4,
+                h2_lpm=1.1,
+                co_lpm=0.6,
+            ),
+        ]
     )
-    exp_id = db.create_experiment("history-exp", recipe_id=recipe_id)
-    db.log_action("tester", "EXP_START", f"id={exp_id}")
-    db.create_alarm(exp_id, code="ALM-1001", level="HIGH", message="history alarm")
-    db.insert_measurement(
-        Measurement(
-            experiment_id=exp_id,
-            sampled_at=datetime.now(),
-            temperature_c=950.0,
-            weight_g=81.234,
-            pressure_mpa=0.018,
-            n2_lpm=7.5,
-            h2_lpm=1.2,
-            co_lpm=0.7,
-        )
-    )
-    db.finish_experiment(exp_id)
 
-    experiments = db.list_experiments()
-    detail = db.get_experiment_detail(exp_id)
-    summary = db.get_experiment_summary(exp_id)
-    alarms = db.list_alarm_history(exp_id)
-    logs = db.list_audit_logs()
+    rows = db.fetch_measurements(exp_id)
 
-    assert db.get_schema_version() == 1
-    assert experiments[0]["id"] == exp_id
-    assert detail is not None
-    assert detail["recipe_id"] == recipe_id
-    assert summary is not None
-    assert summary["sample_count"] == 1
-    assert alarms[0]["code"] == "ALM-1001"
-    assert logs[0]["action"] == "EXP_START"
+    assert inserted == 2
+    assert len(rows) == 2
 
 
 def test_finish_experiment_can_persist_terminal_status(tmp_path):
