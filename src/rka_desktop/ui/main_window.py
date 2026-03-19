@@ -413,6 +413,7 @@ class MainWindow(QMainWindow):
                 self._append_log(update.status_text)
             if update.completed:
                 if update.state == ExperimentState.COMPLETED:
+                    self._sync_run_control_command("stop", "完成停机")
                     self._append_log("执行引擎判定实验完成")
                     self._finalize_experiment_stop(
                         final_status=ExperimentState.COMPLETED.value,
@@ -518,6 +519,7 @@ class MainWindow(QMainWindow):
         if self.engine is None or self.experiment_id is None:
             return
         update = self.engine.interrupt()
+        self._sync_run_control_command("pause", "联锁中断暂停")
         self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
         self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
         self.db.log_action("system", "EXPERIMENT_INTERRUPTED", detail)
@@ -683,6 +685,7 @@ class MainWindow(QMainWindow):
         update = final_update
         if self.engine is not None and update is None:
             update = self.engine.fail(reason)
+        self._sync_run_control_command("stop", "故障停机")
         if update is not None:
             self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
         if self.experiment_id is not None:
@@ -696,6 +699,21 @@ class MainWindow(QMainWindow):
             audit_action="EXPERIMENT_FAULT",
             log_message=f"实验故障退出，ID={self.experiment_id}" if self.experiment_id is not None else None,
         )
+
+    def _sync_run_control_command(self, command: str, action_label: str) -> bool:
+        try:
+            word = self.client.issue_run_control(command)
+            self._append_log(f"已同步运行控制命令: {action_label} ({word:#06x})")
+            return True
+        except Exception as exc:
+            if self.experiment_id is not None:
+                self.db.log_action(
+                    "system",
+                    "RUN_CONTROL_SYNC_FAILED",
+                    f"id={self.experiment_id},command={command},error={exc}",
+                )
+            self._append_log(f"运行控制同步失败[{action_label}]，已继续执行本地状态收口: {exc}")
+            return False
 
     def _issue_run_control_command(self, command: str, action_label: str) -> bool:
         try:

@@ -34,6 +34,7 @@ python -m rka_desktop.main
 - 已接入 `contract_v1` 映射 profile，寄存器表和报警位定义可按 profile 切换
 - `0x0060` 运行控制字 MVP 已接通，支持 start/stop/pause/resume/reset 脉冲下发
 - Sprint 2 已开始接入 `0x0051` 联锁状态字展示、联锁复位按钮和恢复前置条件闭环
+- Sprint 2 正在补齐执行引擎与运行控制字联动，自动完成/自动故障/联锁中断会同步下发 stop/pause
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
@@ -46,6 +47,7 @@ python -m rka_desktop.main
 - `docs/Sprint1_阶段验收报告_v1.0.md`：Sprint 1 阶段验收结果与下一阶段建议
 - `docs/Sprint1_尾项闭环报告_v1.0.md`：Sprint 1 尾项收口结果
 - `docs/Sprint2_联锁流程MVP验收报告_v1.0.md`：Sprint 2 联锁流程 MVP 验收结果
+- `docs/Sprint2_执行引擎控制联动验收报告_v1.0.md`：Sprint 2 执行引擎与运行控制字联动验收结果
 - `docs/Emma_阶段验收报告_v1.0.md`：Emma 执行引擎阶段验收结果
 - `docs/Emma_安全加固阶段验收报告_v1.0.md`：Emma 执行安全加固阶段验收结果
 - `docs/正式映射Profile_contract_v1.md`：当前正式寄存器与报警位 profile 定义
