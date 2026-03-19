@@ -45,6 +45,7 @@ python -m rka_desktop.main
 - `docs/Sprint1_并行Checklist_v1.0.md`：Sprint 1 各 agent 可直接执行的 checklist
 - `docs/Sprint1_阶段验收报告_v1.0.md`：Sprint 1 阶段验收结果与下一阶段建议
 - `docs/Sprint1_尾项闭环报告_v1.0.md`：Sprint 1 尾项收口结果
+- `docs/Sprint2_联锁流程MVP验收报告_v1.0.md`：Sprint 2 联锁流程 MVP 验收结果
 - `docs/Emma_阶段验收报告_v1.0.md`：Emma 执行引擎阶段验收结果
 - `docs/Emma_安全加固阶段验收报告_v1.0.md`：Emma 执行安全加固阶段验收结果
 - `docs/正式映射Profile_contract_v1.md`：当前正式寄存器与报警位 profile 定义
