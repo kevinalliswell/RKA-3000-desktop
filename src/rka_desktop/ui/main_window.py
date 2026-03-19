@@ -182,8 +182,10 @@ class MainWindow(QMainWindow):
 
         self.worker = AcquisitionWorker(
             client=self.client,
+            db=self.db,
             experiment_id=self.experiment_id,
             poll_interval_ms=self.settings.poll_interval_ms,
+            batch_size=self.settings.acquisition_batch_size,
         )
         self.worker.snapshot_received.connect(self._on_snapshot)
         self.worker.error_occurred.connect(self._on_error)
@@ -394,7 +396,6 @@ class MainWindow(QMainWindow):
 
     def _on_snapshot(self, payload: tuple[DeviceSnapshot, Measurement]) -> None:
         snapshot, measurement = payload
-        self.db.insert_measurement(measurement)
 
         self.monitor_page.update_snapshot(snapshot)
         self.monitor_page.update_control_state(snapshot.run_control_word, snapshot.estop_status)

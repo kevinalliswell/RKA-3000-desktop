@@ -35,6 +35,7 @@ python -m rka_desktop.main
 - `0x0060` 运行控制字 MVP 已接通，支持 start/stop/pause/resume/reset 脉冲下发
 - Sprint 2 已开始接入 `0x0051` 联锁状态字展示、联锁复位按钮和恢复前置条件闭环
 - Sprint 2 正在补齐执行引擎与运行控制字联动，自动完成/自动故障/联锁中断会同步下发 stop/pause
+- Sprint 2 正在把采集链路切到批量落库，UI 保持逐点刷新，数据库改为按缓冲批量提交
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
