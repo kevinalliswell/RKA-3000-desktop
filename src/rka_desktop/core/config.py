@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     mapping_profile: str = "contract_v1"
     simulation_mode: bool = True
     poll_interval_ms: int = 500
+    acquisition_batch_size: int = 10
     step_heatup_grace_seconds: int = 120
     step_total_grace_seconds: int = 180
 
