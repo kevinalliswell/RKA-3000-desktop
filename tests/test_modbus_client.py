@@ -1,4 +1,9 @@
-from rka_desktop.core.modbus_client import ModbusConnectError, ModbusReadError, ModbusRtuClient, ModbusWriteError
+from rka_desktop.core.modbus_client import (
+    ModbusConnectError,
+    ModbusReadError,
+    ModbusRtuClient,
+    ModbusWriteError,
+)
 from rka_desktop.core.registers import RegisterField
 
 
@@ -131,6 +136,49 @@ def test_simulation_mode_applies_run_control_command():
     assert word == 0x0001
     assert client.last_run_control_command == "start"
     assert client.last_run_control_word == 0x0001
+
+
+def test_simulation_mode_run_control_echo_is_pulsed():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    client.issue_run_control("start")
+
+    first_snapshot = client.read_snapshot()
+    second_snapshot = client.read_snapshot()
+
+    assert first_snapshot.run_control_word == 0x0001
+    assert second_snapshot.run_control_word == 0x0000
+
+
+def test_run_control_feedback_accepts_expected_word_and_zero():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    client.issue_run_control("pause")
+
+    echoed = client.evaluate_run_control_feedback(0x0004)
+    released = client.evaluate_run_control_feedback(0x0000)
+
+    assert echoed.is_consistent is True
+    assert "回显" in echoed.message
+    assert released.is_consistent is True
+    assert "脉冲已释放" in released.message
+
+
+def test_run_control_feedback_detects_unexpected_word():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    client.issue_run_control("start")
+
+    status = client.evaluate_run_control_feedback(0x0010)
+
+    assert status.is_consistent is False
+    assert "不一致" in status.message
+
+
+def test_run_control_feedback_detects_unsolicited_word():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+
+    status = client.evaluate_run_control_feedback(0x0008)
+
+    assert status.is_consistent is False
+    assert "未请求" in status.message
 
 
 def test_simulation_mode_reset_clears_latched_interlock_when_alarm_is_inactive():

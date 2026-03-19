@@ -33,6 +33,7 @@ def test_main_window_smoke(tmp_path):
     assert window.alarm_page.btn_reset_interlock.isEnabled() is False
     assert window.btn_pause.isEnabled() is False
     assert window.btn_resume.isEnabled() is False
+    assert window.monitor_page.lbl_control_feedback.text() == "控制反馈: --"
 
     window.close()
     app.quit()
@@ -161,6 +162,44 @@ def test_main_window_completion_syncs_stop_command(tmp_path):
     assert worker.stopped is True
     assert window.worker is None
     assert window.engine is None
+
+    window.close()
+    app.quit()
+
+
+def test_main_window_marks_control_feedback_mismatch(tmp_path):
+    app, db, _client, window, exp_id, worker = _build_running_window(tmp_path, "ui_feedback_mismatch.db")
+    window.client.last_run_control_command = "start"
+    window.client.last_run_control_word = 0x0001
+
+    snapshot = DeviceSnapshot(
+        temperature_c=900.0,
+        weight_g=100.0,
+        pressure_mpa=0.1,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+        alarm_word=0,
+        interlock_word=0,
+        run_control_word=0x0010,
+        estop_status=0,
+    )
+    measurement = Measurement(
+        experiment_id=exp_id,
+        sampled_at=datetime(2026, 1, 1, 12, 0, 0),
+        temperature_c=900.0,
+        weight_g=100.0,
+        pressure_mpa=0.1,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+    )
+
+    window._on_snapshot((snapshot, measurement))
+
+    assert "不一致" in window.monitor_page.lbl_control_feedback.text()
+    assert window._run_control_feedback_inconsistent is True
+    assert worker.stopped is False
 
     window.close()
     app.quit()

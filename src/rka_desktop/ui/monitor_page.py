@@ -40,6 +40,7 @@ class MonitorPage(QWidget):
         self.lbl_alarm = QLabel("状态: 未连接")
         self.lbl_interlock = QLabel("联锁: --")
         self.lbl_run_control = QLabel("控制字: --")
+        self.lbl_control_feedback = QLabel("控制反馈: --")
         self.lbl_estop = QLabel("急停: --")
         self.lbl_execution = QLabel("执行状态: 未启动")
         self.lbl_setpoints = QLabel("步骤设定: --")
@@ -51,9 +52,10 @@ class MonitorPage(QWidget):
         metrics.addWidget(self.lbl_alarm, 2, 0, 1, 2)
         metrics.addWidget(self.lbl_interlock, 3, 0, 1, 2)
         metrics.addWidget(self.lbl_run_control, 4, 0)
-        metrics.addWidget(self.lbl_estop, 4, 1)
-        metrics.addWidget(self.lbl_execution, 5, 0, 1, 2)
-        metrics.addWidget(self.lbl_setpoints, 6, 0, 1, 2)
+        metrics.addWidget(self.lbl_control_feedback, 4, 1)
+        metrics.addWidget(self.lbl_estop, 5, 0, 1, 2)
+        metrics.addWidget(self.lbl_execution, 6, 0, 1, 2)
+        metrics.addWidget(self.lbl_setpoints, 7, 0, 1, 2)
         layout.addLayout(metrics)
 
         if CHARTS_AVAILABLE:
@@ -136,8 +138,10 @@ class MonitorPage(QWidget):
         self.lbl_interlock.setText(text)
         self.lbl_interlock.setStyleSheet(style)
 
-    def update_control_state(self, run_control_word: int, estop_status: int) -> None:
+    def update_control_state(self, run_control_word: int, estop_status: int, feedback_text: str, feedback_style: str) -> None:
         self.lbl_run_control.setText(f"控制字: 0x{run_control_word:04X}")
+        self.lbl_control_feedback.setText(feedback_text)
+        self.lbl_control_feedback.setStyleSheet(feedback_style)
         self.lbl_estop.setText("急停: 触发" if estop_status else "急停: 正常")
         self.lbl_estop.setStyleSheet("color: #b71c1c; font-weight: bold;" if estop_status else "color: #1b5e20;")
 
