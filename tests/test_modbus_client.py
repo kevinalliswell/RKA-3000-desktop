@@ -124,6 +124,15 @@ def test_simulation_mode_applies_setpoints():
     assert client.last_applied_setpoints == applied
 
 
+def test_simulation_mode_applies_run_control_command():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    word = client.issue_run_control("start")
+
+    assert word == 0x0001
+    assert client.last_run_control_command == "start"
+    assert client.last_run_control_word == 0x0001
+
+
 def test_hardware_mode_applies_setpoints_to_registers():
     client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=3, simulation_mode=False)
     fake = _FakeSerialClient({})
@@ -143,6 +152,20 @@ def test_hardware_mode_applies_setpoints_to_registers():
         (0x0030, 400, 3),
         (0x0031, 100, 3),
         (0x0032, 50, 3),
+    ]
+
+
+def test_hardware_mode_pulses_run_control_word():
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=3, simulation_mode=False)
+    fake = _FakeSerialClient({})
+    client._client = fake
+
+    word = client.issue_run_control("reset")
+
+    assert word == 0x0010
+    assert fake.writes == [
+        (0x0060, 0x0010, 3),
+        (0x0060, 0, 3),
     ]
 
 

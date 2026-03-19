@@ -12,6 +12,7 @@ class DeviceMap:
     snapshot_registers: tuple[RegisterField, ...]
     setpoint_fields: dict[str, RegisterField]
     run_control_word_field: RegisterField
+    run_control_commands: dict[str, int]
 
     def build_snapshot(self, values: dict[str, float]) -> DeviceSnapshot:
         return DeviceSnapshot(
@@ -67,6 +68,13 @@ def _contract_v1_device_map() -> DeviceMap:
             "co_setpoint_lpm": co_flow_sp,
         },
         run_control_word_field=run_control_word,
+        run_control_commands={
+            "start": 0x0001,
+            "stop": 0x0002,
+            "pause": 0x0004,
+            "resume": 0x0008,
+            "reset": 0x0010,
+        },
     )
 
 
