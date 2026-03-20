@@ -36,6 +36,7 @@
 5. `src/rka_desktop/ui/alarm_page.py`
 6. `src/rka_desktop/ui/settings_page.py`
 7. `src/rka_desktop/ui/main_window_presenter.py`
+8. `src/rka_desktop/ui/dialog_service.py`
 
 ### 2.2 Controller
 
@@ -141,6 +142,23 @@
 - 这里的 Presenter 不是新的业务层
 - 它仍然属于 UI 侧
 - 它的目的只是让 `MainWindow` 更接近壳层
+
+## 4.2 DialogService 角色
+
+当前项目还增加了一个轻量对话框适配层：
+
+- `src/rka_desktop/ui/dialog_service.py`
+
+职责：
+
+1. 统一消息提示框
+2. 统一确认弹窗
+3. 统一文件保存对话框
+
+说明：
+
+- `MainWindow` 不再直接依赖 `QMessageBox` 和 `QFileDialog`
+- 这样后续如果替换交互风格，只需要调整适配层
 
 ## 5. 当前目录理解
 

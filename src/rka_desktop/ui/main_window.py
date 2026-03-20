@@ -5,11 +5,9 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QComboBox,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMessageBox,
     QPushButton,
     QTabWidget,
     QVBoxLayout,
@@ -27,6 +25,7 @@ from rka_desktop.models.entities import DeviceSnapshot, Measurement
 from rka_desktop.services.acquisition_service import AcquisitionWorker
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
+from rka_desktop.ui.dialog_service import DialogService
 from rka_desktop.ui.history_page import HistoryPage
 from rka_desktop.ui.monitor_page import MonitorPage
 from rka_desktop.ui.main_window_presenter import MainWindowPresenter
@@ -140,6 +139,7 @@ class MainWindow(QMainWindow):
             stop_worker=self._stop_worker,
             active_experiment_id_provider=lambda: self.experiment_id,
         )
+        self.dialogs = DialogService(self)
 
     def _bind_events(self) -> None:
         self.btn_connect.clicked.connect(self.connect_device)
@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
             self.presenter.show_connected()
             return
 
-        QMessageBox.critical(self, "连接失败", "串口或Modbus连接失败，请检查配置")
+        self.dialogs.critical("连接失败", "串口或Modbus连接失败，请检查配置")
         self._append_log("设备连接失败")
 
     def start_experiment(self) -> None:
@@ -178,28 +178,28 @@ class MainWindow(QMainWindow):
 
         recipe_id = self.recipe_combo.currentData()
         if recipe_id in (None, 0):
-            QMessageBox.warning(self, "缺少配方", "请先选择已保存的配方")
+            self.dialogs.warning("缺少配方", "请先选择已保存的配方")
             return
 
-        if QMessageBox.question(self, "确认启动", "确定按当前配方开始实验吗？") != QMessageBox.StandardButton.Yes:
+        if not self.dialogs.confirm("确认启动", "确定按当前配方开始实验吗？"):
             return
 
         if not self.gateway.connect():
-            QMessageBox.warning(self, "无法启动", "请先连接设备")
+            self.dialogs.warning("无法启动", "请先连接设备")
             return
 
         try:
             transition = self.controller.start_experiment(int(recipe_id))
         except ValueError as exc:
-            QMessageBox.warning(self, "缺少步骤", str(exc))
+            self.dialogs.warning("缺少步骤", str(exc))
             return
         except Exception as exc:
-            QMessageBox.warning(self, "无法启动", str(exc))
+            self.dialogs.warning("无法启动", str(exc))
             return
 
         if not transition.success or transition.experiment_id is None:
             self._apply_controller_transition(transition)
-            QMessageBox.warning(self, "缺少步骤", "当前配方没有可执行步骤")
+            self.dialogs.warning("缺少步骤", "当前配方没有可执行步骤")
             return
 
         self.presenter.reset_monitor_runtime()
@@ -236,7 +236,7 @@ class MainWindow(QMainWindow):
         if self.worker is None:
             return
 
-        if QMessageBox.question(self, "确认停止", "确定停止当前实验吗？") != QMessageBox.StandardButton.Yes:
+        if not self.dialogs.confirm("确认停止", "确定停止当前实验吗？"):
             return
         transition = self.controller.stop_experiment()
         if transition is None:
@@ -245,17 +245,17 @@ class MainWindow(QMainWindow):
 
     def acknowledge_alarm(self) -> None:
         if self.experiment_id is None:
-            QMessageBox.information(self, "提示", "当前无运行中的实验")
+            self.dialogs.info("提示", "当前无运行中的实验")
             return
 
-        if QMessageBox.question(self, "确认报警", "确定将当前待处理报警标记为已确认吗？") != QMessageBox.StandardButton.Yes:
+        if not self.dialogs.confirm("确认报警", "确定将当前待处理报警标记为已确认吗？"):
             return
 
         transition = self.controller.acknowledge_alarm()
         self._apply_controller_transition(transition)
 
     def reset_interlock(self) -> None:
-        if QMessageBox.question(self, "确认复位", "确定下发联锁复位命令吗？") != QMessageBox.StandardButton.Yes:
+        if not self.dialogs.confirm("确认复位", "确定下发联锁复位命令吗？"):
             return
 
         transition = self.controller.reset_interlock()
@@ -278,39 +278,39 @@ class MainWindow(QMainWindow):
             export_dir=default_dir,
         )
         if exp_id is None:
-            QMessageBox.information(self, "提示", "没有可导出的实验数据")
+            self.dialogs.info("提示", "没有可导出的实验数据")
             return
 
         if fmt == "csv":
-            path, _ = QFileDialog.getSaveFileName(self, "导出CSV", str(default_path), "CSV Files (*.csv)")
-            if not path:
+            path = self.dialogs.select_save_path("导出CSV", default_path, "CSV Files (*.csv)")
+            if path is None:
                 return
             try:
                 transition = self.history_controller.export_experiment(
                     "csv",
                     active_experiment_id=self.experiment_id,
                     selected_experiment_id=selected_history_id,
-                    file_path=Path(path),
+                    file_path=path,
                 )
                 self._apply_history_transition(transition)
             except Exception as exc:
-                QMessageBox.warning(self, "导出失败", str(exc))
+                self.dialogs.warning("导出失败", str(exc))
                 self._append_log(f"导出CSV失败: {exc}")
             return
 
-        path, _ = QFileDialog.getSaveFileName(self, "导出Excel", str(default_path), "Excel Files (*.xlsx)")
-        if not path:
+        path = self.dialogs.select_save_path("导出Excel", default_path, "Excel Files (*.xlsx)")
+        if path is None:
             return
         try:
             transition = self.history_controller.export_experiment(
                 "excel",
                 active_experiment_id=self.experiment_id,
                 selected_experiment_id=selected_history_id,
-                file_path=Path(path),
+                file_path=path,
             )
             self._apply_history_transition(transition)
         except Exception as exc:
-            QMessageBox.warning(self, "导出失败", str(exc))
+            self.dialogs.warning("导出失败", str(exc))
             self._append_log(f"导出Excel失败: {exc}")
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
@@ -379,25 +379,25 @@ class MainWindow(QMainWindow):
             self._refresh_history()
         if transition.user_message:
             if transition.user_message_level == "info":
-                QMessageBox.information(self, "提示", transition.user_message)
+                self.dialogs.info("提示", transition.user_message)
             else:
-                QMessageBox.warning(self, "提示", transition.user_message)
+                self.dialogs.warning("提示", transition.user_message)
 
     def _apply_recipe_transition(self, transition: RecipeTransition) -> None:
         self.presenter.apply_recipe_transition(transition)
         if transition.user_message:
             if transition.user_message_level == "info":
-                QMessageBox.information(self, "提示", transition.user_message)
+                self.dialogs.info("提示", transition.user_message)
             else:
-                QMessageBox.warning(self, "参数错误", transition.user_message)
+                self.dialogs.warning("参数错误", transition.user_message)
 
     def _apply_history_transition(self, transition: HistoryTransition) -> None:
         self.presenter.apply_history_transition(transition)
         if transition.user_message:
             if transition.user_message_level == "info":
-                QMessageBox.information(self, "提示", transition.user_message)
+                self.dialogs.info("提示", transition.user_message)
             else:
-                QMessageBox.warning(self, "提示", transition.user_message)
+                self.dialogs.warning("提示", transition.user_message)
 
     def _stop_worker(self) -> None:
         if self.worker is not None:
