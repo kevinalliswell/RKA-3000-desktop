@@ -35,6 +35,7 @@
 4. `src/rka_desktop/ui/history_page.py`
 5. `src/rka_desktop/ui/alarm_page.py`
 6. `src/rka_desktop/ui/settings_page.py`
+7. `src/rka_desktop/ui/main_window_presenter.py`
 
 ### 2.2 Controller
 
@@ -111,7 +112,7 @@
 2. 页面切换
 3. 确认弹窗
 4. 文件保存对话框
-5. Controller 结果分发到各页面
+5. 调用 Presenter 落地页面刷新
 6. 采集线程启动与停止
 
 当前 `MainWindow` 不应再继续扩大的职责：
@@ -121,6 +122,24 @@
 3. 历史查询与导出业务
 4. 设备控制语义判断
 5. 报警恢复条件决策
+
+## 4.1 Presenter 角色
+
+当前项目在 View 与 Controller 之间增加了一个轻量 Presenter：
+
+- `src/rka_desktop/ui/main_window_presenter.py`
+
+职责：
+
+1. 把 Controller 的 ViewState 分发到具体页面
+2. 统一按钮状态、列表回填、标签刷新
+3. 避免这些页面更新逻辑继续堆回 `MainWindow`
+
+说明：
+
+- 这里的 Presenter 不是新的业务层
+- 它仍然属于 UI 侧
+- 它的目的只是让 `MainWindow` 更接近壳层
 
 ## 5. 当前目录理解
 

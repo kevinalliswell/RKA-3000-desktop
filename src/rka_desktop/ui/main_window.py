@@ -18,9 +18,9 @@ from PySide6.QtWidgets import (
 
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
-from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController, RuntimeViewState
-from rka_desktop.controllers.history_export_controller import HistoryExportController, HistoryTransition, HistoryViewState
-from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeViewState, RecipeController
+from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController
+from rka_desktop.controllers.history_export_controller import HistoryExportController, HistoryTransition
+from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeController
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
@@ -29,6 +29,7 @@ from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.history_page import HistoryPage
 from rka_desktop.ui.monitor_page import MonitorPage
+from rka_desktop.ui.main_window_presenter import MainWindowPresenter
 from rka_desktop.ui.recipe_page import RecipePage
 from rka_desktop.ui.settings_page import SettingsPage
 
@@ -123,6 +124,23 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.settings_page, "设置")
         layout.addWidget(self.tabs)
 
+        self.presenter = MainWindowPresenter(
+            recipe_combo=self.recipe_combo,
+            recipe_page=self.recipe_page,
+            monitor_page=self.monitor_page,
+            history_page=self.history_page,
+            alarm_page=self.alarm_page,
+            btn_start=self.btn_start,
+            btn_pause=self.btn_pause,
+            btn_resume=self.btn_resume,
+            btn_stop=self.btn_stop,
+            btn_export_csv=self.btn_export_csv,
+            btn_export_excel=self.btn_export_excel,
+            log_sink=self._append_log,
+            stop_worker=self._stop_worker,
+            active_experiment_id_provider=lambda: self.experiment_id,
+        )
+
     def _bind_events(self) -> None:
         self.btn_connect.clicked.connect(self.connect_device)
         self.btn_refresh_recipe.clicked.connect(self._refresh_recipe_combo)
@@ -148,7 +166,7 @@ class MainWindow(QMainWindow):
         if self.gateway.connect():
             self._append_log("设备连接成功")
             self.db.log_action("operator", "DEVICE_CONNECT", self.settings.serial_port)
-            self.monitor_page.show_connected()
+            self.presenter.show_connected()
             return
 
         QMessageBox.critical(self, "连接失败", "串口或Modbus连接失败，请检查配置")
@@ -184,7 +202,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "缺少步骤", "当前配方没有可执行步骤")
             return
 
-        self.monitor_page.reset_runtime()
+        self.presenter.reset_monitor_runtime()
         self._apply_controller_transition(transition)
         self._refresh_history()
 
@@ -370,115 +388,32 @@ class MainWindow(QMainWindow):
         self.monitor_page.append_log(text)
 
     def _apply_controller_transition(self, transition: ControllerTransition) -> None:
-        if transition.final_status is not None:
-            self._reset_runtime_ui()
-        if transition.view_state is None and transition.update is not None:
-            self.monitor_page.update_execution_state(transition.update.status_text, transition.update.active_setpoints_text)
-        if transition.view_state is not None:
-            self._apply_view_state(transition.view_state)
+        self.presenter.apply_experiment_transition(transition)
         if transition.experiment_id is not None or transition.final_status is not None:
             self._refresh_history()
-        for log in transition.logs:
-            self._append_log(log)
         if transition.user_message:
             if transition.user_message_level == "info":
                 QMessageBox.information(self, "提示", transition.user_message)
             else:
                 QMessageBox.warning(self, "提示", transition.user_message)
 
-    def _apply_view_state(self, view_state: RuntimeViewState) -> None:
-        if view_state.execution_text is not None and view_state.setpoints_text is not None:
-            self.monitor_page.update_execution_state(view_state.execution_text, view_state.setpoints_text)
-        if view_state.current_alarm_text is not None:
-            self.alarm_page.set_current_alarm(view_state.current_alarm_text)
-        if view_state.current_interlock_text is not None:
-            self.alarm_page.set_current_interlock(view_state.current_interlock_text)
-        if view_state.monitor_alarm_text is not None and view_state.monitor_alarm_style is not None:
-            self.monitor_page.update_alarm_text(view_state.monitor_alarm_text, view_state.monitor_alarm_style)
-        if view_state.monitor_interlock_text is not None and view_state.monitor_interlock_style is not None:
-            self.monitor_page.update_interlock_text(view_state.monitor_interlock_text, view_state.monitor_interlock_style)
-        if (
-            view_state.run_control_word is not None
-            and view_state.estop_status is not None
-            and view_state.control_feedback_text is not None
-            and view_state.control_feedback_style is not None
-        ):
-            self.monitor_page.update_control_state(
-                view_state.run_control_word,
-                view_state.estop_status,
-                view_state.control_feedback_text,
-                view_state.control_feedback_style,
-            )
-        self.alarm_page.set_pending_alarms(view_state.pending_alarms)
-        if view_state.ack_alarm_enabled is not None:
-            self.alarm_page.btn_ack_alarm.setEnabled(view_state.ack_alarm_enabled)
-        if view_state.reset_interlock_enabled is not None:
-            self.alarm_page.btn_reset_interlock.setEnabled(view_state.reset_interlock_enabled)
-        if view_state.start_enabled is not None:
-            self.btn_start.setEnabled(view_state.start_enabled)
-        if view_state.pause_enabled is not None:
-            self.btn_pause.setEnabled(view_state.pause_enabled)
-        if view_state.resume_enabled is not None:
-            self.btn_resume.setEnabled(view_state.resume_enabled)
-        if view_state.stop_enabled is not None:
-            self.btn_stop.setEnabled(view_state.stop_enabled)
-
     def _apply_recipe_transition(self, transition: RecipeTransition) -> None:
-        if transition.view_state is not None:
-            self._apply_recipe_view_state(transition.view_state)
-        for log in transition.logs:
-            self._append_log(log)
+        self.presenter.apply_recipe_transition(transition)
         if transition.user_message:
             if transition.user_message_level == "info":
                 QMessageBox.information(self, "提示", transition.user_message)
             else:
                 QMessageBox.warning(self, "参数错误", transition.user_message)
 
-    def _apply_recipe_view_state(self, view_state: RecipeViewState) -> None:
-        current_id = self.recipe_combo.currentData()
-        self.recipe_combo.blockSignals(True)
-        self.recipe_combo.clear()
-        self.recipe_combo.addItem("请选择配方", 0)
-        for option in view_state.options:
-            self.recipe_combo.addItem(option.label, option.recipe_id)
-        selected_id = view_state.selected_recipe_id or current_id or 0
-        index = self.recipe_combo.findData(selected_id)
-        if index >= 0:
-            self.recipe_combo.setCurrentIndex(index)
-        else:
-            self.recipe_combo.setCurrentIndex(0)
-        self.recipe_combo.blockSignals(False)
-
-        if selected_id in (None, 0):
-            self.recipe_page.load_recipe("", [])
-            return
-        self.recipe_page.load_recipe(view_state.recipe_name, view_state.steps)
-
     def _apply_history_transition(self, transition: HistoryTransition) -> None:
-        if transition.view_state is not None:
-            self._apply_history_view_state(transition.view_state)
-        for log in transition.logs:
-            self._append_log(log)
+        self.presenter.apply_history_transition(transition)
         if transition.user_message:
             if transition.user_message_level == "info":
                 QMessageBox.information(self, "提示", transition.user_message)
             else:
                 QMessageBox.warning(self, "提示", transition.user_message)
 
-    def _apply_history_view_state(self, view_state: HistoryViewState) -> None:
-        self.history_page.set_experiments(view_state.experiments, view_state.selected_experiment_id)
-        self.history_page.set_summary(view_state.summary_text)
-        self.btn_export_csv.setEnabled(view_state.export_enabled or self.experiment_id is not None)
-        self.btn_export_excel.setEnabled(view_state.export_enabled or self.experiment_id is not None)
-
-    def _reset_runtime_ui(self) -> None:
+    def _stop_worker(self) -> None:
         if self.worker is not None:
             self.worker.stop()
             self.worker = None
-        self.btn_start.setEnabled(True)
-        self.btn_pause.setEnabled(False)
-        self.btn_resume.setEnabled(False)
-        self.btn_stop.setEnabled(False)
-        self.alarm_page.btn_ack_alarm.setEnabled(False)
-        self.alarm_page.btn_reset_interlock.setEnabled(False)
-        self.alarm_page.set_current_interlock("当前联锁: 无联锁")
