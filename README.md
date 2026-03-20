@@ -42,6 +42,7 @@ python -m rka_desktop.main
 - `LogService` 已统一接管 UI 日志输出，`MainWindow` 不再直接写监控页日志控件
 - 当前已引入轻量 `repositories/` 层，controller 不再直接依赖 `DatabaseManager`
 - 配方页面当前只提供原始输入，数值解析与基础校验已迁入 `RecipeController`
+- 已补齐 Windows 打包资产：PyInstaller spec、PowerShell 打包脚本、bundle 校验脚本和 Windows smoke workflow
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
@@ -78,6 +79,9 @@ python -m rka_desktop.main
 - `docs/打包发布说明_v1.0.md`：PyInstaller 打包与发布流程
 - `docs/发布说明模板_v1.0.md`：版本发布说明模板
 - `scripts/packaging/build_pyinstaller.sh`：桌面端打包脚本
+- `scripts/packaging/build_windows.ps1`：Windows 本机打包脚本
+- `scripts/packaging/verify_windows_bundle.ps1`：Windows bundle 校验脚本
+- `scripts/packaging/rka_desktop.spec`：PyInstaller 打包 spec
 - `src/rka_desktop/`：应用源码
 - `tests/`：测试代码
 
@@ -91,6 +95,7 @@ python -m rka_desktop.main
 
 - 仓库已配置 GitHub Actions CI：`.github/workflows/ci.yml`
 - 仓库已配置 GitHub Actions 自动 release：`.github/workflows/release.yml`
+- 仓库已配置 GitHub Actions Windows 打包 smoke：`.github/workflows/windows-package-smoke.yml`
 - PR 和 `main` push 会自动执行测试与编译检查
 - 当推送形如 `v0.1.0`、`v1.0.0` 的 tag 时，工作流会安装依赖、执行 `pytest`，然后自动创建 GitHub Release
 - release 前会校验 git tag 版本与 `pyproject.toml` 中的版本号一致

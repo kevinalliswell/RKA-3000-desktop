@@ -1,0 +1,39 @@
+name: windows-package-smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows-bundle:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install pyinstaller
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          python -m pytest -q
+
+      - name: Build Windows bundle
+        shell: pwsh
+        run: |
+          ./scripts/packaging/build_windows.ps1 -PythonExe python -Clean
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RKA3000Desktop-windows-bundle
+          path: dist/RKA3000Desktop

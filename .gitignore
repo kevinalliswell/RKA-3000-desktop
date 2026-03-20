@@ -18,3 +18,4 @@ data/*.db
 build/
 dist/
 *.spec
+!scripts/packaging/*.spec

@@ -4,10 +4,7 @@ set -eu
 python -m pip install --upgrade pip
 python -m pip install pyinstaller
 
-pyinstaller \
-  --name RKA3000Desktop \
-  --windowed \
+python -m PyInstaller \
   --noconfirm \
-  --paths src \
-  src/rka_desktop/main.py
-
+  --clean \
+  scripts/packaging/rka_desktop.spec

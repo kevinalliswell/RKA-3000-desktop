@@ -93,7 +93,8 @@
 当前 Windows 交付准备状态：
 
 - 已有打包方向
-- 已有打包脚本基础
+- 已有统一 spec 与脚本
+- 已有 Windows smoke workflow
 - 尚未建立正式 Windows 打包机验证记录
 
 因此，下一步不应直接承诺正式发布包，而应先完成：
@@ -102,3 +103,18 @@
 2. 打包验证
 3. 串口驱动验证
 4. 数据目录权限验证
+
+## 7. 当前已补齐的仓库资产
+
+当前仓库已补齐以下 Windows 交付准备资产：
+
+1. `scripts/packaging/rka_desktop.spec`
+2. `scripts/packaging/build_windows.ps1`
+3. `scripts/packaging/verify_windows_bundle.ps1`
+4. `.github/workflows/windows-package-smoke.yml`
+
+这些资产的意义是：
+
+- 先把可重复执行的打包路径固定下来
+- 先把 CI 级别的 Windows smoke 跑通
+- 再把最后的“真实环境验证”留给 Windows 本机和现场设备
