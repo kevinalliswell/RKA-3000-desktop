@@ -27,12 +27,13 @@ def test_main_window_smoke(tmp_path):
 
     window = MainWindow(settings=settings, db=db, client=client)
 
-    assert window.tabs.count() == 4
+    assert window.tabs.count() == 5
     assert window.recipe_page.recipe_table.columnCount() == 8
     assert window.alarm_page.btn_ack_alarm.isEnabled() is False
     assert window.alarm_page.btn_reset_interlock.isEnabled() is False
     assert window.btn_pause.isEnabled() is False
     assert window.btn_resume.isEnabled() is False
+    assert window.history_page.table.columnCount() == 6
     assert window.monitor_page.lbl_control_feedback.text() == "控制反馈: --"
 
     window.close()

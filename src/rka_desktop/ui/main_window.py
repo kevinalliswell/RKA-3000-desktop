@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController, RuntimeViewState
+from rka_desktop.controllers.history_export_controller import HistoryExportController, HistoryTransition, HistoryViewState
 from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeViewState, RecipeController
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
@@ -26,6 +27,7 @@ from rka_desktop.models.entities import DeviceSnapshot, Measurement
 from rka_desktop.services.acquisition_service import AcquisitionWorker
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
+from rka_desktop.ui.history_page import HistoryPage
 from rka_desktop.ui.monitor_page import MonitorPage
 from rka_desktop.ui.recipe_page import RecipePage
 from rka_desktop.ui.settings_page import SettingsPage
@@ -43,6 +45,7 @@ class MainWindow(QMainWindow):
         self.controller = ExperimentController(settings=settings, db=db, gateway=self.gateway)
         self.recipe_controller = RecipeController(db)
         self.export_service = ExportService(db)
+        self.history_controller = HistoryExportController(db, self.export_service)
 
         self.worker: AcquisitionWorker | None = None
 
@@ -52,6 +55,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._bind_events()
         self._refresh_recipe_combo()
+        self._refresh_history()
         if self.recipe_page.recipe_table.rowCount() == 0:
             self.recipe_page.add_default_row()
 
@@ -108,11 +112,13 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.recipe_page = RecipePage()
         self.monitor_page = MonitorPage()
+        self.history_page = HistoryPage()
         self.alarm_page = AlarmPage()
         self.settings_page = SettingsPage(self.settings)
 
         self.tabs.addTab(self.recipe_page, "配方")
         self.tabs.addTab(self.monitor_page, "监控")
+        self.tabs.addTab(self.history_page, "历史")
         self.tabs.addTab(self.alarm_page, "报警")
         self.tabs.addTab(self.settings_page, "设置")
         layout.addWidget(self.tabs)
@@ -132,6 +138,8 @@ class MainWindow(QMainWindow):
         self.recipe_page.btn_recipe_remove.clicked.connect(self.recipe_page.remove_current_row)
         self.recipe_page.btn_recipe_save.clicked.connect(self._save_new_recipe)
         self.recipe_page.btn_recipe_update.clicked.connect(self._update_current_recipe)
+        self.history_page.btn_refresh.clicked.connect(self._refresh_history)
+        self.history_page.table.itemSelectionChanged.connect(self._on_history_selected)
 
         self.alarm_page.btn_ack_alarm.clicked.connect(self.acknowledge_alarm)
         self.alarm_page.btn_reset_interlock.clicked.connect(self.reset_interlock)
@@ -178,6 +186,7 @@ class MainWindow(QMainWindow):
 
         self.monitor_page.reset_runtime()
         self._apply_controller_transition(transition)
+        self._refresh_history()
 
         self.worker = AcquisitionWorker(
             client=self.gateway,
@@ -241,36 +250,47 @@ class MainWindow(QMainWindow):
         self._export_data("excel")
 
     def _export_data(self, fmt: str) -> None:
-        exp_id = self.experiment_id or self.db.get_latest_experiment_id()
+        default_dir = Path("exports")
+        default_dir.mkdir(parents=True, exist_ok=True)
+        selected_history_id = self.history_page.selected_experiment_id()
+        exp_id, default_path = self.history_controller.default_export_path(
+            fmt,
+            active_experiment_id=self.experiment_id,
+            selected_experiment_id=selected_history_id,
+            export_dir=default_dir,
+        )
         if exp_id is None:
             QMessageBox.information(self, "提示", "没有可导出的实验数据")
             return
 
-        default_dir = Path("exports")
-        default_dir.mkdir(parents=True, exist_ok=True)
-
         if fmt == "csv":
-            file_name = str(default_dir / f"experiment_{exp_id}.csv")
-            path, _ = QFileDialog.getSaveFileName(self, "导出CSV", file_name, "CSV Files (*.csv)")
+            path, _ = QFileDialog.getSaveFileName(self, "导出CSV", str(default_path), "CSV Files (*.csv)")
             if not path:
                 return
             try:
-                out = self.export_service.export_measurements_csv(exp_id, Path(path))
-                self._append_log(f"导出CSV成功: {out}")
-                self.db.log_action("operator", "EXPORT_CSV", f"experiment_id={exp_id},path={out}")
+                transition = self.history_controller.export_experiment(
+                    "csv",
+                    active_experiment_id=self.experiment_id,
+                    selected_experiment_id=selected_history_id,
+                    file_path=Path(path),
+                )
+                self._apply_history_transition(transition)
             except Exception as exc:
                 QMessageBox.warning(self, "导出失败", str(exc))
                 self._append_log(f"导出CSV失败: {exc}")
             return
 
-        file_name = str(default_dir / f"experiment_{exp_id}.xlsx")
-        path, _ = QFileDialog.getSaveFileName(self, "导出Excel", file_name, "Excel Files (*.xlsx)")
+        path, _ = QFileDialog.getSaveFileName(self, "导出Excel", str(default_path), "Excel Files (*.xlsx)")
         if not path:
             return
         try:
-            out = self.export_service.export_measurements_excel(exp_id, Path(path))
-            self._append_log(f"导出Excel成功: {out}")
-            self.db.log_action("operator", "EXPORT_EXCEL", f"experiment_id={exp_id},path={out}")
+            transition = self.history_controller.export_experiment(
+                "excel",
+                active_experiment_id=self.experiment_id,
+                selected_experiment_id=selected_history_id,
+                file_path=Path(path),
+            )
+            self._apply_history_transition(transition)
         except Exception as exc:
             QMessageBox.warning(self, "导出失败", str(exc))
             self._append_log(f"导出Excel失败: {exc}")
@@ -308,6 +328,14 @@ class MainWindow(QMainWindow):
     def _on_recipe_selected(self, _index: int) -> None:
         transition = self.recipe_controller.load_recipe(self.recipe_combo.currentData())
         self._apply_recipe_transition(transition)
+
+    def _refresh_history(self) -> None:
+        transition = self.history_controller.load_history(self.history_page.selected_experiment_id())
+        self._apply_history_transition(transition)
+
+    def _on_history_selected(self) -> None:
+        transition = self.history_controller.select_experiment(self.history_page.selected_experiment_id())
+        self._apply_history_transition(transition)
 
     def _save_new_recipe(self) -> None:
         name = self.recipe_page.recipe_name_input.text().strip()
@@ -348,6 +376,8 @@ class MainWindow(QMainWindow):
             self.monitor_page.update_execution_state(transition.update.status_text, transition.update.active_setpoints_text)
         if transition.view_state is not None:
             self._apply_view_state(transition.view_state)
+        if transition.experiment_id is not None or transition.final_status is not None:
+            self._refresh_history()
         for log in transition.logs:
             self._append_log(log)
         if transition.user_message:
@@ -423,6 +453,23 @@ class MainWindow(QMainWindow):
             self.recipe_page.load_recipe("", [])
             return
         self.recipe_page.load_recipe(view_state.recipe_name, view_state.steps)
+
+    def _apply_history_transition(self, transition: HistoryTransition) -> None:
+        if transition.view_state is not None:
+            self._apply_history_view_state(transition.view_state)
+        for log in transition.logs:
+            self._append_log(log)
+        if transition.user_message:
+            if transition.user_message_level == "info":
+                QMessageBox.information(self, "提示", transition.user_message)
+            else:
+                QMessageBox.warning(self, "提示", transition.user_message)
+
+    def _apply_history_view_state(self, view_state: HistoryViewState) -> None:
+        self.history_page.set_experiments(view_state.experiments, view_state.selected_experiment_id)
+        self.history_page.set_summary(view_state.summary_text)
+        self.btn_export_csv.setEnabled(view_state.export_enabled or self.experiment_id is not None)
+        self.btn_export_excel.setEnabled(view_state.export_enabled or self.experiment_id is not None)
 
     def _reset_runtime_ui(self) -> None:
         if self.worker is not None:

@@ -36,7 +36,7 @@ python -m rka_desktop.main
 - 已保留 `0x0051` 联锁状态字展示、联锁复位按钮和恢复前置条件相关基础实现，当前冻结版本不以联锁闭环作为交付承诺
 - 已完成执行引擎与运行控制字联动、采集链路批量落库、控制字与设备反馈字一致性校核的基础实现
 - Sprint 2 已引入 `controllers/` 和 `hardware/` 最小骨架，主流程正从 UI 层向控制层迁移
-- 当前主流程已开始按 MVC 收敛：`MainWindow` 负责交互与展示，`ExperimentController` 负责实验流程编排，`RecipeController` 负责配方加载与 CRUD 业务，`DeviceGateway` 负责设备访问入口
+- 当前主流程已开始按 MVC 收敛：`MainWindow` 负责交互与展示，`ExperimentController` 负责实验流程编排，`RecipeController` 负责配方加载与 CRUD 业务，`HistoryExportController` 负责历史查询与导出编排，`DeviceGateway` 负责设备访问入口
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
@@ -52,6 +52,7 @@ python -m rka_desktop.main
 - `docs/Sprint2后续路线图_v1.0.md`：结构收敛、最小闭环稳定与 Windows 准备的后续路线图
 - `docs/Sprint2_阶段收口报告_v1.0.md`：按冻结口径完成 Sprint 2 的阶段收口结果
 - `docs/Windows交付准备清单_v1.0.md`：Windows 打包前置检查、风险与最小交付验证清单
+- `docs/MVC分层说明_v1.0.md`：当前 View / Controller / Model-Service-Hardware 的边界说明
 - `docs/多Agent并行开发清单_v1.0.md`：多 agent 并行开发任务拆解
 - `docs/Sprint1_任务分解与验收_v1.0.md`：Sprint 1 并行任务包与 Alex 验收标准
 - `docs/Sprint1_并行Checklist_v1.0.md`：Sprint 1 各 agent 可直接执行的 checklist
