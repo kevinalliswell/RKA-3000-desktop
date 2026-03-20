@@ -8,3 +8,5 @@ python -m PyInstaller \
   --noconfirm \
   --clean \
   scripts/packaging/rka_desktop.spec
+
+cp .env.example dist/RKA3000Desktop/.env.example

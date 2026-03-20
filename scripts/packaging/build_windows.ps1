@@ -17,4 +17,7 @@ if ($Clean) {
 & $PythonExe -m pip install pyinstaller
 & $PythonExe -m PyInstaller --noconfirm --clean scripts/packaging/rka_desktop.spec
 
+$BundleDir = Join-Path $Root "dist/RKA3000Desktop"
+Copy-Item -Force (Join-Path $Root ".env.example") (Join-Path $BundleDir ".env.example")
+
 & powershell -NoProfile -ExecutionPolicy Bypass -File scripts/packaging/verify_windows_bundle.ps1
