@@ -33,11 +33,9 @@ python -m rka_desktop.main
 - 执行保护已补充步骤升温超时、步骤总超时、采集异常故障停机，以及报警字典/等级/联锁配置
 - 已接入 `contract_v1` 映射 profile，寄存器表和报警位定义可按 profile 切换
 - `0x0060` 运行控制字 MVP 已接通，支持 start/stop/pause/resume/reset 脉冲下发
-- Sprint 2 已开始接入 `0x0051` 联锁状态字展示、联锁复位按钮和恢复前置条件闭环
-- Sprint 2 正在补齐执行引擎与运行控制字联动，自动完成/自动故障/联锁中断会同步下发 stop/pause
-- Sprint 2 正在把采集链路切到批量落库，UI 保持逐点刷新，数据库改为按缓冲批量提交
-- Sprint 2 正在补充控制字与设备反馈字一致性校核，监控页可直接显示“回显 / 脉冲释放 / 不一致”
-- Sprint 2 已开始引入 `controllers/` 和 `hardware/` 最小骨架，主流程正从 UI 层向控制层迁移
+- 已保留 `0x0051` 联锁状态字展示、联锁复位按钮和恢复前置条件相关基础实现，当前冻结版本不以联锁闭环作为交付承诺
+- 已完成执行引擎与运行控制字联动、采集链路批量落库、控制字与设备反馈字一致性校核的基础实现
+- Sprint 2 已引入 `controllers/` 和 `hardware/` 最小骨架，主流程正从 UI 层向控制层迁移
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
@@ -51,6 +49,8 @@ python -m rka_desktop.main
 - `docs/多Agent组织与职责_v2.0.md`：按产品经理主导与架构先行重写的多 agent 组织基线
 - `docs/多Agent任务拆解_v2.0.md`：按冻结需求和新组织方式重写的当前执行任务拆解
 - `docs/Sprint2后续路线图_v1.0.md`：结构收敛、最小闭环稳定与 Windows 准备的后续路线图
+- `docs/Sprint2_阶段收口报告_v1.0.md`：按冻结口径完成 Sprint 2 的阶段收口结果
+- `docs/Windows交付准备清单_v1.0.md`：Windows 打包前置检查、风险与最小交付验证清单
 - `docs/多Agent并行开发清单_v1.0.md`：多 agent 并行开发任务拆解
 - `docs/Sprint1_任务分解与验收_v1.0.md`：Sprint 1 并行任务包与 Alex 验收标准
 - `docs/Sprint1_并行Checklist_v1.0.md`：Sprint 1 各 agent 可直接执行的 checklist
