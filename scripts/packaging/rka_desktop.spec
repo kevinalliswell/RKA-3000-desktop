@@ -1,20 +1,26 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_submodules
 
+
+project_root = Path.cwd()
+entry_script = project_root / "src" / "rka_desktop" / "main.py"
+env_example = project_root / ".env.example"
 
 hiddenimports = collect_submodules("pydantic_settings") + [
     "PySide6.QtCharts",
 ]
 
 datas = [
-    (".env.example", "."),
+    (str(env_example), "."),
 ]
 
 
 a = Analysis(
-    ["src/rka_desktop/main.py"],
-    pathex=["src"],
+    [str(entry_script)],
+    pathex=[str(project_root / "src")],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,

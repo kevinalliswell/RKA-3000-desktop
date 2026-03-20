@@ -8,15 +8,15 @@ $ExePath = Join-Path $BundleDir "RKA3000Desktop.exe"
 $EnvExample = Join-Path $BundleDir ".env.example"
 
 if (-not (Test-Path $BundleDir)) {
-    throw "未找到打包输出目录: $BundleDir"
+    throw "Bundle output directory not found: $BundleDir"
 }
 
 if (-not (Test-Path $ExePath)) {
-    throw "未找到主程序: $ExePath"
+    throw "Executable not found: $ExePath"
 }
 
 if (-not (Test-Path $EnvExample)) {
-    throw "未找到 .env.example: $EnvExample"
+    throw ".env.example not found: $EnvExample"
 }
 
 Write-Host "Windows bundle verification passed."
