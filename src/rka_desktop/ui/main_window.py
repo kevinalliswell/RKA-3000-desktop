@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController, RuntimeViewState
+from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeViewState, RecipeController
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
@@ -40,6 +41,7 @@ class MainWindow(QMainWindow):
         self.client = client
         self.gateway = DeviceGateway(client)
         self.controller = ExperimentController(settings=settings, db=db, gateway=self.gateway)
+        self.recipe_controller = RecipeController(db)
         self.export_service = ExportService(db)
 
         self.worker: AcquisitionWorker | None = None
@@ -50,7 +52,8 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._bind_events()
         self._refresh_recipe_combo()
-        self.recipe_page.add_default_row()
+        if self.recipe_page.recipe_table.rowCount() == 0:
+            self.recipe_page.add_default_row()
 
     @property
     def engine(self):
@@ -299,69 +302,28 @@ class MainWindow(QMainWindow):
         self._apply_controller_transition(transition)
 
     def _refresh_recipe_combo(self) -> None:
-        previous_id = self.recipe_combo.currentData()
-        self.recipe_combo.blockSignals(True)
-        self.recipe_combo.clear()
-        self.recipe_combo.addItem("请选择配方", 0)
-
-        for recipe in self.db.list_recipes():
-            self.recipe_combo.addItem(f"#{recipe['id']} {recipe['name']}", int(recipe["id"]))
-
-        if previous_id:
-            index = self.recipe_combo.findData(previous_id)
-            if index >= 0:
-                self.recipe_combo.setCurrentIndex(index)
-        self.recipe_combo.blockSignals(False)
+        transition = self.recipe_controller.refresh_recipe_list(self.recipe_combo.currentData())
+        self._apply_recipe_transition(transition)
 
     def _on_recipe_selected(self, _index: int) -> None:
-        recipe_id = self.recipe_combo.currentData()
-        if recipe_id in (None, 0):
-            return
-
-        recipe = self.db.get_recipe(int(recipe_id))
-        steps = self.db.get_recipe_steps(int(recipe_id))
-        self.recipe_page.load_recipe(recipe["name"] if recipe else "", steps)
+        transition = self.recipe_controller.load_recipe(self.recipe_combo.currentData())
+        self._apply_recipe_transition(transition)
 
     def _save_new_recipe(self) -> None:
         name = self.recipe_page.recipe_name_input.text().strip()
-        if not name:
-            QMessageBox.warning(self, "参数错误", "请填写配方名称")
-            return
-
         steps = self._collect_recipe_steps()
         if not steps:
             return
-
-        recipe_id = self.db.create_recipe(name, steps)
-        self.db.log_action("operator", "RECIPE_CREATE", f"recipe_id={recipe_id},name={name}")
-        self._append_log(f"配方已保存，ID={recipe_id}")
-        self._refresh_recipe_combo()
-        idx = self.recipe_combo.findData(recipe_id)
-        if idx >= 0:
-            self.recipe_combo.setCurrentIndex(idx)
+        transition = self.recipe_controller.save_recipe(name, steps)
+        self._apply_recipe_transition(transition)
 
     def _update_current_recipe(self) -> None:
-        recipe_id = self.recipe_combo.currentData()
-        if recipe_id in (None, 0):
-            QMessageBox.warning(self, "参数错误", "请先选择一个已存在的配方")
-            return
-
         name = self.recipe_page.recipe_name_input.text().strip()
-        if not name:
-            QMessageBox.warning(self, "参数错误", "请填写配方名称")
-            return
-
         steps = self._collect_recipe_steps()
         if not steps:
             return
-
-        self.db.update_recipe(int(recipe_id), name, steps)
-        self.db.log_action("operator", "RECIPE_UPDATE", f"recipe_id={recipe_id},name={name}")
-        self._append_log(f"配方已更新，ID={recipe_id}")
-        self._refresh_recipe_combo()
-        idx = self.recipe_combo.findData(recipe_id)
-        if idx >= 0:
-            self.recipe_combo.setCurrentIndex(idx)
+        transition = self.recipe_controller.update_recipe(self.recipe_combo.currentData(), name, steps)
+        self._apply_recipe_transition(transition)
 
     def _collect_recipe_steps(self) -> list[dict[str, object]]:
         try:
@@ -430,6 +392,37 @@ class MainWindow(QMainWindow):
             self.btn_resume.setEnabled(view_state.resume_enabled)
         if view_state.stop_enabled is not None:
             self.btn_stop.setEnabled(view_state.stop_enabled)
+
+    def _apply_recipe_transition(self, transition: RecipeTransition) -> None:
+        if transition.view_state is not None:
+            self._apply_recipe_view_state(transition.view_state)
+        for log in transition.logs:
+            self._append_log(log)
+        if transition.user_message:
+            if transition.user_message_level == "info":
+                QMessageBox.information(self, "提示", transition.user_message)
+            else:
+                QMessageBox.warning(self, "参数错误", transition.user_message)
+
+    def _apply_recipe_view_state(self, view_state: RecipeViewState) -> None:
+        current_id = self.recipe_combo.currentData()
+        self.recipe_combo.blockSignals(True)
+        self.recipe_combo.clear()
+        self.recipe_combo.addItem("请选择配方", 0)
+        for option in view_state.options:
+            self.recipe_combo.addItem(option.label, option.recipe_id)
+        selected_id = view_state.selected_recipe_id or current_id or 0
+        index = self.recipe_combo.findData(selected_id)
+        if index >= 0:
+            self.recipe_combo.setCurrentIndex(index)
+        else:
+            self.recipe_combo.setCurrentIndex(0)
+        self.recipe_combo.blockSignals(False)
+
+        if selected_id in (None, 0):
+            self.recipe_page.load_recipe("", [])
+            return
+        self.recipe_page.load_recipe(view_state.recipe_name, view_state.steps)
 
     def _reset_runtime_ui(self) -> None:
         if self.worker is not None:
