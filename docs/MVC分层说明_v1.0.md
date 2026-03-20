@@ -38,6 +38,7 @@
 7. `src/rka_desktop/ui/main_window_presenter.py`
 8. `src/rka_desktop/ui/dialog_service.py`
 9. `src/rka_desktop/ui/runtime_coordinator.py`
+10. `src/rka_desktop/ui/log_service.py`
 
 ### 2.2 Controller
 
@@ -59,6 +60,7 @@
 职责：
 
 - 数据持久化
+- 轻量仓储封装
 - 设备访问
 - 实验规则执行
 - 采集、导出等通用服务
@@ -66,11 +68,12 @@
 当前主要文件：
 
 1. `src/rka_desktop/db/database.py`
-2. `src/rka_desktop/hardware/device_gateway.py`
-3. `src/rka_desktop/services/experiment_engine.py`
-4. `src/rka_desktop/services/acquisition_service.py`
-5. `src/rka_desktop/services/export_service.py`
-6. `src/rka_desktop/services/recipe_runtime_service.py`
+2. `src/rka_desktop/repositories/`
+3. `src/rka_desktop/hardware/device_gateway.py`
+4. `src/rka_desktop/services/experiment_engine.py`
+5. `src/rka_desktop/services/acquisition_service.py`
+6. `src/rka_desktop/services/export_service.py`
+7. `src/rka_desktop/services/recipe_runtime_service.py`
 
 ## 3. 当前 Controller 边界
 
@@ -178,6 +181,39 @@
 - `MainWindow` 不再直接创建 `AcquisitionWorker`
 - 这样运行态生命周期被集中管理，后续如果替换线程模型，影响面更小
 
+## 4.4 LogService 角色
+
+当前项目还增加了一个日志适配层：
+
+- `src/rka_desktop/ui/log_service.py`
+
+职责：
+
+1. 统一把日志写入应用 logger
+2. 统一把日志同步到监控页日志面板
+
+说明：
+
+- `MainWindow` 不再直接操作日志控件
+- 后续如果增加文件日志、远程日志或结构化日志，入口会更集中
+
+## 5. Repository 角色
+
+当前引入的是轻量仓储层，不是重型 ORM。
+
+当前主要仓储：
+
+1. `RecipeRepository`
+2. `ExperimentRepository`
+3. `AlarmRepository`
+4. `AuditLogRepository`
+
+目的：
+
+1. 让 Controller 不再直接依赖 `DatabaseManager`
+2. 让数据库动作按职责分组
+3. 为后续继续细化 repository 边界预留空间
+
 ## 5. 当前目录理解
 
 建议按下面方式理解当前项目：
@@ -187,12 +223,14 @@
 2. `controllers/`
    - MVC 中的 Controller
 3. `db/`
-   - 数据访问层
-4. `hardware/`
+   - 底层数据访问实现
+4. `repositories/`
+   - 面向业务职责的仓储接口
+5. `hardware/`
    - 设备接入层
-5. `services/`
+6. `services/`
    - 通用业务服务和执行引擎
-6. `models/`
+7. `models/`
    - 数据结构定义
 
 ## 6. 当前不是最终形态的地方
@@ -204,7 +242,7 @@
 1. `MainWindow` 仍承担 Controller 结果分发职责
 2. 配方页面输入解析还在 `RecipePage`
 3. 历史页当前是最小查询页，还没有更细的筛选条件
-4. `DatabaseManager` 仍是直接数据库访问入口，后续可继续细化 repository 边界
+4. repository 目前还是轻量封装，后续如有必要可继续细化
 
 ## 7. 后续建议
 
@@ -212,7 +250,7 @@
 
 1. 继续减少 `MainWindow` 中的结果分发代码
 2. 继续把剩余页面输入校验逐步收敛到 Controller
-3. 视需要引入更细的 repository 层
+3. 视需要继续细化 repository 层
 4. Windows 交付前冻结目录与分层口径
 
 ## 8. 当前结论

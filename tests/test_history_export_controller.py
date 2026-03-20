@@ -4,6 +4,7 @@ from rka_desktop.controllers.history_export_controller import HistoryExportContr
 from rka_desktop.core.config import Settings
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.models.entities import Measurement
+from rka_desktop.repositories import AuditLogRepository, ExperimentRepository
 from rka_desktop.services.export_service import ExportService
 
 
@@ -14,7 +15,7 @@ def _build_history_controller(tmp_path, db_name: str = "history_controller.db"):
     )
     db = DatabaseManager(settings.db_file)
     db.init_schema()
-    controller = HistoryExportController(db, ExportService(db))
+    controller = HistoryExportController(ExperimentRepository(db), AuditLogRepository(db), ExportService(db))
     return db, controller
 
 

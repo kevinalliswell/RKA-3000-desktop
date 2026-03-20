@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from rka_desktop.db.database import DatabaseManager
+from rka_desktop.repositories.audit_repository import AuditLogRepository
+from rka_desktop.repositories.recipe_repository import RecipeRepository
 
 
 @dataclass
@@ -31,16 +32,17 @@ class RecipeTransition:
 
 
 class RecipeController:
-    def __init__(self, db: DatabaseManager) -> None:
-        self.db = db
+    def __init__(self, recipe_repository: RecipeRepository, audit_repository: AuditLogRepository) -> None:
+        self.recipe_repository = recipe_repository
+        self.audit_repository = audit_repository
 
     def refresh_recipe_list(self, selected_recipe_id: int | None = None) -> RecipeTransition:
         options = self._list_options()
         active_id = self._resolve_selected_recipe_id(selected_recipe_id, options)
         view_state = RecipeViewState(options=options, selected_recipe_id=active_id)
         if active_id:
-            recipe = self.db.get_recipe(active_id)
-            steps = self.db.get_recipe_steps(active_id)
+            recipe = self.recipe_repository.get_recipe(active_id)
+            steps = self.recipe_repository.get_recipe_steps(active_id)
             view_state.recipe_name = recipe["name"] if recipe else ""
             view_state.steps = steps
         return RecipeTransition(view_state=view_state)
@@ -56,8 +58,8 @@ class RecipeController:
                 )
             )
 
-        recipe = self.db.get_recipe(int(recipe_id))
-        steps = self.db.get_recipe_steps(int(recipe_id))
+        recipe = self.recipe_repository.get_recipe(int(recipe_id))
+        steps = self.recipe_repository.get_recipe_steps(int(recipe_id))
         return RecipeTransition(
             view_state=RecipeViewState(
                 options=self._list_options(),
@@ -72,8 +74,8 @@ class RecipeController:
         if validation_error is not None:
             return RecipeTransition(success=False, user_message=validation_error, user_message_level="warning")
 
-        recipe_id = self.db.create_recipe(name, steps)
-        self.db.log_action("operator", "RECIPE_CREATE", f"recipe_id={recipe_id},name={name}")
+        recipe_id = self.recipe_repository.create_recipe(name, steps)
+        self.audit_repository.log_action("operator", "RECIPE_CREATE", f"recipe_id={recipe_id},name={name}")
         transition = self.refresh_recipe_list(recipe_id)
         transition.recipe_id = recipe_id
         transition.logs.append(f"配方已保存，ID={recipe_id}")
@@ -88,8 +90,8 @@ class RecipeController:
             return RecipeTransition(success=False, user_message=validation_error, user_message_level="warning")
 
         resolved_id = int(recipe_id)
-        self.db.update_recipe(resolved_id, name, steps)
-        self.db.log_action("operator", "RECIPE_UPDATE", f"recipe_id={resolved_id},name={name}")
+        self.recipe_repository.update_recipe(resolved_id, name, steps)
+        self.audit_repository.log_action("operator", "RECIPE_UPDATE", f"recipe_id={resolved_id},name={name}")
         transition = self.refresh_recipe_list(resolved_id)
         transition.recipe_id = resolved_id
         transition.logs.append(f"配方已更新，ID={resolved_id}")
@@ -142,7 +144,7 @@ class RecipeController:
     def _list_options(self) -> list[RecipeOption]:
         return [
             RecipeOption(recipe_id=int(recipe["id"]), label=f"#{recipe['id']} {recipe['name']}")
-            for recipe in self.db.list_recipes()
+            for recipe in self.recipe_repository.list_recipes()
         ]
 
     def _resolve_selected_recipe_id(self, selected_recipe_id: int | None, options: list[RecipeOption]) -> int:

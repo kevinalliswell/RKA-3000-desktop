@@ -11,9 +11,12 @@ from rka_desktop.core.alarm_rules import (
     is_interlock_resettable,
 )
 from rka_desktop.core.config import Settings
-from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
+from rka_desktop.repositories.alarm_repository import AlarmRepository
+from rka_desktop.repositories.audit_repository import AuditLogRepository
+from rka_desktop.repositories.experiment_repository import ExperimentRepository
+from rka_desktop.repositories.recipe_repository import RecipeRepository
 from rka_desktop.services.experiment_engine import EngineUpdate, ExperimentEngine, ExperimentState
 from rka_desktop.services.recipe_runtime_service import build_recipe_runtime
 
@@ -55,9 +58,20 @@ class ControllerTransition:
 
 
 class ExperimentController:
-    def __init__(self, settings: Settings, db: DatabaseManager, gateway: DeviceGateway) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        recipe_repository: RecipeRepository,
+        experiment_repository: ExperimentRepository,
+        alarm_repository: AlarmRepository,
+        audit_repository: AuditLogRepository,
+        gateway: DeviceGateway,
+    ) -> None:
         self.settings = settings
-        self.db = db
+        self.recipe_repository = recipe_repository
+        self.experiment_repository = experiment_repository
+        self.alarm_repository = alarm_repository
+        self.audit_repository = audit_repository
         self.gateway = gateway
         self.engine: ExperimentEngine | None = None
         self.experiment_id: int | None = None
@@ -69,13 +83,13 @@ class ExperimentController:
 
     def start_experiment(self, recipe_id: int) -> ControllerTransition:
         self._reset_runtime_tracking()
-        recipe = self.db.get_recipe(recipe_id)
-        recipe_steps = self.db.get_recipe_steps(recipe_id)
+        recipe = self.recipe_repository.get_recipe(recipe_id)
+        recipe_steps = self.recipe_repository.get_recipe_steps(recipe_id)
         if not recipe_steps:
             raise ValueError("当前配方没有可执行步骤")
 
         recipe_name = recipe["name"] if recipe else f"配方{recipe_id}"
-        self.experiment_id = self.db.create_experiment(name=f"实验-{recipe_name}", recipe_id=recipe_id)
+        self.experiment_id = self.experiment_repository.create_experiment(name=f"实验-{recipe_name}", recipe_id=recipe_id)
         self.engine = ExperimentEngine(
             build_recipe_runtime(recipe_steps),
             step_heatup_grace_seconds=self.settings.step_heatup_grace_seconds,
@@ -89,7 +103,7 @@ class ExperimentController:
         if not self._issue_run_control_command("start", "启动"):
             return self._with_view_state(ControllerTransition(success=False, final_status=ExperimentState.FAULTED.value))
 
-        self.db.log_action("operator", "EXPERIMENT_START", f"id={self.experiment_id},recipe_id={recipe_id}")
+        self.audit_repository.log_action("operator", "EXPERIMENT_START", f"id={self.experiment_id},recipe_id={recipe_id}")
         return self._with_view_state(
             ControllerTransition(
             success=True,
@@ -110,8 +124,8 @@ class ExperimentController:
 
         update = self.engine.pause()
         self._remember_update(update)
-        self.db.set_experiment_status(self.experiment_id, ExperimentState.PAUSED.value)
-        self.db.log_action("operator", "EXPERIMENT_PAUSE", f"id={self.experiment_id}")
+        self.experiment_repository.set_experiment_status(self.experiment_id, ExperimentState.PAUSED.value)
+        self.audit_repository.log_action("operator", "EXPERIMENT_PAUSE", f"id={self.experiment_id}")
         return self._with_view_state(ControllerTransition(update=update, logs=[update.status_text]))
 
     def resume_experiment(self) -> ControllerTransition | None:
@@ -127,8 +141,8 @@ class ExperimentController:
 
         update = self.engine.resume()
         self._remember_update(update)
-        self.db.set_experiment_status(self.experiment_id, ExperimentState.RUNNING.value)
-        self.db.log_action("operator", "EXPERIMENT_RESUME", f"id={self.experiment_id}")
+        self.experiment_repository.set_experiment_status(self.experiment_id, ExperimentState.RUNNING.value)
+        self.audit_repository.log_action("operator", "EXPERIMENT_RESUME", f"id={self.experiment_id}")
         if not self._apply_current_step_setpoints():
             return self._with_view_state(ControllerTransition(success=False, final_status=ExperimentState.FAULTED.value))
         return self._with_view_state(ControllerTransition(update=update, logs=[update.status_text]))
@@ -150,8 +164,8 @@ class ExperimentController:
         update = self.engine.interrupt(reason)
         self._remember_update(update)
         self._sync_run_control_command("pause", "联锁中断暂停")
-        self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
-        self.db.log_action("system", "EXPERIMENT_INTERRUPTED", detail)
+        self.experiment_repository.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
+        self.audit_repository.log_action("system", "EXPERIMENT_INTERRUPTED", detail)
         return self._with_view_state(ControllerTransition(update=update, logs=[update.status_text]))
 
     def acknowledge_alarm(self) -> ControllerTransition:
@@ -160,10 +174,10 @@ class ExperimentController:
                 ControllerTransition(success=False, user_message="当前无运行中的实验", user_message_level="info")
             )
 
-        ok = self.db.acknowledge_latest_alarm(self.experiment_id, actor="operator")
+        ok = self.alarm_repository.acknowledge_latest_alarm(self.experiment_id, actor="operator")
         logs = ["报警已确认"] if ok else ["没有待确认报警"]
         if ok:
-            self.db.log_action("operator", "ALARM_ACK", f"experiment_id={self.experiment_id}")
+            self.audit_repository.log_action("operator", "ALARM_ACK", f"experiment_id={self.experiment_id}")
         return self._with_view_state(ControllerTransition(success=ok, logs=logs))
 
     def reset_interlock(self) -> ControllerTransition:
@@ -193,7 +207,7 @@ class ExperimentController:
             )
         if not self._issue_run_control_command("reset", "联锁复位"):
             return self._with_view_state(ControllerTransition(success=False, final_status=ExperimentState.FAULTED.value))
-        self.db.log_action("operator", "INTERLOCK_RESET", f"id={self.experiment_id},word={self._interlock_active_word:04X}")
+        self.audit_repository.log_action("operator", "INTERLOCK_RESET", f"id={self.experiment_id},word={self._interlock_active_word:04X}")
         return self._with_view_state(ControllerTransition(logs=["已请求联锁复位，等待状态解除"]))
 
     def handle_snapshot(self, snapshot: DeviceSnapshot, measurement: Measurement) -> ControllerTransition:
@@ -294,8 +308,8 @@ class ExperimentController:
             self._remember_update(update)
         self._sync_run_control_command("stop", "故障停机")
         if self.experiment_id is not None:
-            self.db.set_experiment_status(self.experiment_id, ExperimentState.FAULTED.value)
-            self.db.log_action("system", audit_action, detail)
+            self.experiment_repository.set_experiment_status(self.experiment_id, ExperimentState.FAULTED.value)
+            self.audit_repository.log_action("system", audit_action, detail)
         finalize = self._finalize_experiment(
             final_status=ExperimentState.FAULTED.value,
             final_update=update,
@@ -350,7 +364,7 @@ class ExperimentController:
             return True
         except Exception as exc:
             if self.experiment_id is not None:
-                self.db.log_action(
+                self.audit_repository.log_action(
                     "system",
                     "RUN_CONTROL_SYNC_FAILED",
                     f"id={self.experiment_id},command={command},error={exc}",
@@ -377,8 +391,8 @@ class ExperimentController:
 
         logs: list[str] = []
         if exp_id is not None:
-            self.db.finish_experiment(exp_id, status=final_status)
-            self.db.log_action("operator", audit_action, f"id={exp_id},status={final_status}")
+            self.experiment_repository.finish_experiment(exp_id, status=final_status)
+            self.audit_repository.log_action("operator", audit_action, f"id={exp_id},status={final_status}")
             logs.append(log_message or f"实验结束，ID={exp_id}，状态={final_status}")
 
         return ControllerTransition(
@@ -408,7 +422,7 @@ class ExperimentController:
         self._last_setpoints_text = update.active_setpoints_text
 
     def _has_unacknowledged_alarms(self) -> bool:
-        return bool(self.experiment_id is not None and self.db.list_unacknowledged_alarms(self.experiment_id))
+        return bool(self.experiment_id is not None and self.alarm_repository.list_unacknowledged_alarms(self.experiment_id))
 
     def _resume_blocking_message(self) -> str | None:
         if self.engine is None or self.engine.state != ExperimentState.INTERRUPTED:
@@ -429,13 +443,15 @@ class ExperimentController:
             self._alarm_active_word = snapshot.alarm_word
             if self.experiment_id is not None:
                 for alarm in active_alarms:
-                    self.db.create_alarm(
+                    self.alarm_repository.create_alarm(
                         self.experiment_id,
                         code=alarm.code,
                         level=alarm.level,
                         message=alarm.message,
                     )
-                self.db.log_action("system", "ALARM_RAISED", f"experiment_id={self.experiment_id},word={snapshot.alarm_word:04X}")
+                self.audit_repository.log_action(
+                    "system", "ALARM_RAISED", f"experiment_id={self.experiment_id},word={snapshot.alarm_word:04X}"
+                )
             logs.append(f"报警触发：报警字={snapshot.alarm_word}")
             return logs
 
@@ -456,14 +472,14 @@ class ExperimentController:
             self._interlock_active_word = current_word
             logs.append(f"联锁激活：状态字=0x{current_word:04X}")
             if self.experiment_id is not None:
-                self.db.log_action("system", "INTERLOCK_ACTIVE", f"id={self.experiment_id},word={current_word:04X}")
+                self.audit_repository.log_action("system", "INTERLOCK_ACTIVE", f"id={self.experiment_id},word={current_word:04X}")
             return logs
 
         if current_word == 0 and not snapshot.estop_status and (self._interlock_active_word != 0 or previous_estop):
             self._interlock_active_word = 0
             logs.append("联锁解除")
             if self.experiment_id is not None:
-                self.db.log_action("system", "INTERLOCK_CLEARED", f"id={self.experiment_id}")
+                self.audit_repository.log_action("system", "INTERLOCK_CLEARED", f"id={self.experiment_id}")
 
         return logs
 
@@ -478,7 +494,7 @@ class ExperimentController:
             if self._run_control_feedback_inconsistent:
                 logs.append("运行控制反馈已恢复一致")
                 if self.experiment_id is not None:
-                    self.db.log_action("system", "RUN_CONTROL_FEEDBACK_RESTORED", f"id={self.experiment_id}")
+                    self.audit_repository.log_action("system", "RUN_CONTROL_FEEDBACK_RESTORED", f"id={self.experiment_id}")
             self._run_control_feedback_inconsistent = False
             return logs
 
@@ -488,7 +504,7 @@ class ExperimentController:
         self._run_control_feedback_inconsistent = True
         logs.append(feedback.message)
         if self.experiment_id is not None:
-            self.db.log_action(
+            self.audit_repository.log_action(
                 "system",
                 "RUN_CONTROL_FEEDBACK_MISMATCH",
                 f"id={self.experiment_id},detail={feedback.message}",
@@ -522,7 +538,11 @@ class ExperimentController:
             monitor_interlock_style = "color: #1b5e20;"
 
         has_active = self.has_active_experiment
-        pending_alarms = self.db.list_unacknowledged_alarms(self.experiment_id) if self.experiment_id is not None else []
+        pending_alarms = (
+            self.alarm_repository.list_unacknowledged_alarms(self.experiment_id)
+            if self.experiment_id is not None
+            else []
+        )
         has_interlock = has_active_interlock(self._interlock_active_word, profile_name=self.settings.mapping_profile)
         reset_enabled = (
             has_active

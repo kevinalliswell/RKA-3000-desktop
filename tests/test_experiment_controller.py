@@ -6,6 +6,7 @@ from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
+from rka_desktop.repositories import AlarmRepository, AuditLogRepository, ExperimentRepository, RecipeRepository
 
 
 def _build_controller(tmp_path, db_name: str = "controller.db"):
@@ -17,7 +18,14 @@ def _build_controller(tmp_path, db_name: str = "controller.db"):
     db.init_schema()
     client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
     gateway = DeviceGateway(client)
-    controller = ExperimentController(settings=settings, db=db, gateway=gateway)
+    controller = ExperimentController(
+        settings=settings,
+        recipe_repository=RecipeRepository(db),
+        experiment_repository=ExperimentRepository(db),
+        alarm_repository=AlarmRepository(db),
+        audit_repository=AuditLogRepository(db),
+        gateway=gateway,
+    )
     return settings, db, client, controller
 
 

@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from rka_desktop.db.database import DatabaseManager
+from rka_desktop.repositories.audit_repository import AuditLogRepository
+from rka_desktop.repositories.experiment_repository import ExperimentRepository
 from rka_desktop.services.export_service import ExportService
 
 
@@ -27,12 +28,18 @@ class HistoryTransition:
 
 
 class HistoryExportController:
-    def __init__(self, db: DatabaseManager, export_service: ExportService) -> None:
-        self.db = db
+    def __init__(
+        self,
+        experiment_repository: ExperimentRepository,
+        audit_repository: AuditLogRepository,
+        export_service: ExportService,
+    ) -> None:
+        self.experiment_repository = experiment_repository
+        self.audit_repository = audit_repository
         self.export_service = export_service
 
     def load_history(self, selected_experiment_id: int | None = None, limit: int = 100) -> HistoryTransition:
-        experiments = self.db.list_experiments(limit=limit)
+        experiments = self.experiment_repository.list_experiments(limit=limit)
         resolved_id = self._resolve_selected_experiment_id(selected_experiment_id, experiments)
         return HistoryTransition(view_state=self._build_view_state(experiments, resolved_id))
 
@@ -48,20 +55,20 @@ class HistoryExportController:
         file_path: Path,
         limit: int = 100,
     ) -> HistoryTransition:
-        experiment_id = active_experiment_id or selected_experiment_id or self.db.get_latest_experiment_id()
+        experiment_id = active_experiment_id or selected_experiment_id or self.experiment_repository.get_latest_experiment_id()
         if experiment_id is None:
             return HistoryTransition(success=False, user_message="没有可导出的实验数据", user_message_level="info")
 
         if fmt == "csv":
             out = self.export_service.export_measurements_csv(experiment_id, file_path)
-            self.db.log_action("operator", "EXPORT_CSV", f"experiment_id={experiment_id},path={out}")
+            self.audit_repository.log_action("operator", "EXPORT_CSV", f"experiment_id={experiment_id},path={out}")
             logs = [f"导出CSV成功: {out}"]
         else:
             out = self.export_service.export_measurements_excel(experiment_id, file_path)
-            self.db.log_action("operator", "EXPORT_EXCEL", f"experiment_id={experiment_id},path={out}")
+            self.audit_repository.log_action("operator", "EXPORT_EXCEL", f"experiment_id={experiment_id},path={out}")
             logs = [f"导出Excel成功: {out}"]
 
-        experiments = self.db.list_experiments(limit=limit)
+        experiments = self.experiment_repository.list_experiments(limit=limit)
         view_state = self._build_view_state(experiments, experiment_id)
         return HistoryTransition(success=True, logs=logs, exported_path=out, view_state=view_state)
 
@@ -73,7 +80,7 @@ class HistoryExportController:
         selected_experiment_id: int | None,
         export_dir: Path,
     ) -> tuple[int | None, Path]:
-        experiment_id = active_experiment_id or selected_experiment_id or self.db.get_latest_experiment_id()
+        experiment_id = active_experiment_id or selected_experiment_id or self.experiment_repository.get_latest_experiment_id()
         if experiment_id is None:
             suffix = "csv" if fmt == "csv" else "xlsx"
             return None, export_dir / f"experiment_unknown.{suffix}"
@@ -108,11 +115,11 @@ class HistoryExportController:
         if experiment_id is None:
             return "暂无历史实验"
 
-        detail = self.db.get_experiment_detail(experiment_id)
+        detail = self.experiment_repository.get_experiment_detail(experiment_id)
         if detail is None:
             return "未找到实验详情"
 
-        summary = self.db.get_experiment_summary(experiment_id)
+        summary = self.experiment_repository.get_experiment_summary(experiment_id)
         if not summary:
             return (
                 f"实验 #{experiment_id} | 状态 {detail['status']} | "

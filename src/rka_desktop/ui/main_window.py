@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import logging
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -22,17 +20,17 @@ from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeCo
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
+from rka_desktop.repositories import AlarmRepository, AuditLogRepository, ExperimentRepository, RecipeRepository
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.dialog_service import DialogService
 from rka_desktop.ui.history_page import HistoryPage
+from rka_desktop.ui.log_service import LogService
 from rka_desktop.ui.monitor_page import MonitorPage
 from rka_desktop.ui.main_window_presenter import MainWindowPresenter
 from rka_desktop.ui.recipe_page import RecipePage
 from rka_desktop.ui.runtime_coordinator import RuntimeCoordinator
 from rka_desktop.ui.settings_page import SettingsPage
-
-logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -41,11 +39,22 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.db = db
         self.client = client
+        self.recipe_repository = RecipeRepository(db)
+        self.experiment_repository = ExperimentRepository(db)
+        self.alarm_repository = AlarmRepository(db)
+        self.audit_repository = AuditLogRepository(db)
         self.gateway = DeviceGateway(client)
-        self.controller = ExperimentController(settings=settings, db=db, gateway=self.gateway)
-        self.recipe_controller = RecipeController(db)
+        self.controller = ExperimentController(
+            settings=settings,
+            recipe_repository=self.recipe_repository,
+            experiment_repository=self.experiment_repository,
+            alarm_repository=self.alarm_repository,
+            audit_repository=self.audit_repository,
+            gateway=self.gateway,
+        )
+        self.recipe_controller = RecipeController(self.recipe_repository, self.audit_repository)
         self.export_service = ExportService(db)
-        self.history_controller = HistoryExportController(db, self.export_service)
+        self.history_controller = HistoryExportController(self.experiment_repository, self.audit_repository, self.export_service)
 
         self.setWindowTitle(f"{settings.app_name} - v1.1")
         self.resize(1380, 840)
@@ -153,6 +162,7 @@ class MainWindow(QMainWindow):
             on_snapshot=self._on_snapshot,
             on_error=self._on_error,
         )
+        self.logs = LogService(self.monitor_page, __name__)
 
     def _bind_events(self) -> None:
         self.btn_connect.clicked.connect(self.connect_device)
@@ -178,7 +188,7 @@ class MainWindow(QMainWindow):
     def connect_device(self) -> None:
         if self.gateway.connect():
             self._append_log("设备连接成功")
-            self.db.log_action("operator", "DEVICE_CONNECT", self.settings.serial_port)
+            self.audit_repository.log_action("operator", "DEVICE_CONNECT", self.settings.serial_port)
             self.presenter.show_connected()
             return
 
@@ -372,8 +382,7 @@ class MainWindow(QMainWindow):
         self._apply_recipe_transition(transition)
 
     def _append_log(self, text: str) -> None:
-        logger.info(text)
-        self.monitor_page.append_log(text)
+        self.logs.append(text)
 
     def _apply_controller_transition(self, transition: ControllerTransition) -> None:
         self.presenter.apply_experiment_transition(transition)

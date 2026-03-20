@@ -1,6 +1,7 @@
 from rka_desktop.controllers.recipe_controller import RecipeController
 from rka_desktop.core.config import Settings
 from rka_desktop.db.database import DatabaseManager
+from rka_desktop.repositories import AuditLogRepository, RecipeRepository
 
 
 def _build_recipe_controller(tmp_path, db_name: str = "recipe_controller.db"):
@@ -10,7 +11,7 @@ def _build_recipe_controller(tmp_path, db_name: str = "recipe_controller.db"):
     )
     db = DatabaseManager(settings.db_file)
     db.init_schema()
-    controller = RecipeController(db)
+    controller = RecipeController(RecipeRepository(db), AuditLogRepository(db))
     return db, controller
 
 
