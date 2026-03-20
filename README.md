@@ -37,12 +37,20 @@ python -m rka_desktop.main
 - Sprint 2 正在补齐执行引擎与运行控制字联动，自动完成/自动故障/联锁中断会同步下发 stop/pause
 - Sprint 2 正在把采集链路切到批量落库，UI 保持逐点刷新，数据库改为按缓冲批量提交
 - Sprint 2 正在补充控制字与设备反馈字一致性校核，监控页可直接显示“回显 / 脉冲释放 / 不一致”
+- Sprint 2 已开始引入 `controllers/` 和 `hardware/` 最小骨架，主流程正从 UI 层向控制层迁移
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
 
 ## 3. 目录
 
 - `docs/`：PRD、硬件规格、技术栈文档
+- `docs/需求确认清单_v1.0.md`：可直接逐项填写的需求确认清单
+- `docs/需求冻结记录_v1.0.md`：根据已确认口径整理出的正式需求冻结记录
+- `docs/功能边界表_v1.0.md`：当前版本必须做、后续做、不做的功能边界表
+- `docs/RKA架构重整建议_v1.0.md`：从当前代码平滑过渡到控制层/硬件层分离架构的建议
+- `docs/多Agent组织与职责_v2.0.md`：按产品经理主导与架构先行重写的多 agent 组织基线
+- `docs/多Agent任务拆解_v2.0.md`：按冻结需求和新组织方式重写的当前执行任务拆解
+- `docs/Sprint2后续路线图_v1.0.md`：结构收敛、最小闭环稳定与 Windows 准备的后续路线图
 - `docs/多Agent并行开发清单_v1.0.md`：多 agent 并行开发任务拆解
 - `docs/Sprint1_任务分解与验收_v1.0.md`：Sprint 1 并行任务包与 Alex 验收标准
 - `docs/Sprint1_并行Checklist_v1.0.md`：Sprint 1 各 agent 可直接执行的 checklist
@@ -88,9 +96,14 @@ python -m rka_desktop.main
 
 ## 7. 多 Agent 协作
 
-- 主控 Agent：`Alex`，由 Codex 负责任务分解、集成协调和验收
-- 模块 Agent：`Leo`（通信）、`Emma`（执行引擎）、`Mia`（UI）、`Ryan`（数据）、`Lily`（测试 CI）、`Owen`（文档交付）
-- 详细拆分见 `docs/多Agent并行开发清单_v1.0.md`
+- 当前建议采用“产品经理主导 + 架构先行 + 领域分工”的组织方式
+- 主控 Agent：`Alex`，负责需求拆解、集成协调和阶段验收
+- 新增建议角色：`Iris`（架构）、`Nina`（算法）、`Evan`（构建发布）
+- 模块 Agent：`Leo`（通信）、`Emma`（控制与业务服务）、`Mia`（UI）、`Ryan`（数据）、`Lily`（测试 CI）、`Owen`（文档交付）
+- 当前组织基线见 `docs/多Agent组织与职责_v2.0.md`
+- 当前执行任务基线见 `docs/多Agent任务拆解_v2.0.md`
+- 当前路线图见 `docs/Sprint2后续路线图_v1.0.md`
+- 历史任务拆解仍保留在 `docs/多Agent并行开发清单_v1.0.md`
 
 ## 8. 许可
 

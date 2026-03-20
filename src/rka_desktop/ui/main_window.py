@@ -25,12 +25,13 @@ from rka_desktop.core.alarm_rules import (
 )
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
+from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController
 from rka_desktop.db.database import DatabaseManager
+from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
 from rka_desktop.services.acquisition_service import AcquisitionWorker, alarm_text
-from rka_desktop.services.experiment_engine import ExperimentEngine, ExperimentState
+from rka_desktop.services.experiment_engine import ExperimentState
 from rka_desktop.services.export_service import ExportService
-from rka_desktop.services.recipe_runtime_service import build_recipe_runtime
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.monitor_page import MonitorPage
 from rka_desktop.ui.recipe_page import RecipePage
@@ -45,11 +46,11 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.db = db
         self.client = client
+        self.gateway = DeviceGateway(client)
+        self.controller = ExperimentController(settings=settings, db=db, gateway=self.gateway)
         self.export_service = ExportService(db)
 
         self.worker: AcquisitionWorker | None = None
-        self.engine: ExperimentEngine | None = None
-        self.experiment_id: int | None = None
         self._alarm_active_word = 0
         self._interlock_active_word = 0
         self._estop_active = False
@@ -62,6 +63,22 @@ class MainWindow(QMainWindow):
         self._bind_events()
         self._refresh_recipe_combo()
         self.recipe_page.add_default_row()
+
+    @property
+    def engine(self):
+        return self.controller.engine
+
+    @engine.setter
+    def engine(self, value) -> None:
+        self.controller.engine = value
+
+    @property
+    def experiment_id(self):
+        return self.controller.experiment_id
+
+    @experiment_id.setter
+    def experiment_id(self, value) -> None:
+        self.controller.experiment_id = value
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -129,7 +146,7 @@ class MainWindow(QMainWindow):
         self.alarm_page.btn_reset_interlock.clicked.connect(self.reset_interlock)
 
     def connect_device(self) -> None:
-        if self.client.connect():
+        if self.gateway.connect():
             self._append_log("设备连接成功")
             self.db.log_action("operator", "DEVICE_CONNECT", self.settings.serial_port)
             self.monitor_page.show_connected()
@@ -150,26 +167,22 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "确认启动", "确定按当前配方开始实验吗？") != QMessageBox.StandardButton.Yes:
             return
 
-        if not self.client.connect():
+        if not self.gateway.connect():
             QMessageBox.warning(self, "无法启动", "请先连接设备")
             return
 
-        recipe = self.db.get_recipe(int(recipe_id))
-        recipe_steps = self.db.get_recipe_steps(int(recipe_id))
-        if not recipe_steps:
+        try:
+            transition = self.controller.start_experiment(int(recipe_id))
+        except ValueError as exc:
+            QMessageBox.warning(self, "缺少步骤", str(exc))
+            return
+        except Exception as exc:
+            QMessageBox.warning(self, "无法启动", str(exc))
+            return
+
+        if not transition.success or transition.experiment_id is None:
+            self._apply_controller_transition(transition)
             QMessageBox.warning(self, "缺少步骤", "当前配方没有可执行步骤")
-            return
-        recipe_name = recipe["name"] if recipe else f"配方{recipe_id}"
-        self.experiment_id = self.db.create_experiment(name=f"实验-{recipe_name}", recipe_id=int(recipe_id))
-        self.engine = ExperimentEngine(
-            build_recipe_runtime(recipe_steps),
-            step_heatup_grace_seconds=self.settings.step_heatup_grace_seconds,
-            step_total_grace_seconds=self.settings.step_total_grace_seconds,
-        )
-        start_update = self.engine.start()
-        if not self._apply_current_step_setpoints():
-            return
-        if not self._issue_run_control_command("start", "启动"):
             return
 
         self._alarm_active_word = 0
@@ -177,15 +190,15 @@ class MainWindow(QMainWindow):
         self._estop_active = False
         self._run_control_feedback_inconsistent = False
         self.monitor_page.reset_runtime()
-        self.monitor_page.update_execution_state(start_update.status_text, start_update.active_setpoints_text)
         self.alarm_page.set_current_alarm("当前报警: 无")
         self.alarm_page.set_current_interlock("当前联锁: 无联锁")
         self.alarm_page.set_pending_alarms([])
+        self._apply_controller_transition(transition)
 
         self.worker = AcquisitionWorker(
-            client=self.client,
+            client=self.gateway,
             db=self.db,
-            experiment_id=self.experiment_id,
+            experiment_id=transition.experiment_id,
             poll_interval_ms=self.settings.poll_interval_ms,
             batch_size=self.settings.acquisition_batch_size,
         )
@@ -197,23 +210,13 @@ class MainWindow(QMainWindow):
         self.btn_pause.setEnabled(True)
         self.btn_resume.setEnabled(False)
         self.btn_stop.setEnabled(True)
-        self.db.log_action("operator", "EXPERIMENT_START", f"id={self.experiment_id},recipe_id={recipe_id}")
-        self._append_log(f"实验开始，ID={self.experiment_id}，配方={recipe_name}")
         self.tabs.setCurrentWidget(self.monitor_page)
 
     def pause_experiment(self) -> None:
-        if self.worker is None or self.engine is None or self.experiment_id is None:
+        transition = self.controller.pause_experiment()
+        if transition is None:
             return
-        if self.engine.state != ExperimentState.RUNNING:
-            return
-        if not self._issue_run_control_command("pause", "暂停"):
-            return
-
-        update = self.engine.pause()
-        self.db.set_experiment_status(self.experiment_id, ExperimentState.PAUSED.value)
-        self.db.log_action("operator", "EXPERIMENT_PAUSE", f"id={self.experiment_id}")
-        self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-        self._append_log(update.status_text)
+        self._apply_controller_transition(transition)
         self.btn_pause.setEnabled(False)
         self.btn_resume.setEnabled(True)
 
@@ -229,16 +232,10 @@ class MainWindow(QMainWindow):
         if self.engine.state == ExperimentState.INTERRUPTED and self.db.list_unacknowledged_alarms(self.experiment_id):
             QMessageBox.warning(self, "无法恢复", "报警已解除，但仍有未确认报警")
             return
-        if not self._issue_run_control_command("resume", "恢复"):
+        transition = self.controller.resume_experiment()
+        if transition is None:
             return
-
-        update = self.engine.resume()
-        self.db.set_experiment_status(self.experiment_id, ExperimentState.RUNNING.value)
-        self.db.log_action("operator", "EXPERIMENT_RESUME", f"id={self.experiment_id}")
-        if not self._apply_current_step_setpoints():
-            return
-        self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-        self._append_log(update.status_text)
+        self._apply_controller_transition(transition)
         self.btn_pause.setEnabled(True)
         self.btn_resume.setEnabled(False)
 
@@ -248,53 +245,10 @@ class MainWindow(QMainWindow):
 
         if QMessageBox.question(self, "确认停止", "确定停止当前实验吗？") != QMessageBox.StandardButton.Yes:
             return
-        if not self._issue_run_control_command("stop", "停止"):
+        transition = self.controller.stop_experiment()
+        if transition is None:
             return
-
-        self._finalize_experiment_stop(
-            final_status=ExperimentState.STOPPED.value,
-            audit_action="EXPERIMENT_STOP",
-            log_message=f"实验终止，ID={self.experiment_id}" if self.experiment_id is not None else None,
-        )
-
-    def _finalize_experiment_stop(
-        self,
-        *,
-        final_status: str = ExperimentState.STOPPED.value,
-        final_update=None,
-        terminate_engine: bool = True,
-        audit_action: str = "EXPERIMENT_STOP",
-        log_message: str | None = None,
-    ) -> None:
-        if self.engine is not None:
-            update = final_update
-            if update is None and terminate_engine:
-                update = self.engine.stop()
-            if update is not None:
-                self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-            self.engine = None
-
-        if self.worker is not None:
-            self.worker.stop()
-            self.worker = None
-
-        if self.experiment_id is not None:
-            exp_id = self.experiment_id
-            self.db.finish_experiment(exp_id, status=final_status)
-            self.db.log_action("operator", audit_action, f"id={exp_id},status={final_status}")
-            self._append_log(log_message or f"实验结束，ID={exp_id}，状态={final_status}")
-            self.experiment_id = None
-
-        self.btn_start.setEnabled(True)
-        self.btn_pause.setEnabled(False)
-        self.btn_resume.setEnabled(False)
-        self.btn_stop.setEnabled(False)
-        self.alarm_page.btn_ack_alarm.setEnabled(False)
-        self.alarm_page.btn_reset_interlock.setEnabled(False)
-        self.alarm_page.set_current_interlock("当前联锁: 无联锁")
-        self._interlock_active_word = 0
-        self._estop_active = False
-        self._run_control_feedback_inconsistent = False
+        self._apply_controller_transition(transition)
 
     def acknowledge_alarm(self) -> None:
         if self.experiment_id is None:
@@ -389,11 +343,14 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         try:
-            self._finalize_experiment_stop(
-                final_status=ExperimentState.STOPPED.value,
-                audit_action="EXPERIMENT_STOP",
-            )
-            self.client.close()
+            if self.controller.has_active_experiment:
+                transition = self.controller.stop_experiment()
+                if transition is not None:
+                    self._apply_controller_transition(transition)
+            elif self.worker is not None:
+                self.worker.stop()
+                self.worker = None
+            self.gateway.close()
         finally:
             event.accept()
 
@@ -401,7 +358,7 @@ class MainWindow(QMainWindow):
         snapshot, measurement = payload
 
         self.monitor_page.update_snapshot(snapshot)
-        feedback = self.client.evaluate_run_control_feedback(snapshot.run_control_word)
+        feedback = self.gateway.evaluate_run_control_feedback(snapshot.run_control_word)
         feedback_style = "color: #1b5e20;" if feedback.is_consistent else "color: #b71c1c; font-weight: bold;"
         self.monitor_page.update_control_state(
             snapshot.run_control_word,
@@ -414,41 +371,20 @@ class MainWindow(QMainWindow):
         self.monitor_page.update_chart(snapshot)
         self._handle_alarm(snapshot)
         self._handle_interlock(snapshot)
-        if self.engine is not None:
-            update = self.engine.on_measurement(measurement)
-            self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-            if self.engine.state == ExperimentState.INTERRUPTED:
+        transition = self.controller.process_measurement(measurement)
+        if transition is not None:
+            self._apply_controller_transition(transition)
+            if self.engine is not None and self.engine.state == ExperimentState.INTERRUPTED:
                 self._update_recovery_actions()
-            if update.step_changed:
-                if not self._apply_current_step_setpoints():
-                    return
-                self._append_log(update.status_text)
-            if update.completed:
-                if update.state == ExperimentState.COMPLETED:
-                    self._sync_run_control_command("stop", "完成停机")
-                    self._append_log("执行引擎判定实验完成")
-                    self._finalize_experiment_stop(
-                        final_status=ExperimentState.COMPLETED.value,
-                        final_update=update,
-                        terminate_engine=False,
-                        audit_action="EXPERIMENT_COMPLETE",
-                        log_message=f"实验完成，ID={self.experiment_id}" if self.experiment_id is not None else None,
-                    )
-                elif update.state == ExperimentState.FAULTED:
-                    self._fail_active_experiment(
-                        update.status_text,
-                        audit_action="STEP_TIMEOUT_FAULT",
-                        detail=f"id={self.experiment_id},step={update.current_step_no}" if self.experiment_id is not None else "step_timeout",
-                        final_update=update,
-                    )
-                return
+            return
 
     def _on_error(self, message: str) -> None:
-        self._fail_active_experiment(
+        transition = self.controller.fail_active_experiment(
             f"采集异常，实验已故障停止: {message}",
             audit_action="ACQUISITION_FAILED",
             detail=f"id={self.experiment_id},error={message}" if self.experiment_id is not None else f"error={message}",
         )
+        self._apply_controller_transition(transition)
 
     def _handle_alarm(self, snapshot: DeviceSnapshot) -> None:
         alarm_msg = alarm_text(snapshot, profile_name=self.settings.mapping_profile)
@@ -549,14 +485,10 @@ class MainWindow(QMainWindow):
             )
 
     def _interrupt_experiment(self, detail: str) -> None:
-        if self.engine is None or self.experiment_id is None:
+        transition = self.controller.interrupt_experiment(detail)
+        if transition is None:
             return
-        update = self.engine.interrupt()
-        self._sync_run_control_command("pause", "联锁中断暂停")
-        self.db.set_experiment_status(self.experiment_id, ExperimentState.INTERRUPTED.value)
-        self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-        self.db.log_action("system", "EXPERIMENT_INTERRUPTED", detail)
-        self._append_log(update.status_text)
+        self._apply_controller_transition(transition)
         self.btn_pause.setEnabled(False)
         self.btn_resume.setEnabled(False)
 
@@ -676,85 +608,13 @@ class MainWindow(QMainWindow):
         logger.info(text)
         self.monitor_page.append_log(text)
 
-    def _apply_current_step_setpoints(self) -> bool:
-        if self.engine is None or self.engine.current_step is None:
-            return True
-
-        step = self.engine.current_step
-        try:
-            applied = self.client.apply_setpoints(
-                temperature_c=step.target_temp_c,
-                ramp_rate_cpm=step.ramp_rate_cpm,
-                n2_lpm=step.n2_lpm,
-                h2_lpm=step.h2_lpm,
-                co_lpm=step.co_lpm,
-            )
-            self._append_log(
-                "已下发步骤设定: "
-                f"T={applied['temperature_setpoint_c']:.1f}℃, "
-                f"Ramp={applied['ramp_rate_setpoint_cpm']:.1f}℃/min, "
-                f"N2/H2/CO={applied['n2_setpoint_lpm']:.1f}/{applied['h2_setpoint_lpm']:.1f}/{applied['co_setpoint_lpm']:.1f}"
-            )
-            return True
-        except Exception as exc:
-            self._handle_setpoint_dispatch_failure(exc)
-            return False
-
-    def _handle_setpoint_dispatch_failure(self, exc: Exception) -> None:
-        self._fail_active_experiment(
-            f"步骤设定下发失败，实验已故障停止: {exc}",
-            audit_action="SETPOINT_APPLY_FAILED",
-            detail=f"id={self.experiment_id},error={exc}" if self.experiment_id is not None else f"error={exc}",
-        )
-
-    def _fail_active_experiment(
-        self,
-        reason: str,
-        *,
-        audit_action: str,
-        detail: str,
-        final_update=None,
-    ) -> None:
-        update = final_update
-        if self.engine is not None and update is None:
-            update = self.engine.fail(reason)
-        self._sync_run_control_command("stop", "故障停机")
-        if update is not None:
-            self.monitor_page.update_execution_state(update.status_text, update.active_setpoints_text)
-        if self.experiment_id is not None:
-            self.db.set_experiment_status(self.experiment_id, ExperimentState.FAULTED.value)
-            self.db.log_action("system", audit_action, detail)
-        self._append_log(reason)
-        self._finalize_experiment_stop(
-            final_status=ExperimentState.FAULTED.value,
-            final_update=update,
-            terminate_engine=False,
-            audit_action="EXPERIMENT_FAULT",
-            log_message=f"实验故障退出，ID={self.experiment_id}" if self.experiment_id is not None else None,
-        )
-
-    def _sync_run_control_command(self, command: str, action_label: str) -> bool:
-        try:
-            word = self.client.issue_run_control(command)
-            self._append_log(f"已同步运行控制命令: {action_label} ({word:#06x})")
-            return True
-        except Exception as exc:
-            if self.experiment_id is not None:
-                self.db.log_action(
-                    "system",
-                    "RUN_CONTROL_SYNC_FAILED",
-                    f"id={self.experiment_id},command={command},error={exc}",
-                )
-            self._append_log(f"运行控制同步失败[{action_label}]，已继续执行本地状态收口: {exc}")
-            return False
-
     def _issue_run_control_command(self, command: str, action_label: str) -> bool:
         try:
-            word = self.client.issue_run_control(command)
+            word = self.gateway.issue_run_control(command)
             self._append_log(f"已下发运行控制命令: {action_label} ({word:#06x})")
             return True
         except Exception as exc:
-            self._fail_active_experiment(
+            transition = self.controller.fail_active_experiment(
                 f"运行控制命令下发失败[{action_label}]，实验已故障停止: {exc}",
                 audit_action="RUN_CONTROL_FAILED",
                 detail=(
@@ -763,4 +623,28 @@ class MainWindow(QMainWindow):
                     else f"command={command},error={exc}"
                 ),
             )
+            self._apply_controller_transition(transition)
             return False
+
+    def _apply_controller_transition(self, transition: ControllerTransition) -> None:
+        if transition.update is not None:
+            self.monitor_page.update_execution_state(transition.update.status_text, transition.update.active_setpoints_text)
+        for log in transition.logs:
+            self._append_log(log)
+        if transition.final_status is not None:
+            self._reset_runtime_ui()
+
+    def _reset_runtime_ui(self) -> None:
+        if self.worker is not None:
+            self.worker.stop()
+            self.worker = None
+        self.btn_start.setEnabled(True)
+        self.btn_pause.setEnabled(False)
+        self.btn_resume.setEnabled(False)
+        self.btn_stop.setEnabled(False)
+        self.alarm_page.btn_ack_alarm.setEnabled(False)
+        self.alarm_page.btn_reset_interlock.setEnabled(False)
+        self.alarm_page.set_current_interlock("当前联锁: 无联锁")
+        self._interlock_active_word = 0
+        self._estop_active = False
+        self._run_control_feedback_inconsistent = False
