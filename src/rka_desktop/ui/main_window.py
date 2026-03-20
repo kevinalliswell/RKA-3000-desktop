@@ -22,7 +22,6 @@ from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeCo
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
-from rka_desktop.services.acquisition_service import AcquisitionWorker
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.dialog_service import DialogService
@@ -30,6 +29,7 @@ from rka_desktop.ui.history_page import HistoryPage
 from rka_desktop.ui.monitor_page import MonitorPage
 from rka_desktop.ui.main_window_presenter import MainWindowPresenter
 from rka_desktop.ui.recipe_page import RecipePage
+from rka_desktop.ui.runtime_coordinator import RuntimeCoordinator
 from rka_desktop.ui.settings_page import SettingsPage
 
 logger = logging.getLogger(__name__)
@@ -46,8 +46,6 @@ class MainWindow(QMainWindow):
         self.recipe_controller = RecipeController(db)
         self.export_service = ExportService(db)
         self.history_controller = HistoryExportController(db, self.export_service)
-
-        self.worker: AcquisitionWorker | None = None
 
         self.setWindowTitle(f"{settings.app_name} - v1.1")
         self.resize(1380, 840)
@@ -74,6 +72,14 @@ class MainWindow(QMainWindow):
     @experiment_id.setter
     def experiment_id(self, value) -> None:
         self.controller.experiment_id = value
+
+    @property
+    def worker(self):
+        return self.runtime.worker
+
+    @worker.setter
+    def worker(self, value) -> None:
+        self.runtime.worker = value
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -140,6 +146,13 @@ class MainWindow(QMainWindow):
             active_experiment_id_provider=lambda: self.experiment_id,
         )
         self.dialogs = DialogService(self)
+        self.runtime = RuntimeCoordinator(
+            settings=self.settings,
+            db=self.db,
+            gateway=self.gateway,
+            on_snapshot=self._on_snapshot,
+            on_error=self._on_error,
+        )
 
     def _bind_events(self) -> None:
         self.btn_connect.clicked.connect(self.connect_device)
@@ -173,7 +186,7 @@ class MainWindow(QMainWindow):
         self._append_log("设备连接失败")
 
     def start_experiment(self) -> None:
-        if self.worker is not None:
+        if self.runtime.is_running:
             return
 
         recipe_id = self.recipe_combo.currentData()
@@ -205,17 +218,7 @@ class MainWindow(QMainWindow):
         self.presenter.reset_monitor_runtime()
         self._apply_controller_transition(transition)
         self._refresh_history()
-
-        self.worker = AcquisitionWorker(
-            client=self.gateway,
-            db=self.db,
-            experiment_id=transition.experiment_id,
-            poll_interval_ms=self.settings.poll_interval_ms,
-            batch_size=self.settings.acquisition_batch_size,
-        )
-        self.worker.snapshot_received.connect(self._on_snapshot)
-        self.worker.error_occurred.connect(self._on_error)
-        self.worker.start()
+        self.runtime.start(transition.experiment_id)
         self.tabs.setCurrentWidget(self.monitor_page)
 
     def pause_experiment(self) -> None:
@@ -225,7 +228,7 @@ class MainWindow(QMainWindow):
         self._apply_controller_transition(transition)
 
     def resume_experiment(self) -> None:
-        if self.worker is None or self.engine is None or self.experiment_id is None:
+        if not self.runtime.is_running or self.engine is None or self.experiment_id is None:
             return
         transition = self.controller.resume_experiment()
         if transition is None:
@@ -233,7 +236,7 @@ class MainWindow(QMainWindow):
         self._apply_controller_transition(transition)
 
     def stop_experiment(self) -> None:
-        if self.worker is None:
+        if not self.runtime.is_running:
             return
 
         if not self.dialogs.confirm("确认停止", "确定停止当前实验吗？"):
@@ -319,9 +322,8 @@ class MainWindow(QMainWindow):
                 transition = self.controller.stop_experiment()
                 if transition is not None:
                     self._apply_controller_transition(transition)
-            elif self.worker is not None:
-                self.worker.stop()
-                self.worker = None
+            elif self.runtime.is_running:
+                self.runtime.stop()
             self.gateway.close()
         finally:
             event.accept()
@@ -400,6 +402,4 @@ class MainWindow(QMainWindow):
                 self.dialogs.warning("提示", transition.user_message)
 
     def _stop_worker(self) -> None:
-        if self.worker is not None:
-            self.worker.stop()
-            self.worker = None
+        self.runtime.stop()

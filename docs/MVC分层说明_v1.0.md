@@ -37,6 +37,7 @@
 6. `src/rka_desktop/ui/settings_page.py`
 7. `src/rka_desktop/ui/main_window_presenter.py`
 8. `src/rka_desktop/ui/dialog_service.py`
+9. `src/rka_desktop/ui/runtime_coordinator.py`
 
 ### 2.2 Controller
 
@@ -115,7 +116,7 @@
 3. 确认弹窗
 4. 文件保存对话框
 5. 调用 Presenter 落地页面刷新
-6. 采集线程启动与停止
+6. 调用 RuntimeCoordinator 管理运行态
 
 当前 `MainWindow` 不应再继续扩大的职责：
 
@@ -159,6 +160,23 @@
 
 - `MainWindow` 不再直接依赖 `QMessageBox` 和 `QFileDialog`
 - 这样后续如果替换交互风格，只需要调整适配层
+
+## 4.3 RuntimeCoordinator 角色
+
+当前项目还增加了一个运行态协调层：
+
+- `src/rka_desktop/ui/runtime_coordinator.py`
+
+职责：
+
+1. 创建采集 worker
+2. 绑定快照和异常信号
+3. 停止并回收运行态 worker
+
+说明：
+
+- `MainWindow` 不再直接创建 `AcquisitionWorker`
+- 这样运行态生命周期被集中管理，后续如果替换线程模型，影响面更小
 
 ## 5. 当前目录理解
 

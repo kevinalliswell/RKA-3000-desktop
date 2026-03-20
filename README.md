@@ -38,6 +38,7 @@ python -m rka_desktop.main
 - Sprint 2 已引入 `controllers/` 和 `hardware/` 最小骨架，主流程正从 UI 层向控制层迁移
 - 当前主流程已开始按 MVC 收敛：`MainWindow` 负责交互与对话框，`MainWindowPresenter` 负责页面状态分发，`ExperimentController` 负责实验流程编排，`RecipeController` 负责配方加载与 CRUD 业务，`HistoryExportController` 负责历史查询与导出编排，`DeviceGateway` 负责设备访问入口
 - `DialogService` 已统一接管消息框与文件对话框，`MainWindow` 不再直接调用 Qt 对话框实现
+- `RuntimeCoordinator` 已统一接管采集线程生命周期，`MainWindow` 不再直接创建或停止 worker
 - 配方页面当前只提供原始输入，数值解析与基础校验已迁入 `RecipeController`
 - 后台采集线程与实时 UI 刷新
 - 数据持久化与基础实验记录
