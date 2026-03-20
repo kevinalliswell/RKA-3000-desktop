@@ -91,8 +91,9 @@
 2. 配方详情加载
 3. 配方保存
 4. 配方更新
-5. 配方基础校验
-6. 输出配方 ViewState
+5. 配方原始输入解析
+6. 配方基础校验
+7. 输出配方 ViewState
 
 ### 3.3 HistoryExportController
 
@@ -174,7 +175,7 @@
 后续建议按这个顺序继续：
 
 1. 继续减少 `MainWindow` 中的结果分发代码
-2. 把页面输入校验逐步收敛到 Controller
+2. 继续把剩余页面输入校验逐步收敛到 Controller
 3. 视需要引入更细的 repository 层
 4. Windows 交付前冻结目录与分层口径
 

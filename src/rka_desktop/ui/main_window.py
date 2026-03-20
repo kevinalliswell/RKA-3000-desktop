@@ -357,31 +357,17 @@ class MainWindow(QMainWindow):
 
     def _save_new_recipe(self) -> None:
         name = self.recipe_page.recipe_name_input.text().strip()
-        steps = self._collect_recipe_steps()
-        if not steps:
-            return
-        transition = self.recipe_controller.save_recipe(name, steps)
+        transition = self.recipe_controller.save_recipe_input(name, self.recipe_page.collect_step_inputs())
         self._apply_recipe_transition(transition)
 
     def _update_current_recipe(self) -> None:
         name = self.recipe_page.recipe_name_input.text().strip()
-        steps = self._collect_recipe_steps()
-        if not steps:
-            return
-        transition = self.recipe_controller.update_recipe(self.recipe_combo.currentData(), name, steps)
+        transition = self.recipe_controller.update_recipe_input(
+            self.recipe_combo.currentData(),
+            name,
+            self.recipe_page.collect_step_inputs(),
+        )
         self._apply_recipe_transition(transition)
-
-    def _collect_recipe_steps(self) -> list[dict[str, object]]:
-        try:
-            steps = self.recipe_page.collect_steps()
-        except ValueError as exc:
-            QMessageBox.warning(self, "参数错误", f"存在非法数字: {exc}")
-            return []
-
-        if not steps:
-            QMessageBox.warning(self, "参数错误", "请至少配置一个步骤")
-            return []
-        return steps
 
     def _append_log(self, text: str) -> None:
         logger.info(text)

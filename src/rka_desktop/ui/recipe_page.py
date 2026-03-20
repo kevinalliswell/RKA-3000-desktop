@@ -80,18 +80,18 @@ class RecipePage(QWidget):
         if row >= 0:
             self.recipe_table.removeRow(row)
 
-    def collect_steps(self) -> list[dict[str, Any]]:
-        steps: list[dict[str, Any]] = []
+    def collect_step_inputs(self) -> list[dict[str, str]]:
+        steps: list[dict[str, str]] = []
         for row in range(self.recipe_table.rowCount()):
             steps.append(
                 {
-                    "step_no": int(self.cell_text(row, 0, str(row + 1))),
-                    "target_temp_c": float(self.cell_text(row, 1, "0")),
-                    "ramp_rate_cpm": float(self.cell_text(row, 2, "0")),
-                    "hold_seconds": int(float(self.cell_text(row, 3, "0"))),
-                    "n2_lpm": float(self.cell_text(row, 4, "0")),
-                    "h2_lpm": float(self.cell_text(row, 5, "0")),
-                    "co_lpm": float(self.cell_text(row, 6, "0")),
+                    "step_no": self.cell_text(row, 0, str(row + 1)),
+                    "target_temp_c": self.cell_text(row, 1, "0"),
+                    "ramp_rate_cpm": self.cell_text(row, 2, "0"),
+                    "hold_seconds": self.cell_text(row, 3, "0"),
+                    "n2_lpm": self.cell_text(row, 4, "0"),
+                    "h2_lpm": self.cell_text(row, 5, "0"),
+                    "co_lpm": self.cell_text(row, 6, "0"),
                     "notes": self.cell_text(row, 7, ""),
                 }
             )
@@ -106,4 +106,3 @@ class RecipePage(QWidget):
 
     def set_cell(self, row: int, col: int, text: str) -> None:
         self.recipe_table.setItem(row, col, QTableWidgetItem(text))
-

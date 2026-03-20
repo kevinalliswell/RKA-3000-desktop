@@ -71,3 +71,52 @@ def test_recipe_controller_updates_recipe(tmp_path):
     recipe = db.get_recipe(recipe_id)
     assert recipe is not None
     assert recipe["name"] == "新配方"
+
+
+def test_recipe_controller_parses_raw_step_inputs(tmp_path):
+    db, controller = _build_recipe_controller(tmp_path, "recipe_raw_input.db")
+
+    transition = controller.save_recipe_input(
+        "原始输入配方",
+        [
+            {
+                "step_no": "1",
+                "target_temp_c": "900",
+                "ramp_rate_cpm": "10",
+                "hold_seconds": "600",
+                "n2_lpm": "8.0",
+                "h2_lpm": "1.0",
+                "co_lpm": "0.8",
+                "notes": "",
+            }
+        ],
+    )
+
+    assert transition.success is True
+    assert transition.recipe_id is not None
+    steps = db.get_recipe_steps(transition.recipe_id)
+    assert float(steps[0]["target_temp_c"]) == 900.0
+
+
+def test_recipe_controller_rejects_invalid_raw_number(tmp_path):
+    _db, controller = _build_recipe_controller(tmp_path, "recipe_invalid_input.db")
+
+    transition = controller.save_recipe_input(
+        "非法输入配方",
+        [
+            {
+                "step_no": "1",
+                "target_temp_c": "abc",
+                "ramp_rate_cpm": "10",
+                "hold_seconds": "600",
+                "n2_lpm": "8.0",
+                "h2_lpm": "1.0",
+                "co_lpm": "0.8",
+                "notes": "",
+            }
+        ],
+    )
+
+    assert transition.success is False
+    assert transition.user_message is not None
+    assert "存在非法数字" in transition.user_message

@@ -95,12 +95,49 @@ class RecipeController:
         transition.logs.append(f"配方已更新，ID={resolved_id}")
         return transition
 
+    def save_recipe_input(self, name: str, step_inputs: list[dict[str, str]]) -> RecipeTransition:
+        parsed = self._parse_step_inputs(step_inputs)
+        if isinstance(parsed, str):
+            return RecipeTransition(success=False, user_message=parsed, user_message_level="warning")
+        return self.save_recipe(name, parsed)
+
+    def update_recipe_input(
+        self,
+        recipe_id: int | None,
+        name: str,
+        step_inputs: list[dict[str, str]],
+    ) -> RecipeTransition:
+        parsed = self._parse_step_inputs(step_inputs)
+        if isinstance(parsed, str):
+            return RecipeTransition(success=False, user_message=parsed, user_message_level="warning")
+        return self.update_recipe(recipe_id, name, parsed)
+
     def _validate_recipe_payload(self, name: str, steps: list[dict[str, Any]]) -> str | None:
         if not name.strip():
             return "请填写配方名称"
         if not steps:
             return "请至少配置一个步骤"
         return None
+
+    def _parse_step_inputs(self, step_inputs: list[dict[str, str]]) -> list[dict[str, Any]] | str:
+        steps: list[dict[str, Any]] = []
+        for row, step in enumerate(step_inputs, start=1):
+            try:
+                steps.append(
+                    {
+                        "step_no": int(step.get("step_no", str(row))),
+                        "target_temp_c": float(step.get("target_temp_c", "0")),
+                        "ramp_rate_cpm": float(step.get("ramp_rate_cpm", "0")),
+                        "hold_seconds": int(float(step.get("hold_seconds", "0"))),
+                        "n2_lpm": float(step.get("n2_lpm", "0")),
+                        "h2_lpm": float(step.get("h2_lpm", "0")),
+                        "co_lpm": float(step.get("co_lpm", "0")),
+                        "notes": step.get("notes", ""),
+                    }
+                )
+            except ValueError as exc:
+                return f"存在非法数字: 第 {row} 行 {exc}"
+        return steps
 
     def _list_options(self) -> list[RecipeOption]:
         return [
