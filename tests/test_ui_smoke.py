@@ -101,8 +101,30 @@ def test_main_window_faults_active_experiment_on_acquisition_error(tmp_path):
 
 def test_main_window_interrupt_syncs_pause_command(tmp_path):
     app, db, client, window, exp_id, worker = _build_running_window(tmp_path, "ui_interrupt.db")
+    snapshot = DeviceSnapshot(
+        temperature_c=900.0,
+        weight_g=100.0,
+        pressure_mpa=0.1,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+        alarm_word=0x0001,
+        interlock_word=0,
+        run_control_word=0,
+        estop_status=0,
+    )
+    measurement = Measurement(
+        experiment_id=exp_id,
+        sampled_at=datetime(2026, 1, 1, 12, 0, 0),
+        temperature_c=900.0,
+        weight_g=100.0,
+        pressure_mpa=0.1,
+        n2_lpm=4.0,
+        h2_lpm=1.0,
+        co_lpm=0.5,
+    )
 
-    window._interrupt_experiment(f"id={exp_id},alarm=1")
+    window._on_snapshot((snapshot, measurement))
 
     detail = db.get_experiment_detail(exp_id)
     assert detail is not None
@@ -110,6 +132,7 @@ def test_main_window_interrupt_syncs_pause_command(tmp_path):
     assert client.last_run_control_command == "pause"
     assert worker.stopped is False
     assert window.engine is not None
+    assert "报警处理中" in window.monitor_page.lbl_execution.text()
 
     window.close()
     app.quit()
@@ -198,7 +221,6 @@ def test_main_window_marks_control_feedback_mismatch(tmp_path):
     window._on_snapshot((snapshot, measurement))
 
     assert "不一致" in window.monitor_page.lbl_control_feedback.text()
-    assert window._run_control_feedback_inconsistent is True
     assert worker.stopped is False
 
     window.close()

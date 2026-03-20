@@ -16,21 +16,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from rka_desktop.core.alarm_rules import (
-    decode_alarm_word,
-    has_active_interlock,
-    has_interlock_alarm,
-    interlock_text_from_word,
-    is_interlock_resettable,
-)
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
-from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController
+from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController, RuntimeViewState
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
-from rka_desktop.services.acquisition_service import AcquisitionWorker, alarm_text
-from rka_desktop.services.experiment_engine import ExperimentState
+from rka_desktop.services.acquisition_service import AcquisitionWorker
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.monitor_page import MonitorPage
@@ -51,10 +43,6 @@ class MainWindow(QMainWindow):
         self.export_service = ExportService(db)
 
         self.worker: AcquisitionWorker | None = None
-        self._alarm_active_word = 0
-        self._interlock_active_word = 0
-        self._estop_active = False
-        self._run_control_feedback_inconsistent = False
 
         self.setWindowTitle(f"{settings.app_name} - v1.1")
         self.resize(1380, 840)
@@ -185,14 +173,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "缺少步骤", "当前配方没有可执行步骤")
             return
 
-        self._alarm_active_word = 0
-        self._interlock_active_word = 0
-        self._estop_active = False
-        self._run_control_feedback_inconsistent = False
         self.monitor_page.reset_runtime()
-        self.alarm_page.set_current_alarm("当前报警: 无")
-        self.alarm_page.set_current_interlock("当前联锁: 无联锁")
-        self.alarm_page.set_pending_alarms([])
         self._apply_controller_transition(transition)
 
         self.worker = AcquisitionWorker(
@@ -205,11 +186,6 @@ class MainWindow(QMainWindow):
         self.worker.snapshot_received.connect(self._on_snapshot)
         self.worker.error_occurred.connect(self._on_error)
         self.worker.start()
-
-        self.btn_start.setEnabled(False)
-        self.btn_pause.setEnabled(True)
-        self.btn_resume.setEnabled(False)
-        self.btn_stop.setEnabled(True)
         self.tabs.setCurrentWidget(self.monitor_page)
 
     def pause_experiment(self) -> None:
@@ -217,27 +193,14 @@ class MainWindow(QMainWindow):
         if transition is None:
             return
         self._apply_controller_transition(transition)
-        self.btn_pause.setEnabled(False)
-        self.btn_resume.setEnabled(True)
 
     def resume_experiment(self) -> None:
         if self.worker is None or self.engine is None or self.experiment_id is None:
-            return
-        if self._alarm_active_word != 0:
-            QMessageBox.warning(self, "无法恢复", "当前仍有活动报警，请先排除报警")
-            return
-        if self._interlock_active_word != 0 or self._estop_active:
-            QMessageBox.warning(self, "无法恢复", "联锁尚未解除，请先执行复位或解除急停")
-            return
-        if self.engine.state == ExperimentState.INTERRUPTED and self.db.list_unacknowledged_alarms(self.experiment_id):
-            QMessageBox.warning(self, "无法恢复", "报警已解除，但仍有未确认报警")
             return
         transition = self.controller.resume_experiment()
         if transition is None:
             return
         self._apply_controller_transition(transition)
-        self.btn_pause.setEnabled(True)
-        self.btn_resume.setEnabled(False)
 
     def stop_experiment(self) -> None:
         if self.worker is None:
@@ -258,47 +221,15 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "确认报警", "确定将当前待处理报警标记为已确认吗？") != QMessageBox.StandardButton.Yes:
             return
 
-        ok = self.db.acknowledge_latest_alarm(self.experiment_id, actor="operator")
-        if ok:
-            self._append_log("报警已确认")
-            self.db.log_action("operator", "ALARM_ACK", f"experiment_id={self.experiment_id}")
-        else:
-            self._append_log("没有待确认报警")
-
-        self._refresh_alarm_page()
-        if (
-            ok
-            and self.engine is not None
-            and self.engine.state == ExperimentState.INTERRUPTED
-            and self.experiment_id is not None
-        ):
-            self._update_recovery_actions()
+        transition = self.controller.acknowledge_alarm()
+        self._apply_controller_transition(transition)
 
     def reset_interlock(self) -> None:
-        if self.experiment_id is None:
-            QMessageBox.information(self, "提示", "当前无运行中的实验")
-            return
-        if self._alarm_active_word != 0:
-            QMessageBox.warning(self, "无法复位", "当前仍有活动报警，请先排除报警")
-            return
-        if self.db.list_unacknowledged_alarms(self.experiment_id):
-            QMessageBox.warning(self, "无法复位", "仍有未确认报警，请先确认")
-            return
-        if self._interlock_active_word == 0 and not self._estop_active:
-            QMessageBox.information(self, "提示", "当前没有需要复位的联锁")
-            return
-        if not is_interlock_resettable(self._interlock_active_word, profile_name=self.settings.mapping_profile):
-            QMessageBox.warning(self, "无法复位", "当前联锁状态不允许软件复位，请先解除急停/硬件闭锁")
-            return
         if QMessageBox.question(self, "确认复位", "确定下发联锁复位命令吗？") != QMessageBox.StandardButton.Yes:
             return
 
-        if not self._issue_run_control_command("reset", "联锁复位"):
-            return
-        self.db.log_action("operator", "INTERLOCK_RESET", f"id={self.experiment_id},word={self._interlock_active_word:04X}")
-        self._append_log("已请求联锁复位，等待状态解除")
-        self.alarm_page.btn_reset_interlock.setEnabled(False)
-        self._update_recovery_actions()
+        transition = self.controller.reset_interlock()
+        self._apply_controller_transition(transition)
 
     def export_csv(self) -> None:
         self._export_data("csv")
@@ -358,174 +289,14 @@ class MainWindow(QMainWindow):
         snapshot, measurement = payload
 
         self.monitor_page.update_snapshot(snapshot)
-        feedback = self.gateway.evaluate_run_control_feedback(snapshot.run_control_word)
-        feedback_style = "color: #1b5e20;" if feedback.is_consistent else "color: #b71c1c; font-weight: bold;"
-        self.monitor_page.update_control_state(
-            snapshot.run_control_word,
-            snapshot.estop_status,
-            feedback.message,
-            feedback_style,
-        )
-        self._handle_run_control_feedback(feedback.message, feedback.is_consistent)
         self.monitor_page.push_measurement(measurement)
         self.monitor_page.update_chart(snapshot)
-        self._handle_alarm(snapshot)
-        self._handle_interlock(snapshot)
-        transition = self.controller.process_measurement(measurement)
-        if transition is not None:
-            self._apply_controller_transition(transition)
-            if self.engine is not None and self.engine.state == ExperimentState.INTERRUPTED:
-                self._update_recovery_actions()
-            return
+        transition = self.controller.handle_snapshot(snapshot, measurement)
+        self._apply_controller_transition(transition)
 
     def _on_error(self, message: str) -> None:
-        transition = self.controller.fail_active_experiment(
-            f"采集异常，实验已故障停止: {message}",
-            audit_action="ACQUISITION_FAILED",
-            detail=f"id={self.experiment_id},error={message}" if self.experiment_id is not None else f"error={message}",
-        )
+        transition = self.controller.handle_acquisition_error(message)
         self._apply_controller_transition(transition)
-
-    def _handle_alarm(self, snapshot: DeviceSnapshot) -> None:
-        alarm_msg = alarm_text(snapshot, profile_name=self.settings.mapping_profile)
-        self.alarm_page.set_current_alarm(f"当前报警: {alarm_msg}")
-
-        if snapshot.alarm_word != 0:
-            active_alarms = decode_alarm_word(snapshot.alarm_word, profile_name=self.settings.mapping_profile)
-            self.monitor_page.update_alarm_text(f"状态: {alarm_msg}", "color: #b71c1c; font-weight: bold;")
-            self.alarm_page.btn_ack_alarm.setEnabled(True)
-            if snapshot.alarm_word != self._alarm_active_word:
-                self._alarm_active_word = snapshot.alarm_word
-                if self.experiment_id is not None:
-                    for alarm in active_alarms:
-                        self.db.create_alarm(
-                            self.experiment_id,
-                            code=alarm.code,
-                            level=alarm.level,
-                            message=alarm.message,
-                        )
-                    self.db.log_action("system", "ALARM_RAISED", f"experiment_id={self.experiment_id},word={snapshot.alarm_word:04X}")
-                self._append_log(f"报警触发：报警字={snapshot.alarm_word}")
-            if (
-                self.engine is not None
-                and self.experiment_id is not None
-                and self.engine.state == ExperimentState.RUNNING
-                and has_interlock_alarm(snapshot.alarm_word, profile_name=self.settings.mapping_profile)
-            ):
-                self._interrupt_experiment(f"id={self.experiment_id},alarm={snapshot.alarm_word}")
-            self._refresh_alarm_page()
-            return
-
-        self.monitor_page.update_alarm_text("状态: 正常", "color: #1b5e20;")
-        if self._alarm_active_word != 0:
-            self._append_log("报警解除")
-        self._alarm_active_word = 0
-        self._refresh_alarm_page()
-        self._update_recovery_actions()
-
-    def _handle_interlock(self, snapshot: DeviceSnapshot) -> None:
-        self._estop_active = bool(snapshot.estop_status)
-        interlock_text = interlock_text_from_word(snapshot.interlock_word, profile_name=self.settings.mapping_profile)
-        self.alarm_page.set_current_interlock(f"当前联锁: {interlock_text}")
-
-        if snapshot.interlock_word != 0 or snapshot.estop_status:
-            self.monitor_page.update_interlock_text(
-                f"联锁: {interlock_text}",
-                "color: #b71c1c; font-weight: bold;",
-            )
-            if snapshot.interlock_word != self._interlock_active_word:
-                self._interlock_active_word = snapshot.interlock_word
-                self._append_log(f"联锁激活：状态字=0x{snapshot.interlock_word:04X}")
-                if self.experiment_id is not None:
-                    self.db.log_action("system", "INTERLOCK_ACTIVE", f"id={self.experiment_id},word={snapshot.interlock_word:04X}")
-            if self.engine is not None and self.experiment_id is not None and self.engine.state == ExperimentState.RUNNING:
-                self._interrupt_experiment(f"id={self.experiment_id},interlock={snapshot.interlock_word:04X}")
-            self._update_recovery_actions()
-            return
-
-        self.monitor_page.update_interlock_text("联锁: 无联锁", "color: #1b5e20;")
-        if self._interlock_active_word != 0:
-            self._append_log("联锁解除")
-            if self.experiment_id is not None:
-                self.db.log_action("system", "INTERLOCK_CLEARED", f"id={self.experiment_id}")
-        self._interlock_active_word = 0
-        self._update_recovery_actions()
-
-    def _refresh_alarm_page(self) -> None:
-        if self.experiment_id is None:
-            self.alarm_page.set_pending_alarms([])
-            self.alarm_page.btn_ack_alarm.setEnabled(False)
-            self.alarm_page.btn_reset_interlock.setEnabled(False)
-            return
-
-        unacked = self.db.list_unacknowledged_alarms(self.experiment_id)
-        self.alarm_page.set_pending_alarms(unacked)
-        self.alarm_page.btn_ack_alarm.setEnabled(bool(unacked))
-        self.alarm_page.btn_reset_interlock.setEnabled(False)
-
-    def _handle_run_control_feedback(self, feedback_message: str, is_consistent: bool) -> None:
-        if is_consistent:
-            if self._run_control_feedback_inconsistent:
-                self._append_log("运行控制反馈已恢复一致")
-                if self.experiment_id is not None:
-                    self.db.log_action("system", "RUN_CONTROL_FEEDBACK_RESTORED", f"id={self.experiment_id}")
-            self._run_control_feedback_inconsistent = False
-            return
-
-        if self._run_control_feedback_inconsistent:
-            return
-
-        self._run_control_feedback_inconsistent = True
-        self._append_log(feedback_message)
-        if self.experiment_id is not None:
-            self.db.log_action(
-                "system",
-                "RUN_CONTROL_FEEDBACK_MISMATCH",
-                f"id={self.experiment_id},detail={feedback_message}",
-            )
-
-    def _interrupt_experiment(self, detail: str) -> None:
-        transition = self.controller.interrupt_experiment(detail)
-        if transition is None:
-            return
-        self._apply_controller_transition(transition)
-        self.btn_pause.setEnabled(False)
-        self.btn_resume.setEnabled(False)
-
-    def _update_recovery_actions(self) -> None:
-        if self.engine is None or self.engine.state != ExperimentState.INTERRUPTED:
-            self.alarm_page.btn_reset_interlock.setEnabled(False)
-            return
-
-        setpoints_text = self.monitor_page.lbl_setpoints.text().removeprefix("步骤设定: ")
-        unacked = bool(self.experiment_id is not None and self.db.list_unacknowledged_alarms(self.experiment_id))
-        has_interlock = has_active_interlock(self._interlock_active_word, profile_name=self.settings.mapping_profile)
-        reset_allowed = (
-            self._alarm_active_word == 0
-            and not unacked
-            and has_interlock
-            and not self._estop_active
-            and is_interlock_resettable(self._interlock_active_word, profile_name=self.settings.mapping_profile)
-        )
-        resume_allowed = self._alarm_active_word == 0 and not unacked and not has_interlock and not self._estop_active
-
-        if self._alarm_active_word != 0:
-            status_text = "报警处理中，联锁保持中"
-        elif unacked and has_interlock:
-            status_text = "报警已解除，待确认后可执行联锁复位"
-        elif unacked:
-            status_text = "报警已解除，待确认后可恢复实验"
-        elif self._estop_active:
-            status_text = "急停仍处于触发状态，禁止恢复"
-        elif has_interlock:
-            status_text = "联锁保持中，可执行复位"
-        else:
-            status_text = "联锁已解除，可恢复实验"
-
-        self.monitor_page.update_execution_state(status_text, setpoints_text)
-        self.btn_pause.setEnabled(False)
-        self.btn_resume.setEnabled(resume_allowed)
-        self.alarm_page.btn_reset_interlock.setEnabled(reset_allowed)
 
     def _refresh_recipe_combo(self) -> None:
         previous_id = self.recipe_combo.currentData()
@@ -608,31 +379,57 @@ class MainWindow(QMainWindow):
         logger.info(text)
         self.monitor_page.append_log(text)
 
-    def _issue_run_control_command(self, command: str, action_label: str) -> bool:
-        try:
-            word = self.gateway.issue_run_control(command)
-            self._append_log(f"已下发运行控制命令: {action_label} ({word:#06x})")
-            return True
-        except Exception as exc:
-            transition = self.controller.fail_active_experiment(
-                f"运行控制命令下发失败[{action_label}]，实验已故障停止: {exc}",
-                audit_action="RUN_CONTROL_FAILED",
-                detail=(
-                    f"id={self.experiment_id},command={command},error={exc}"
-                    if self.experiment_id is not None
-                    else f"command={command},error={exc}"
-                ),
-            )
-            self._apply_controller_transition(transition)
-            return False
-
     def _apply_controller_transition(self, transition: ControllerTransition) -> None:
-        if transition.update is not None:
-            self.monitor_page.update_execution_state(transition.update.status_text, transition.update.active_setpoints_text)
-        for log in transition.logs:
-            self._append_log(log)
         if transition.final_status is not None:
             self._reset_runtime_ui()
+        if transition.view_state is None and transition.update is not None:
+            self.monitor_page.update_execution_state(transition.update.status_text, transition.update.active_setpoints_text)
+        if transition.view_state is not None:
+            self._apply_view_state(transition.view_state)
+        for log in transition.logs:
+            self._append_log(log)
+        if transition.user_message:
+            if transition.user_message_level == "info":
+                QMessageBox.information(self, "提示", transition.user_message)
+            else:
+                QMessageBox.warning(self, "提示", transition.user_message)
+
+    def _apply_view_state(self, view_state: RuntimeViewState) -> None:
+        if view_state.execution_text is not None and view_state.setpoints_text is not None:
+            self.monitor_page.update_execution_state(view_state.execution_text, view_state.setpoints_text)
+        if view_state.current_alarm_text is not None:
+            self.alarm_page.set_current_alarm(view_state.current_alarm_text)
+        if view_state.current_interlock_text is not None:
+            self.alarm_page.set_current_interlock(view_state.current_interlock_text)
+        if view_state.monitor_alarm_text is not None and view_state.monitor_alarm_style is not None:
+            self.monitor_page.update_alarm_text(view_state.monitor_alarm_text, view_state.monitor_alarm_style)
+        if view_state.monitor_interlock_text is not None and view_state.monitor_interlock_style is not None:
+            self.monitor_page.update_interlock_text(view_state.monitor_interlock_text, view_state.monitor_interlock_style)
+        if (
+            view_state.run_control_word is not None
+            and view_state.estop_status is not None
+            and view_state.control_feedback_text is not None
+            and view_state.control_feedback_style is not None
+        ):
+            self.monitor_page.update_control_state(
+                view_state.run_control_word,
+                view_state.estop_status,
+                view_state.control_feedback_text,
+                view_state.control_feedback_style,
+            )
+        self.alarm_page.set_pending_alarms(view_state.pending_alarms)
+        if view_state.ack_alarm_enabled is not None:
+            self.alarm_page.btn_ack_alarm.setEnabled(view_state.ack_alarm_enabled)
+        if view_state.reset_interlock_enabled is not None:
+            self.alarm_page.btn_reset_interlock.setEnabled(view_state.reset_interlock_enabled)
+        if view_state.start_enabled is not None:
+            self.btn_start.setEnabled(view_state.start_enabled)
+        if view_state.pause_enabled is not None:
+            self.btn_pause.setEnabled(view_state.pause_enabled)
+        if view_state.resume_enabled is not None:
+            self.btn_resume.setEnabled(view_state.resume_enabled)
+        if view_state.stop_enabled is not None:
+            self.btn_stop.setEnabled(view_state.stop_enabled)
 
     def _reset_runtime_ui(self) -> None:
         if self.worker is not None:
@@ -645,6 +442,3 @@ class MainWindow(QMainWindow):
         self.alarm_page.btn_ack_alarm.setEnabled(False)
         self.alarm_page.btn_reset_interlock.setEnabled(False)
         self.alarm_page.set_current_interlock("当前联锁: 无联锁")
-        self._interlock_active_word = 0
-        self._estop_active = False
-        self._run_control_feedback_inconsistent = False
