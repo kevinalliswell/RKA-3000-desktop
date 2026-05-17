@@ -27,17 +27,18 @@ from rka_desktop.core.mfc_protocol import (
     parse_read_response,
     parse_write_response,
 )
+from rka_desktop.core.mfc_registers import (
+    FULL_SCALE_COUNT as _FULL_SCALE_COUNT,
+    EepromAddr,
+    RamAddr,
+    sp_eeprom_addr,
+)
 from rka_desktop.models.entities import MfcSnapshot
 
 logger = logging.getLogger(__name__)
 
-# 关键寄存器地址（整数，对应协议帧中 4 位十六进制地址字段）
-_RAM_SP_ADDR = 0x04B6   # RAM：当前 SP 值
-_RAM_PV_ADDR = 0x04B7   # RAM：当前 PV 值（同一次读 2 字即可）
-_EEPROM_SP0_ADDR = 0x1131  # EEPROM：SP-0 设定值
-
-# 满量程计数单位
-_FULL_SCALE_COUNT = 10000
+_RAM_SP_ADDR     = int(RamAddr.SP_CURRENT)
+_EEPROM_SP0_ADDR = int(EepromAddr.SP_0)
 
 
 @dataclass
@@ -157,12 +158,13 @@ class MfcClient:
     # 写入操作
     # ------------------------------------------------------------------
 
-    def write_sp(self, channel: MfcChannelConfig, setpoint_lpm: float) -> str:
-        """向 EEPROM SP-0 写入流量设定值，返回结束代码字符串。
+    def write_sp(self, channel: MfcChannelConfig, setpoint_lpm: float, sp_index: int = 0) -> str:
+        """向 EEPROM 写入流量设定值，返回结束代码字符串。
 
         Args:
             channel:       目标通道配置。
             setpoint_lpm:  设定流量（L/min），需 ≤ channel.full_scale_lpm。
+            sp_index:      SP 段索引，0–7，默认写 SP-0。
 
         Returns:
             结束代码字符串（"00" = 正常）。
@@ -173,13 +175,14 @@ class MfcClient:
                 f"[0, {channel.full_scale_lpm}]"
             )
         raw_value = round(setpoint_lpm / channel.full_scale_lpm * _FULL_SCALE_COUNT)
+        eeprom_addr = sp_eeprom_addr(sp_index)
         if self.simulation_mode:
             logger.info(
-                "MfcClient SIM CH%d(%s): write SP = %.3f L/min (raw=%d)",
-                channel.channel_id, channel.gas_label, setpoint_lpm, raw_value,
+                "MfcClient SIM CH%d(%s): write SP-%d = %.3f L/min (raw=%d, addr=0x%04X)",
+                channel.channel_id, channel.gas_label, sp_index, setpoint_lpm, raw_value, eeprom_addr,
             )
             return "00"
-        return self._hw_write_sp(channel, raw_value)
+        return self._hw_write_sp(channel, raw_value, eeprom_addr)
 
     # ------------------------------------------------------------------
     # 仿真实现
@@ -222,9 +225,9 @@ class MfcClient:
             error=None,
         )
 
-    def _hw_write_sp(self, channel: MfcChannelConfig, raw_value: int) -> str:
+    def _hw_write_sp(self, channel: MfcChannelConfig, raw_value: int, eeprom_addr: int) -> str:
         assert self._serial is not None, "串口未连接"
-        frame = build_write_frame(channel.machine_addr, _EEPROM_SP0_ADDR, raw_value)
+        frame = build_write_frame(channel.machine_addr, eeprom_addr, raw_value)
         response = self._transact(frame)
         return parse_write_response(response)
 
