@@ -33,3 +33,6 @@ jobs:
       - name: Compile sources
         run: python -m compileall src tests
 
+      - name: Verify version sync
+        run: python scripts/checks/verify_version_sync.py
+
