@@ -9,6 +9,12 @@ class MfcChannelConfig:
     gas: str           # e.g. "H2", "N2", "CO", "CO2", "AR", "AIR"
     full_scale_lpm: float
 
+    def __post_init__(self) -> None:
+        if self.full_scale_lpm <= 0:
+            raise ValueError(
+                f"full_scale_lpm must be > 0 for MFC address {self.address}, got {self.full_scale_lpm}"
+            )
+
 
 def default_mfc_channels() -> tuple[MfcChannelConfig, ...]:
     """Six MFCs on one RS-485 bus. N2/H2/CO are unique so legacy mapping is deterministic."""
