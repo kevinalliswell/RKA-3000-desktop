@@ -37,7 +37,7 @@ def test_read_snapshot_returns_legacy_shape():
 def test_read_multi_snapshot_maps_gases_by_type():
     channels = default_mfc_channels()
     mfc = SimMfcBusAdapter(channels)
-    mfc.set_flow(2, 5.0)  # address 2 == N2
+    mfc.set_flow(2, 5.0)  # address 2 == N2; PV after one read = 5.0 * approach(0.2) = 1.0
     gw = MultiDeviceGateway(SimTemperatureAdapter(), mfc, SimBalanceAdapter(), channels)
     gw.connect()
     snap = gw.read_snapshot()
@@ -74,3 +74,120 @@ def test_from_config_builds_sim_gateway():
     gw = MultiDeviceGateway.from_config(CommConfig(simulation_mode=True))
     assert gw.connect() is True
     assert isinstance(gw.read_snapshot(), DeviceSnapshot)
+
+
+class _ToggleMfc:
+    """MFC port fake that can be flipped to fail after first good read."""
+
+    def __init__(self) -> None:
+        self.fail = False
+        self._pv = {a: 0.0 for a in range(1, 7)}
+        self._pv[2] = 1.0
+        self._sp = {a: 0.0 for a in range(1, 7)}
+
+    def connect(self) -> None: ...
+
+    def close(self) -> None: ...
+
+    def read_all_pv(self) -> dict[int, float]:
+        if self.fail:
+            raise DeviceCommError("mfc down")
+        return dict(self._pv)
+
+    def read_all_sp(self) -> dict[int, float]:
+        if self.fail:
+            raise DeviceCommError("mfc down")
+        return dict(self._sp)
+
+    def set_flow(self, address: int, lpm: float) -> None:
+        self._sp[address] = lpm
+
+    def gas_type(self, address: int) -> str:
+        return "N2"
+
+
+def test_degraded_mfc_keeps_last_flows():
+    channels = default_mfc_channels()
+    mfc = _ToggleMfc()
+    gw = MultiDeviceGateway(SimTemperatureAdapter(), mfc, SimBalanceAdapter(), channels)
+    gw.connect()
+    first = gw.read_multi_snapshot()
+    assert first.mfc_flows_lpm[2] == 1.0
+    mfc.fail = True
+    second = gw.read_multi_snapshot()
+    assert "mfc" in second.degraded_devices
+    assert second.mfc_flows_lpm[2] == 1.0  # last-good retained
+
+
+class _ToggleBalance:
+    def __init__(self) -> None:
+        self.fail = False
+
+    def connect(self) -> None: ...
+
+    def close(self) -> None: ...
+
+    def read_weight(self) -> float | None:
+        if self.fail:
+            raise DeviceCommError("balance down")
+        return 42.0
+
+    def tare(self) -> bool:
+        return True
+
+
+def test_degraded_balance_keeps_last_weight():
+    channels = default_mfc_channels()
+    bal = _ToggleBalance()
+    gw = MultiDeviceGateway(SimTemperatureAdapter(), SimMfcBusAdapter(channels), bal, channels)
+    gw.connect()
+    first = gw.read_multi_snapshot()
+    assert first.weight_g == 42.0
+    bal.fail = True
+    second = gw.read_multi_snapshot()
+    assert "balance" in second.degraded_devices
+    assert second.weight_g == 42.0
+
+
+def test_connect_rolls_back_on_failure():
+    channels = default_mfc_channels()
+    closed = {"temp": False}
+
+    class _OkTemp:
+        def connect(self) -> None: ...
+
+        def close(self) -> None:
+            closed["temp"] = True
+
+        def read_pv(self) -> float:
+            return 0.0
+
+        def read_sv(self) -> float:
+            return 0.0
+
+        def write_sv(self, value: float) -> None: ...
+
+    class _FailingMfc:
+        def connect(self) -> None:
+            raise DeviceCommError("mfc connect fail")
+
+        def close(self) -> None: ...
+
+        def read_all_pv(self) -> dict[int, float]:
+            return {}
+
+        def read_all_sp(self) -> dict[int, float]:
+            return {}
+
+        def set_flow(self, address: int, lpm: float) -> None: ...
+
+        def gas_type(self, address: int) -> str:
+            return "N2"
+
+    gw = MultiDeviceGateway(_OkTemp(), _FailingMfc(), SimBalanceAdapter(), channels)
+    try:
+        gw.connect()
+    except DeviceCommError:
+        assert closed["temp"] is True  # rollback closed the already-opened temp
+        return
+    raise AssertionError("expected connect to raise")

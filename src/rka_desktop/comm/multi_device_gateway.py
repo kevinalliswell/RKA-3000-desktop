@@ -14,7 +14,12 @@ _LEGACY_GASES = ("N2", "H2", "CO")
 
 
 class MultiDeviceGateway:
-    """Aggregates temperature + 6 MFCs + balance and exposes a legacy SnapshotSource."""
+    """Aggregates temperature + 6 MFCs + balance and exposes a legacy SnapshotSource.
+
+    Last-good values default to 0.0 before the first successful read, so a 0.0 reading
+    on a cold or fully-degraded poll is ambiguous; callers should consult
+    ``MultiDeviceSnapshot.degraded_devices`` to distinguish a real zero from a fallback.
+    """
 
     def __init__(
         self,
@@ -67,9 +72,13 @@ class MultiDeviceGateway:
         return result
 
     def connect(self) -> bool:
-        self._temp.connect()
-        self._mfc.connect()
-        self._balance.connect()
+        try:
+            self._temp.connect()
+            self._mfc.connect()
+            self._balance.connect()
+        except Exception:  # noqa: BLE001 - best-effort teardown then re-raise
+            self.close()
+            raise
         return True
 
     def close(self) -> None:
