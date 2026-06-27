@@ -6,11 +6,12 @@ import sys
 from pathlib import Path
 
 
-def read_project_version(pyproject_path: Path) -> str:
-    content = pyproject_path.read_text(encoding="utf-8")
-    match = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
+def read_project_version(_pyproject_path: Path) -> str:
+    init_path = Path("src/rka_desktop/__init__.py")
+    content = init_path.read_text(encoding="utf-8")
+    match = re.search(r'^__version__\s*=\s*"([^"]+)"', content, re.MULTILINE)
     if not match:
-        raise RuntimeError("Could not find project version in pyproject.toml")
+        raise RuntimeError("Could not find __version__ in src/rka_desktop/__init__.py")
     return match.group(1)
 
 
