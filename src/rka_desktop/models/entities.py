@@ -33,5 +33,5 @@ class MultiDeviceSnapshot:
     temperatures_c: tuple[float, ...]
     mfc_flows_lpm: dict[int, float]
     mfc_setpoints_lpm: dict[int, float]
-    weight_g: float | None
+    weight_g: float
     degraded_devices: tuple[str, ...]
