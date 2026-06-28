@@ -19,3 +19,4 @@ build/
 dist/
 *.spec
 !scripts/packaging/*.spec
+pytest-report.xml
