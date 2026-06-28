@@ -5,6 +5,7 @@ from collections import deque
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QGridLayout,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QTableWidget,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
+from rka_desktop.ui.components import Card, MetricTile
 from rka_desktop.ui.theme import ACCENT, accent_pen, style_axis, style_chart, style_chart_view
 
 try:
@@ -32,12 +34,29 @@ class MonitorPage(QWidget):
         self._recent: deque[Measurement] = deque(maxlen=50)
 
         layout = QVBoxLayout(self)
+        layout.setSpacing(12)
 
-        metrics = QGridLayout()
-        self.lbl_temp = QLabel("温度: -- ℃")
-        self.lbl_weight = QLabel("重量: -- g")
-        self.lbl_pressure = QLabel("压力: -- MPa")
-        self.lbl_flow = QLabel("流量 N2/H2/CO: --/--/-- L/min")
+        # --- real-time data as modular KPI tiles ---
+        data_card = Card("实时数据")
+        tiles = QHBoxLayout()
+        tiles.setSpacing(12)
+        self.tile_temp = MetricTile("温度", "--", "℃", icon="mdi.thermometer", accent="#EF4444")
+        self.tile_weight = MetricTile("重量", "--", "g", icon="mdi.scale", accent="#F59E0B")
+        self.tile_pressure = MetricTile("压力", "--", "MPa", icon="mdi.gauge")
+        self.tile_n2 = MetricTile("N₂", "--", "L/min", icon="mdi.gas-cylinder", accent="#10B981")
+        self.tile_h2 = MetricTile("H₂", "--", "L/min", icon="mdi.gas-cylinder", accent="#3B82F6")
+        self.tile_co = MetricTile("CO", "--", "L/min", icon="mdi.gas-cylinder", accent="#8B5CF6")
+        for tile in (self.tile_temp, self.tile_weight, self.tile_pressure,
+                     self.tile_n2, self.tile_h2, self.tile_co):
+            tiles.addWidget(tile)
+        data_card.add_layout(tiles)
+        layout.addWidget(data_card)
+
+        # --- run status block (text status rows) ---
+        status_card = Card("运行状态")
+        status_grid = QGridLayout()
+        status_grid.setHorizontalSpacing(24)
+        status_grid.setVerticalSpacing(6)
         self.lbl_alarm = QLabel("状态: 未连接")
         self.lbl_interlock = QLabel("联锁: --")
         self.lbl_run_control = QLabel("控制字: --")
@@ -45,19 +64,15 @@ class MonitorPage(QWidget):
         self.lbl_estop = QLabel("急停: --")
         self.lbl_execution = QLabel("执行状态: 未启动")
         self.lbl_setpoints = QLabel("步骤设定: --")
-
-        metrics.addWidget(self.lbl_temp, 0, 0)
-        metrics.addWidget(self.lbl_weight, 0, 1)
-        metrics.addWidget(self.lbl_pressure, 1, 0)
-        metrics.addWidget(self.lbl_flow, 1, 1)
-        metrics.addWidget(self.lbl_alarm, 2, 0, 1, 2)
-        metrics.addWidget(self.lbl_interlock, 3, 0, 1, 2)
-        metrics.addWidget(self.lbl_run_control, 4, 0)
-        metrics.addWidget(self.lbl_control_feedback, 4, 1)
-        metrics.addWidget(self.lbl_estop, 5, 0, 1, 2)
-        metrics.addWidget(self.lbl_execution, 6, 0, 1, 2)
-        metrics.addWidget(self.lbl_setpoints, 7, 0, 1, 2)
-        layout.addLayout(metrics)
+        status_grid.addWidget(self.lbl_alarm, 0, 0)
+        status_grid.addWidget(self.lbl_estop, 0, 1)
+        status_grid.addWidget(self.lbl_interlock, 1, 0, 1, 2)
+        status_grid.addWidget(self.lbl_run_control, 2, 0)
+        status_grid.addWidget(self.lbl_control_feedback, 2, 1)
+        status_grid.addWidget(self.lbl_execution, 3, 0, 1, 2)
+        status_grid.addWidget(self.lbl_setpoints, 4, 0, 1, 2)
+        status_card.add_layout(status_grid)
+        layout.addWidget(status_card)
 
         if CHARTS_AVAILABLE:
             self.temp_series = QLineSeries()
@@ -134,12 +149,12 @@ class MonitorPage(QWidget):
         self.lbl_setpoints.setText(f"步骤设定: {setpoints}")
 
     def update_snapshot(self, snapshot: DeviceSnapshot) -> None:
-        self.lbl_temp.setText(f"温度: {snapshot.temperature_c:.2f} ℃")
-        self.lbl_weight.setText(f"重量: {snapshot.weight_g:.3f} g")
-        self.lbl_pressure.setText(f"压力: {snapshot.pressure_mpa:.4f} MPa")
-        self.lbl_flow.setText(
-            f"流量 N2/H2/CO: {snapshot.n2_lpm:.2f}/{snapshot.h2_lpm:.2f}/{snapshot.co_lpm:.2f} L/min"
-        )
+        self.tile_temp.set_value(f"{snapshot.temperature_c:.1f}")
+        self.tile_weight.set_value(f"{snapshot.weight_g:.3f}")
+        self.tile_pressure.set_value(f"{snapshot.pressure_mpa:.4f}")
+        self.tile_n2.set_value(f"{snapshot.n2_lpm:.2f}")
+        self.tile_h2.set_value(f"{snapshot.h2_lpm:.2f}")
+        self.tile_co.set_value(f"{snapshot.co_lpm:.2f}")
 
     def update_alarm_text(self, text: str, style: str) -> None:
         self.lbl_alarm.setText(text)

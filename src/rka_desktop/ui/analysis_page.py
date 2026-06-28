@@ -22,6 +22,7 @@ from rka_desktop.analysis.reduction_kinetics import (
     SampleParams,
     compute_reduction,
 )
+from rka_desktop.ui.components import Card, MetricTile
 from rka_desktop.ui.theme import (
     ACCENT,
     accent_pen,
@@ -160,15 +161,17 @@ class AnalysisPage(QWidget):
                 charts_row.addWidget(view)
             layout.addLayout(charts_row)
 
-        # --- indices ---
-        indices = QGroupBox("关键指标")
-        idx_layout = QHBoxLayout(indices)
-        self.lbl_final = QLabel("终态还原度: -- %")
-        self.lbl_t40 = QLabel("到 40% 时间: -- min")
-        self.lbl_t60 = QLabel("到 60% 时间: -- min")
-        self.lbl_rate40 = QLabel("40% 还原速率: -- %/min")
-        for lbl in (self.lbl_final, self.lbl_t40, self.lbl_t60, self.lbl_rate40):
-            idx_layout.addWidget(lbl)
+        # --- indices (modular KPI tiles) ---
+        indices = Card("关键指标")
+        tiles_row = QHBoxLayout()
+        tiles_row.setSpacing(12)
+        self.tile_final = MetricTile("终态还原度", "--", "%", icon="mdi.check-decagram-outline")
+        self.tile_t40 = MetricTile("到 40% 时间", "--", "min", icon="mdi.timer-outline")
+        self.tile_t60 = MetricTile("到 60% 时间", "--", "min", icon="mdi.timer-sand")
+        self.tile_rate40 = MetricTile("40% 还原速率", "--", "%/min", icon="mdi.speedometer")
+        for tile in (self.tile_final, self.tile_t40, self.tile_t60, self.tile_rate40):
+            tiles_row.addWidget(tile)
+        indices.add_layout(tiles_row)
         layout.addWidget(indices)
 
         self.lbl_status = QLabel("")
@@ -268,16 +271,13 @@ class AnalysisPage(QWidget):
         self._rate_axis_y.setRange(0, max(max_rate * 1.2, 1.0))
 
     def _update_indices(self, result: ReductionResult) -> None:
-        self.lbl_final.setText(f"终态还原度: {result.final_degree_pct:.2f} %")
-        self.lbl_t40.setText(
-            "到 40% 时间: --" if result.time_to_40_min is None
-            else f"到 40% 时间: {result.time_to_40_min:.2f} min"
+        self.tile_final.set_value(f"{result.final_degree_pct:.2f}")
+        self.tile_t40.set_value(
+            "--" if result.time_to_40_min is None else f"{result.time_to_40_min:.2f}"
         )
-        self.lbl_t60.setText(
-            "到 60% 时间: --" if result.time_to_60_min is None
-            else f"到 60% 时间: {result.time_to_60_min:.2f} min"
+        self.tile_t60.set_value(
+            "--" if result.time_to_60_min is None else f"{result.time_to_60_min:.2f}"
         )
-        self.lbl_rate40.setText(
-            "40% 还原速率: --" if result.rate_at_40_pct is None
-            else f"40% 还原速率: {result.rate_at_40_pct:.3f} %/min"
+        self.tile_rate40.set_value(
+            "--" if result.rate_at_40_pct is None else f"{result.rate_at_40_pct:.3f}"
         )
