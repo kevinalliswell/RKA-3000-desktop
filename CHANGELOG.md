@@ -16,6 +16,9 @@ All notable changes to this project are documented here. The format is based on
   readings onto the legacy `DeviceSnapshot` (N2/H2/CO selected by gas type) and exposing a
   richer `MultiDeviceSnapshot`.
 - Simulation adapters for all three device types (hardware-free, deterministic) with tests.
+- New **多设备** (Multi-Device) UI tab: live temperature PV/SV, six MFC channels with
+  editable setpoints and live flow readback, balance weight + tare, and a degraded-link
+  indicator — driven by `MultiDeviceGateway` on a poll timer.
 
 ### Changed
 - `AcquisitionWorker` now accepts any `SnapshotSource` (the legacy `ModbusRtuClient` still
