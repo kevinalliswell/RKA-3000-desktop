@@ -12,6 +12,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from rka_desktop import __version__
+from rka_desktop.comm.config import CommConfig
+from rka_desktop.comm.multi_device_gateway import MultiDeviceGateway
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController
@@ -27,6 +30,7 @@ from rka_desktop.ui.dialog_service import DialogService
 from rka_desktop.ui.history_page import HistoryPage
 from rka_desktop.ui.log_service import LogService
 from rka_desktop.ui.monitor_page import MonitorPage
+from rka_desktop.ui.multi_device_page import MultiDevicePage
 from rka_desktop.ui.main_window_presenter import MainWindowPresenter
 from rka_desktop.ui.recipe_page import RecipePage
 from rka_desktop.ui.runtime_coordinator import RuntimeCoordinator
@@ -56,7 +60,7 @@ class MainWindow(QMainWindow):
         self.export_service = ExportService(db)
         self.history_controller = HistoryExportController(self.experiment_repository, self.audit_repository, self.export_service)
 
-        self.setWindowTitle(f"{settings.app_name} - v1.1")
+        self.setWindowTitle(f"{settings.app_name} - v{__version__}")
         self.resize(1380, 840)
 
         self._build_ui()
@@ -127,16 +131,24 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.recipe_page = RecipePage()
         self.monitor_page = MonitorPage()
+        self.multi_gateway = MultiDeviceGateway.from_config(
+            CommConfig(simulation_mode=self.settings.simulation_mode)
+        )
+        self.multi_gateway.connect()
+        self.multi_device_page = MultiDevicePage(self.multi_gateway)
         self.history_page = HistoryPage()
         self.alarm_page = AlarmPage()
         self.settings_page = SettingsPage(self.settings)
 
         self.tabs.addTab(self.recipe_page, "配方")
         self.tabs.addTab(self.monitor_page, "监控")
+        self.tabs.addTab(self.multi_device_page, "多设备")
         self.tabs.addTab(self.history_page, "历史")
         self.tabs.addTab(self.alarm_page, "报警")
         self.tabs.addTab(self.settings_page, "设置")
         layout.addWidget(self.tabs)
+        self.multi_device_page.refresh()
+        self.multi_device_page.start()
 
         self.presenter = MainWindowPresenter(
             recipe_combo=self.recipe_combo,
@@ -335,6 +347,8 @@ class MainWindow(QMainWindow):
             elif self.runtime.is_running:
                 self.runtime.stop()
             self.gateway.close()
+            self.multi_device_page.stop()
+            self.multi_gateway.close()
         finally:
             event.accept()
 

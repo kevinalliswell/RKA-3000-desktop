@@ -27,7 +27,9 @@ def test_main_window_smoke(tmp_path):
 
     window = MainWindow(settings=settings, db=db, client=client)
 
-    assert window.tabs.count() == 5
+    assert window.tabs.count() == 6
+    assert window.tabs.tabText(2) == "多设备"
+    assert window.multi_device_page.mfc_table.rowCount() == 6
     assert window.recipe_page.recipe_table.columnCount() == 8
     assert window.alarm_page.btn_ack_alarm.isEnabled() is False
     assert window.alarm_page.btn_reset_interlock.isEnabled() is False

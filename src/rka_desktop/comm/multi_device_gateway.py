@@ -88,6 +88,19 @@ class MultiDeviceGateway:
             except Exception:  # noqa: BLE001
                 pass
 
+    @property
+    def channels(self) -> tuple[MfcChannelConfig, ...]:
+        return self._channels
+
+    def set_temperature_sv(self, celsius: float) -> None:
+        self._temp.write_sv(float(celsius))
+
+    def set_mfc_flow(self, address: int, lpm: float) -> None:
+        self._mfc.set_flow(address, float(lpm))
+
+    def tare_balance(self) -> bool:
+        return self._balance.tare()
+
     def read_multi_snapshot(self) -> MultiDeviceSnapshot:
         degraded: list[str] = []
 
