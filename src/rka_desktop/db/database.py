@@ -165,6 +165,18 @@ class DatabaseManager:
             row = conn.execute(sql).fetchone()
             return int(row["id"]) if row else None
 
+    def rename_experiment(self, experiment_id: int, name: str) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute("UPDATE experiments SET name = ? WHERE id = ?", (name, experiment_id))
+            conn.commit()
+
+    def delete_experiment(self, experiment_id: int) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM measurements WHERE experiment_id = ?", (experiment_id,))
+            conn.execute("DELETE FROM alarms WHERE experiment_id = ?", (experiment_id,))
+            conn.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
+            conn.commit()
+
     def get_schema_version(self) -> int:
         with self._lock, self._connect() as conn:
             return get_schema_version(conn)

@@ -30,6 +30,12 @@ class ExperimentRepository:
     def fetch_measurements(self, experiment_id: int) -> list[dict[str, Any]]:
         return self._db.fetch_measurements(experiment_id)
 
+    def rename_experiment(self, experiment_id: int, name: str) -> None:
+        self._db.rename_experiment(experiment_id, name)
+
+    def delete_experiment(self, experiment_id: int) -> None:
+        self._db.delete_experiment(experiment_id)
+
     def get_latest_experiment_id(self) -> int | None:
         return self._db.get_latest_experiment_id()
 

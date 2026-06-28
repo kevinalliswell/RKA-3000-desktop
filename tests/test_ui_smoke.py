@@ -27,9 +27,10 @@ def test_main_window_smoke(tmp_path):
 
     window = MainWindow(settings=settings, db=db, client=client)
 
-    assert window.tabs.count() == 6
+    assert window.tabs.count() == 7
     assert window.tabs.tabText(1) == "监控"
     assert window.tabs.tabText(2) == "数据分析"
+    assert window.tabs.tabText(5) == "日志"
     # device status is a nested secondary view under 监控, not a top-level tab
     assert window.monitor_tabs.count() == 2
     assert window.monitor_tabs.tabText(1) == "设备状态"
