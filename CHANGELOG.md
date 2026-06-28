@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-28
+### Added
+- **日志 tab**: an in-app audit-log viewer showing operator actions (time / actor / action / detail).
+- **Experiment management** on the 历史 page: 重命名 (rename) and 删除 (delete) experiments.
+  Delete cascades the experiment's measurements and alarms and is blocked for a running
+  experiment; rename and delete are both written to the audit log.
+
 ## [0.4.0] - 2026-06-28
 ### Added
 - **实验报告生成**: a 生成报告 button on the 数据分析 page exports an Excel report
