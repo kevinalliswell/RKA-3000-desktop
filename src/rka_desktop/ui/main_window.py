@@ -24,6 +24,7 @@ from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
 from rka_desktop.repositories import AlarmRepository, AuditLogRepository, ExperimentRepository, RecipeRepository
+from rka_desktop.reporting.report_service import ReportService
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.analysis_page import AnalysisPage
@@ -59,12 +60,14 @@ class MainWindow(QMainWindow):
         )
         self.recipe_controller = RecipeController(self.recipe_repository, self.audit_repository)
         self.export_service = ExportService(db)
+        self.report_service = ReportService()
         self.history_controller = HistoryExportController(self.experiment_repository, self.audit_repository, self.export_service)
 
         self.setWindowTitle(f"{settings.app_name} - v{__version__}")
         self.resize(1380, 840)
 
         self._build_ui()
+        self._build_menu()
         self._bind_events()
         self._refresh_recipe_combo()
         self._refresh_history()
@@ -205,6 +208,52 @@ class MainWindow(QMainWindow):
 
         self.alarm_page.btn_ack_alarm.clicked.connect(self.acknowledge_alarm)
         self.alarm_page.btn_reset_interlock.clicked.connect(self.reset_interlock)
+
+        self.analysis_page.btn_report.clicked.connect(self.export_analysis_report)
+
+    def _build_menu(self) -> None:
+        help_menu = self.menuBar().addMenu("帮助")
+        help_menu.addAction("使用帮助", self._show_help)
+        help_menu.addAction("关于", self._show_about)
+
+    def _show_about(self) -> None:
+        self.dialogs.info(
+            "关于",
+            f"{self.settings.app_name}\n版本 v{__version__}\n\n"
+            "铁矿石氧化还原动力学试验系统上位机\n"
+            "© 2026 RKA-3000",
+        )
+
+    def _show_help(self) -> None:
+        self.dialogs.info(
+            "使用帮助",
+            "1. 配方: 新建/编辑实验步骤并保存。\n"
+            "2. 监控: 实时查看实验数据；设备状态子页查看 MFC/温控/天平。\n"
+            "3. 数据分析: 选择实验，录入试样参数(m₀/TFe/FeO)，计算还原度并生成报告。\n"
+            "4. 历史: 查询历史实验，导出 CSV/Excel。\n"
+            "5. 报警: 确认报警与联锁复位。",
+        )
+
+    def export_analysis_report(self) -> None:
+        result = self.analysis_page.result
+        exp_id = self.analysis_page.selected_experiment_id()
+        if result is None or exp_id is None:
+            self.dialogs.info("提示", "请先在数据分析页选择实验并计算还原度")
+            return
+        detail = self.experiment_repository.get_experiment_detail(exp_id) or {"id": exp_id}
+        default_dir = Path("exports")
+        default_dir.mkdir(parents=True, exist_ok=True)
+        path = self.dialogs.select_save_path(
+            "生成实验报告", default_dir / f"experiment_{exp_id}_report.xlsx", "Excel Files (*.xlsx)"
+        )
+        if path is None:
+            return
+        try:
+            self.report_service.generate_excel_report(detail, result, Path(path))
+            self.audit_repository.log_action("operator", "REPORT_EXPORT", str(path))
+            self.dialogs.info("报告已生成", f"已保存到\n{path}")
+        except Exception as exc:  # noqa: BLE001
+            self.dialogs.warning("生成失败", str(exc))
 
     def connect_device(self) -> None:
         if self.gateway.connect():
