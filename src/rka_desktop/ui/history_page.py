@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QPushButton,
@@ -16,7 +17,14 @@ class HistoryPage(QWidget):
         super().__init__()
         layout = QVBoxLayout(self)
 
+        toolbar = QHBoxLayout()
         self.btn_refresh = QPushButton("刷新历史")
+        self.btn_rename = QPushButton("重命名实验")
+        self.btn_delete = QPushButton("删除实验")
+        toolbar.addWidget(self.btn_refresh)
+        toolbar.addWidget(self.btn_rename)
+        toolbar.addWidget(self.btn_delete)
+        toolbar.addStretch()
         self.summary_label = QLabel("暂无历史实验")
 
         self.table = QTableWidget(0, 6)
@@ -25,7 +33,7 @@ class HistoryPage(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
 
-        layout.addWidget(self.btn_refresh)
+        layout.addLayout(toolbar)
         layout.addWidget(self.summary_label)
         layout.addWidget(self.table)
 

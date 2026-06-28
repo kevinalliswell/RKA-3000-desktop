@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -30,6 +31,7 @@ from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.analysis_page import AnalysisPage
 from rka_desktop.ui.dialog_service import DialogService
 from rka_desktop.ui.history_page import HistoryPage
+from rka_desktop.ui.log_page import LogPage
 from rka_desktop.ui.log_service import LogService
 from rka_desktop.ui.monitor_page import MonitorPage
 from rka_desktop.ui.multi_device_page import MultiDevicePage
@@ -143,6 +145,7 @@ class MainWindow(QMainWindow):
         self.analysis_page = AnalysisPage(self.experiment_repository)
         self.history_page = HistoryPage()
         self.alarm_page = AlarmPage()
+        self.log_page = LogPage()
         self.settings_page = SettingsPage(self.settings)
 
         # 监控 hosts experiment monitoring with device status as a secondary view —
@@ -156,11 +159,13 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.analysis_page, "数据分析")
         self.tabs.addTab(self.history_page, "历史")
         self.tabs.addTab(self.alarm_page, "报警")
+        self.tabs.addTab(self.log_page, "日志")
         self.tabs.addTab(self.settings_page, "设置")
         layout.addWidget(self.tabs)
         self.multi_device_page.refresh()
         self.multi_device_page.start()
         self.analysis_page.refresh_experiments()
+        self._refresh_logs()
 
         self.presenter = MainWindowPresenter(
             recipe_combo=self.recipe_combo,
@@ -210,6 +215,9 @@ class MainWindow(QMainWindow):
         self.alarm_page.btn_reset_interlock.clicked.connect(self.reset_interlock)
 
         self.analysis_page.btn_report.clicked.connect(self.export_analysis_report)
+        self.history_page.btn_rename.clicked.connect(self.rename_experiment)
+        self.history_page.btn_delete.clicked.connect(self.delete_experiment)
+        self.log_page.btn_refresh.clicked.connect(self._refresh_logs)
 
     def _build_menu(self) -> None:
         help_menu = self.menuBar().addMenu("帮助")
@@ -252,8 +260,46 @@ class MainWindow(QMainWindow):
             self.report_service.generate_excel_report(detail, result, Path(path))
             self.audit_repository.log_action("operator", "REPORT_EXPORT", str(path))
             self.dialogs.info("报告已生成", f"已保存到\n{path}")
+            self._refresh_logs()
         except Exception as exc:  # noqa: BLE001
             self.dialogs.warning("生成失败", str(exc))
+
+    def _refresh_logs(self) -> None:
+        self.log_page.set_logs(self.audit_repository.list_audit_logs(limit=200))
+
+    def rename_experiment(self) -> None:
+        exp_id = self.history_page.selected_experiment_id()
+        if exp_id is None:
+            self.dialogs.info("提示", "请先在历史列表选择实验")
+            return
+        new_name, ok = QInputDialog.getText(self, "重命名实验", "新的实验名称：")
+        if not ok:
+            return
+        new_name = new_name.strip()
+        if not new_name:
+            self.dialogs.warning("无效名称", "实验名称不能为空")
+            return
+        self.experiment_repository.rename_experiment(exp_id, new_name)
+        self.audit_repository.log_action("operator", "EXPERIMENT_RENAME", f"#{exp_id} -> {new_name}")
+        self._refresh_history()
+        self.analysis_page.refresh_experiments()
+        self._refresh_logs()
+
+    def delete_experiment(self) -> None:
+        exp_id = self.history_page.selected_experiment_id()
+        if exp_id is None:
+            self.dialogs.info("提示", "请先在历史列表选择实验")
+            return
+        if self.runtime.is_running and self.experiment_id == exp_id:
+            self.dialogs.warning("无法删除", "该实验正在运行中")
+            return
+        if not self.dialogs.confirm("确认删除", f"删除实验 #{exp_id} 及其全部测量与报警数据？此操作不可撤销。"):
+            return
+        self.experiment_repository.delete_experiment(exp_id)
+        self.audit_repository.log_action("operator", "EXPERIMENT_DELETE", f"#{exp_id}")
+        self._refresh_history()
+        self.analysis_page.refresh_experiments()
+        self._refresh_logs()
 
     def connect_device(self) -> None:
         if self.gateway.connect():
