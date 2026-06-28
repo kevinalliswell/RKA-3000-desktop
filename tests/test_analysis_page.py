@@ -43,8 +43,8 @@ def test_compute_renders_indices_from_measurements():
 
     assert result is not None
     assert abs(result.final_degree_pct - 100.0) < 1e-6
-    assert "100.00" in page.lbl_final.text()
-    assert "1.20" in page.lbl_t60.text()  # t60 = 1.2 min
+    assert page.tile_final.value() == "100.00"
+    assert page.tile_t60.value() == "1.20"  # t60 = 1.2 min
 
 
 def test_save_params_delegates_to_repo():

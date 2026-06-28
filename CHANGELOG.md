@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-29
+### Added
+- **Reusable UI component library** (`rka_desktop.ui.components`): `Card` (a titled
+  container block) and `MetricTile` (a KPI block — icon + label + big value + unit).
+
+### Changed
+- **Componentized, dashboard-style layout.** Metric-heavy areas are recomposed as modular
+  blocks: 数据分析 关键指标 is now a row of four KPI tiles, and 监控 实时数据 is six colored
+  KPI tiles (温度/重量/压力/N₂/H₂/CO) with run status in its own card.
+
 ## [0.6.0] - 2026-06-28
 ### Changed
 - **Professional UI redesign.** A cohesive design system (built on `pyqtdarktheme` +

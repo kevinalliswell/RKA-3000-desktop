@@ -92,6 +92,22 @@ QTableWidget::item {{ padding: 4px 6px; }}
 /* ---- status bar ---- */
 QStatusBar {{ color: {MUTED}; }}
 QStatusBar QLabel {{ color: {MUTED}; }}
+
+/* ---- components: card ---- */
+QFrame#card {{
+    background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px;
+}}
+QLabel#cardTitle {{ color: {TEXT}; font-size: 14px; font-weight: 700; }}
+
+/* ---- components: metric tile ---- */
+QFrame#metricTile {{
+    background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px;
+}}
+QFrame#metricTile:hover {{ border: 1px solid #C7D2FE; }}
+QLabel#metricLabel {{ color: {MUTED}; font-size: 12px; background: transparent; }}
+QLabel#metricValue {{ color: {TEXT}; font-size: 23px; font-weight: 700; background: transparent; }}
+QLabel#metricUnit {{ color: {MUTED}; font-size: 13px; padding-bottom: 3px; background: transparent; }}
+QLabel#metricIcon {{ background: transparent; }}
 """
 
 
