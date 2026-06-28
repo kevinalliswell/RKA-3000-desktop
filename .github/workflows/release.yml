@@ -12,6 +12,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
 
     steps:
       - name: Checkout
@@ -21,6 +23,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
+      - name: Install system libraries for headless Qt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3
 
       - name: Install dependencies
         run: |
@@ -33,7 +40,10 @@ jobs:
         run: python scripts/checks/verify_tag_version.py
 
       - name: Run tests
-        run: pytest -q
+        # See ci.yml: tolerate the Qt teardown segfault, verdict from the JUnit report.
+        run: |
+          pytest -q --junitxml=pytest-report.xml || true
+          python scripts/checks/check_pytest_report.py pytest-report.xml
 
       - name: Extract release notes
         env:
