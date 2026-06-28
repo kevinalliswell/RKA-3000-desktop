@@ -42,6 +42,9 @@ def test_main_window_smoke(tmp_path):
     assert window.btn_resume.isEnabled() is False
     assert window.history_page.table.columnCount() == 6
     assert window.monitor_page.lbl_control_feedback.text() == "控制反馈: --"
+    # redesign: tabs carry icons, header/status bar present
+    assert not window.tabs.tabIcon(2).isNull()
+    assert "仿真模式" in window.statusBar().currentMessage()
 
     window.close()
     app.quit()

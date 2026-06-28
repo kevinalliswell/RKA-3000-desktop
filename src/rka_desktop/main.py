@@ -10,6 +10,7 @@ from rka_desktop.core.logging_config import setup_logging
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.ui.main_window import MainWindow
+from rka_desktop.ui.theme import apply_theme
 
 
 def main() -> int:
@@ -28,6 +29,7 @@ def main() -> int:
     )
 
     app = QApplication(sys.argv)
+    apply_theme(app)
     win = MainWindow(settings=settings, db=db, client=client)
     win.show()
     return app.exec()

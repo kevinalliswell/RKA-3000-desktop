@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
+from rka_desktop.ui.theme import ACCENT, accent_pen, style_axis, style_chart, style_chart_view
 
 try:
     from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
@@ -61,13 +62,14 @@ class MonitorPage(QWidget):
         if CHARTS_AVAILABLE:
             self.temp_series = QLineSeries()
             self.temp_series.setName("温度")
+            self.temp_series.setPen(accent_pen(ACCENT, 2))
             self.weight_series = QLineSeries()
             self.weight_series.setName("重量")
+            self.weight_series.setPen(accent_pen("#F59E0B", 2))
 
             chart = QChart()
             chart.addSeries(self.temp_series)
             chart.addSeries(self.weight_series)
-            chart.legend().setVisible(True)
             chart.setTitle("实时趋势（温度/重量）")
 
             self.axis_x = QValueAxis()
@@ -85,7 +87,16 @@ class MonitorPage(QWidget):
             self.weight_series.attachAxis(self.axis_x)
             self.weight_series.attachAxis(self.axis_y)
 
-            layout.addWidget(QChartView(chart))
+            style_chart(chart)
+            style_axis(self.axis_x, label_format="%.0f", ticks=7)
+            style_axis(self.axis_y, label_format="%.0f", ticks=7)
+            chart.legend().setVisible(True)
+            chart.legend().setAlignment(Qt.AlignmentFlag.AlignBottom)
+
+            chart_view = QChartView(chart)
+            chart_view.setMinimumHeight(260)
+            style_chart_view(chart_view)
+            layout.addWidget(chart_view)
         else:
             self.temp_series = None
             self.weight_series = None
