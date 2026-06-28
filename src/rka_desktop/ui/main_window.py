@@ -1,8 +1,10 @@
 from __future__ import annotations
 from pathlib import Path
 
+import qtawesome as qta
 from PySide6.QtWidgets import (
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -39,6 +41,7 @@ from rka_desktop.ui.main_window_presenter import MainWindowPresenter
 from rka_desktop.ui.recipe_page import RecipePage
 from rka_desktop.ui.runtime_coordinator import RuntimeCoordinator
 from rka_desktop.ui.settings_page import SettingsPage
+from rka_desktop.ui.theme import ACCENT, make_primary
 
 
 class MainWindow(QMainWindow):
@@ -100,22 +103,61 @@ class MainWindow(QMainWindow):
     def worker(self, value) -> None:
         self.runtime.worker = value
 
+    def _build_header(self) -> QFrame:
+        header = QFrame()
+        header.setObjectName("appHeader")
+        header.setFixedHeight(62)
+        row = QHBoxLayout(header)
+        row.setContentsMargins(18, 0, 18, 0)
+        row.setSpacing(12)
+
+        logo = QLabel()
+        logo.setPixmap(qta.icon("mdi.molecule", color="#4DA3FF").pixmap(30, 30))
+        row.addWidget(logo)
+
+        titles = QVBoxLayout()
+        titles.setSpacing(0)
+        title = QLabel("RKA-3000 上位机")
+        title.setObjectName("appTitle")
+        subtitle = QLabel("铁矿石氧化还原动力学试验系统")
+        subtitle.setObjectName("appSubtitle")
+        titles.addWidget(title)
+        titles.addWidget(subtitle)
+        row.addLayout(titles)
+        row.addStretch()
+
+        version = QLabel(f"v{__version__}")
+        version.setObjectName("appVersion")
+        row.addWidget(version)
+        return header
+
     def _build_ui(self) -> None:
         central = QWidget()
+        central.setObjectName("centralRoot")
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(self._build_header())
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(16, 14, 16, 12)
+        layout.setSpacing(12)
+        outer.addWidget(content)
 
         toolbar = QHBoxLayout()
-        self.btn_connect = QPushButton("连接设备")
+        toolbar.setSpacing(8)
+        self.btn_connect = QPushButton(qta.icon("mdi.lan-connect", color="#334155"), " 连接设备")
         self.recipe_combo = QComboBox()
         self.recipe_combo.setMinimumWidth(280)
-        self.btn_refresh_recipe = QPushButton("刷新配方")
-        self.btn_start = QPushButton("开始实验")
-        self.btn_pause = QPushButton("暂停实验")
-        self.btn_resume = QPushButton("恢复实验")
-        self.btn_stop = QPushButton("停止实验")
-        self.btn_export_csv = QPushButton("导出CSV")
-        self.btn_export_excel = QPushButton("导出Excel")
+        self.btn_refresh_recipe = QPushButton(qta.icon("mdi.refresh", color="#334155"), "")
+        self.btn_start = make_primary(QPushButton(qta.icon("mdi.play", color="white"), " 开始实验"))
+        self.btn_pause = QPushButton(qta.icon("mdi.pause", color="#334155"), " 暂停")
+        self.btn_resume = QPushButton(qta.icon("mdi.play-outline", color="#334155"), " 恢复")
+        self.btn_stop = QPushButton(qta.icon("mdi.stop", color="#334155"), " 停止")
+        self.btn_export_csv = QPushButton(qta.icon("mdi.file-delimited-outline", color="#334155"), " 导出CSV")
+        self.btn_export_excel = QPushButton(qta.icon("mdi.file-excel-outline", color="#334155"), " 导出Excel")
 
         self.btn_pause.setEnabled(False)
         self.btn_resume.setEnabled(False)
@@ -154,18 +196,22 @@ class MainWindow(QMainWindow):
         self.monitor_tabs.addTab(self.monitor_page, "实验监控")
         self.monitor_tabs.addTab(self.multi_device_page, "设备状态")
 
-        self.tabs.addTab(self.recipe_page, "配方")
-        self.tabs.addTab(self.monitor_tabs, "监控")
-        self.tabs.addTab(self.analysis_page, "数据分析")
-        self.tabs.addTab(self.history_page, "历史")
-        self.tabs.addTab(self.alarm_page, "报警")
-        self.tabs.addTab(self.log_page, "日志")
-        self.tabs.addTab(self.settings_page, "设置")
+        _ico = lambda name: qta.icon(name, color="#64748B", color_active=ACCENT)  # noqa: E731
+        self.tabs.addTab(self.recipe_page, _ico("mdi.flask-outline"), "配方")
+        self.tabs.addTab(self.monitor_tabs, _ico("mdi.monitor-dashboard"), "监控")
+        self.tabs.addTab(self.analysis_page, _ico("mdi.chart-bell-curve-cumulative"), "数据分析")
+        self.tabs.addTab(self.history_page, _ico("mdi.history"), "历史")
+        self.tabs.addTab(self.alarm_page, _ico("mdi.bell-alert-outline"), "报警")
+        self.tabs.addTab(self.log_page, _ico("mdi.text-box-search-outline"), "日志")
+        self.tabs.addTab(self.settings_page, _ico("mdi.cog-outline"), "设置")
         layout.addWidget(self.tabs)
         self.multi_device_page.refresh()
         self.multi_device_page.start()
         self.analysis_page.refresh_experiments()
         self._refresh_logs()
+
+        mode = "仿真模式" if self.settings.simulation_mode else "实机模式"
+        self.statusBar().showMessage(f"就绪 · {mode} · 串口 {self.settings.serial_port}")
 
         self.presenter = MainWindowPresenter(
             recipe_combo=self.recipe_combo,

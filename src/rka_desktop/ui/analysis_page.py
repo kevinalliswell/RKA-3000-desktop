@@ -22,6 +22,14 @@ from rka_desktop.analysis.reduction_kinetics import (
     SampleParams,
     compute_reduction,
 )
+from rka_desktop.ui.theme import (
+    ACCENT,
+    accent_pen,
+    make_primary,
+    style_axis,
+    style_chart,
+    style_chart_view,
+)
 
 try:
     from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
@@ -81,7 +89,7 @@ class AnalysisPage(QWidget):
         self.spin_feo.setSuffix(" %")
 
         self.btn_save = QPushButton("保存参数")
-        self.btn_compute = QPushButton("计算还原度")
+        self.btn_compute = make_primary(QPushButton("计算还原度"))
         self.btn_report = QPushButton("生成报告")
         self.btn_report.setEnabled(False)
 
@@ -108,6 +116,7 @@ class AnalysisPage(QWidget):
         if CHARTS_AVAILABLE:
             self.degree_series = QLineSeries()
             self.degree_series.setName("还原度 R(t)")
+            self.degree_series.setPen(accent_pen(ACCENT, 2))
             degree_chart = QChart()
             degree_chart.addSeries(self.degree_series)
             degree_chart.setTitle("还原度曲线 R(t)")
@@ -120,9 +129,13 @@ class AnalysisPage(QWidget):
             degree_chart.addAxis(self._degree_axis_y, Qt.AlignLeft)
             self.degree_series.attachAxis(self._degree_axis_x)
             self.degree_series.attachAxis(self._degree_axis_y)
+            style_chart(degree_chart)
+            style_axis(self._degree_axis_x, label_format="%.0f", ticks=6)
+            style_axis(self._degree_axis_y, label_format="%.0f", ticks=6)
 
             self.rate_series = QLineSeries()
             self.rate_series.setName("还原速率 dR/dt")
+            self.rate_series.setPen(accent_pen("#0EA5E9", 2))
             rate_chart = QChart()
             rate_chart.addSeries(self.rate_series)
             rate_chart.setTitle("还原速率曲线 dR/dt")
@@ -134,10 +147,17 @@ class AnalysisPage(QWidget):
             rate_chart.addAxis(self._rate_axis_y, Qt.AlignLeft)
             self.rate_series.attachAxis(self._rate_axis_x)
             self.rate_series.attachAxis(self._rate_axis_y)
+            style_chart(rate_chart)
+            style_axis(self._rate_axis_x, label_format="%.0f", ticks=6)
+            style_axis(self._rate_axis_y, label_format="%.1f", ticks=6)
 
             charts_row = QHBoxLayout()
-            charts_row.addWidget(QChartView(degree_chart))
-            charts_row.addWidget(QChartView(rate_chart))
+            charts_row.setSpacing(12)
+            for chart in (degree_chart, rate_chart):
+                view = QChartView(chart)
+                view.setMinimumHeight(300)
+                style_chart_view(view)
+                charts_row.addWidget(view)
             layout.addLayout(charts_row)
 
         # --- indices ---

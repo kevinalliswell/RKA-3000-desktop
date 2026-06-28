@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-28
+### Changed
+- **Professional UI redesign.** A cohesive design system (built on `pyqtdarktheme` +
+  `qtawesome`): a light theme with brand accent, a navy app header (title + version), a
+  status bar, Material Design icons on the toolbar and tabs, card-style sections, primary
+  accent action buttons, and restyled antialiased charts with readable axes. Replaces the
+  unstyled default Qt look across every page.
+
 ## [0.5.0] - 2026-06-28
 ### Added
 - **日志 tab**: an in-app audit-log viewer showing operator actions (time / actor / action / detail).
