@@ -82,6 +82,8 @@ class AnalysisPage(QWidget):
 
         self.btn_save = QPushButton("保存参数")
         self.btn_compute = QPushButton("计算还原度")
+        self.btn_report = QPushButton("生成报告")
+        self.btn_report.setEnabled(False)
 
         selector_row = QHBoxLayout()
         selector_row.addWidget(QLabel("实验"))
@@ -97,6 +99,7 @@ class AnalysisPage(QWidget):
         action_col = QVBoxLayout()
         action_col.addWidget(self.btn_save)
         action_col.addWidget(self.btn_compute)
+        action_col.addWidget(self.btn_report)
         action_col.addStretch()
         form.addLayout(action_col, 1, 2, 1, 2)
         layout.addWidget(controls)
@@ -171,9 +174,16 @@ class AnalysisPage(QWidget):
                 self.experiment_combo.setCurrentIndex(idx)
         self._load_params_for_selection()
 
-    def _selected_experiment_id(self) -> int | None:
+    def selected_experiment_id(self) -> int | None:
         data = self.experiment_combo.currentData()
         return int(data) if data is not None else None
+
+    # backwards-compatible private alias
+    _selected_experiment_id = selected_experiment_id
+
+    @property
+    def result(self) -> ReductionResult | None:
+        return self._last_result
 
     def _load_params_for_selection(self) -> None:
         exp_id = self._selected_experiment_id()
@@ -216,6 +226,7 @@ class AnalysisPage(QWidget):
 
         self._last_result = result
         self._render(result)
+        self.btn_report.setEnabled(True)
         self.lbl_status.setText(f"已计算实验 #{exp_id}，共 {len(result.points)} 个采样点")
         return result
 
