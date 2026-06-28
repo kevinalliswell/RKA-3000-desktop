@@ -18,6 +18,18 @@ class ExperimentRepository:
     def set_experiment_status(self, experiment_id: int, status: str) -> None:
         self._db.set_experiment_status(experiment_id, status)
 
+    def set_sample_params(
+        self,
+        experiment_id: int,
+        initial_mass_g: float,
+        tfe_pct: float,
+        feo_pct: float,
+    ) -> None:
+        self._db.set_experiment_sample_params(experiment_id, initial_mass_g, tfe_pct, feo_pct)
+
+    def fetch_measurements(self, experiment_id: int) -> list[dict[str, Any]]:
+        return self._db.fetch_measurements(experiment_id)
+
     def get_latest_experiment_id(self) -> int | None:
         return self._db.get_latest_experiment_id()
 
