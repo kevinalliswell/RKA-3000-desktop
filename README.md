@@ -13,8 +13,11 @@ cp .env.example .env
 python -m rka_desktop.main
 ```
 
-## 2. 当前能力（v1.1.0）
+## 2. 当前能力
 
+> 版本以 `rka_desktop.__version__`（当前 0.2.0）为准，变更详见 [CHANGELOG.md](CHANGELOG.md)。
+
+- 新增仿真优先的多设备通讯层（6× Azbil MFC + TAIE 温控 + 电子天平），经 `MultiDeviceGateway` 以 `SnapshotSource` 接入现有采集链路
 - 应用主窗口（设备状态、实时采样、最近数据）
 - 配方编辑器（多步骤、新建、更新、选择执行）
 - 实时曲线（温度/重量）

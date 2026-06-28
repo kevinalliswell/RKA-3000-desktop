@@ -6,11 +6,12 @@ import sys
 from pathlib import Path
 
 
-def read_project_version(pyproject_path: Path) -> str:
-    content = pyproject_path.read_text(encoding="utf-8")
-    match = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
+def read_project_version() -> str:
+    init_path = Path("src/rka_desktop/__init__.py")
+    content = init_path.read_text(encoding="utf-8")
+    match = re.search(r'^__version__\s*=\s*"([^"]+)"', content, re.MULTILINE)
     if not match:
-        raise RuntimeError("Could not find project version in pyproject.toml")
+        raise RuntimeError("Could not find __version__ in src/rka_desktop/__init__.py")
     return match.group(1)
 
 
@@ -20,14 +21,14 @@ def main() -> int:
         raise RuntimeError("GITHUB_REF_NAME is required")
 
     tag_version = ref_name[1:] if ref_name.startswith("v") else ref_name
-    project_version = read_project_version(Path("pyproject.toml"))
+    project_version = read_project_version()
 
     if tag_version != project_version:
         raise RuntimeError(
-            f"Tag version '{tag_version}' does not match pyproject.toml version '{project_version}'"
+            f"Tag version '{tag_version}' does not match package __version__ '{project_version}'"
         )
 
-    print(f"version check ok: tag={tag_version}, pyproject={project_version}")
+    print(f"version check ok: tag={tag_version}, package={project_version}")
     return 0
 
 

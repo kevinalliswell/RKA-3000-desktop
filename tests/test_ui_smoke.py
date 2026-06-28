@@ -28,6 +28,11 @@ def test_main_window_smoke(tmp_path):
     window = MainWindow(settings=settings, db=db, client=client)
 
     assert window.tabs.count() == 5
+    assert window.tabs.tabText(1) == "监控"
+    # device status is a nested secondary view under 监控, not a top-level tab
+    assert window.monitor_tabs.count() == 2
+    assert window.monitor_tabs.tabText(1) == "设备状态"
+    assert window.multi_device_page.mfc_table.rowCount() == 6
     assert window.recipe_page.recipe_table.columnCount() == 8
     assert window.alarm_page.btn_ack_alarm.isEnabled() is False
     assert window.alarm_page.btn_reset_interlock.isEnabled() is False

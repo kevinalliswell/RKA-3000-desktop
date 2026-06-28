@@ -2,9 +2,12 @@
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.dynamic]
+version = {attr = "rka_desktop.__version__"}
+
 [project]
 name = "rka-desktop"
-version = "0.1.0"
+dynamic = ["version"]
 description = "RKA-3000 desktop app scaffold (PySide6 + SQLite3 + Modbus RTU)"
 readme = "README.md"
 requires-python = ">=3.10"

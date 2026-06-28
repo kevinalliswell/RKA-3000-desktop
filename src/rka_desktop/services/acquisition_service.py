@@ -6,7 +6,7 @@ from datetime import datetime
 from PySide6.QtCore import QThread, Signal
 
 from rka_desktop.core.alarm_rules import alarm_text_from_word
-from rka_desktop.core.modbus_client import ModbusRtuClient
+from rka_desktop.comm.ports import SnapshotSource
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
 
@@ -19,7 +19,7 @@ class AcquisitionWorker(QThread):
 
     def __init__(
         self,
-        client: ModbusRtuClient,
+        client: SnapshotSource,
         db: DatabaseManager,
         experiment_id: int,
         poll_interval_ms: int,

@@ -26,3 +26,12 @@ class DeviceSnapshot:
     interlock_word: int = 0
     run_control_word: int = 0
     estop_status: int = 0
+
+
+@dataclass(frozen=True)
+class MultiDeviceSnapshot:
+    temperatures_c: tuple[float, ...]
+    mfc_flows_lpm: dict[int, float]
+    mfc_setpoints_lpm: dict[int, float]
+    weight_g: float
+    degraded_devices: tuple[str, ...]
