@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-28
+### Added
+- **实验报告生成**: a 生成报告 button on the 数据分析 page exports an Excel report
+  (summary sheet with sample params and key indices, a data sheet, and an embedded
+  R(t) line chart) via the new `rka_desktop.reporting` service.
+- **帮助 menu** with 使用帮助 (quick usage guide) and 关于 (shows the app version).
+
 ## [0.3.0] - 2026-06-28
 ### Added
 - **数据分析** (data analysis) is now a headline top-level tab: 失重法 (mass-loss method)
