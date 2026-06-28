@@ -16,9 +16,10 @@ All notable changes to this project are documented here. The format is based on
   readings onto the legacy `DeviceSnapshot` (N2/H2/CO selected by gas type) and exposing a
   richer `MultiDeviceSnapshot`.
 - Simulation adapters for all three device types (hardware-free, deterministic) with tests.
-- New **多设备** (Multi-Device) UI tab: live temperature PV/SV, six MFC channels with
-  editable setpoints and live flow readback, balance weight + tare, and a degraded-link
-  indicator — driven by `MultiDeviceGateway` on a poll timer.
+- **设备状态** view nested under the 监控 tab (a secondary view, not a headline feature):
+  live temperature PV/SV, six MFC channels with editable setpoints and live flow readback,
+  balance weight + tare, and a degraded-link indicator — driven by `MultiDeviceGateway` on a
+  poll timer.
 
 ### Changed
 - `AcquisitionWorker` now accepts any `SnapshotSource` (the legacy `ModbusRtuClient` still
@@ -29,3 +30,5 @@ All notable changes to this project are documented here. The format is based on
 ### Build
 - Added `CHANGELOG.md`, `scripts/release.py` bump/notes helper, and a version-sync CI check.
 - `release.yml` now publishes the matching CHANGELOG section as release notes.
+- CI now installs headless Qt system libraries (`libegl1` et al.) and runs the suite under
+  `QT_QPA_PLATFORM=offscreen`, so the PySide6 GUI tests execute on the Ubuntu runner.

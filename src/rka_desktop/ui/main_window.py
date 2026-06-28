@@ -140,9 +140,14 @@ class MainWindow(QMainWindow):
         self.alarm_page = AlarmPage()
         self.settings_page = SettingsPage(self.settings)
 
+        # 监控 hosts experiment monitoring with device status as a secondary view —
+        # device communication is a supporting service, not a headline feature.
+        self.monitor_tabs = QTabWidget()
+        self.monitor_tabs.addTab(self.monitor_page, "实验监控")
+        self.monitor_tabs.addTab(self.multi_device_page, "设备状态")
+
         self.tabs.addTab(self.recipe_page, "配方")
-        self.tabs.addTab(self.monitor_page, "监控")
-        self.tabs.addTab(self.multi_device_page, "多设备")
+        self.tabs.addTab(self.monitor_tabs, "监控")
         self.tabs.addTab(self.history_page, "历史")
         self.tabs.addTab(self.alarm_page, "报警")
         self.tabs.addTab(self.settings_page, "设置")
