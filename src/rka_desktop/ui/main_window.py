@@ -26,6 +26,7 @@ from rka_desktop.models.entities import DeviceSnapshot, Measurement
 from rka_desktop.repositories import AlarmRepository, AuditLogRepository, ExperimentRepository, RecipeRepository
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
+from rka_desktop.ui.analysis_page import AnalysisPage
 from rka_desktop.ui.dialog_service import DialogService
 from rka_desktop.ui.history_page import HistoryPage
 from rka_desktop.ui.log_service import LogService
@@ -136,6 +137,7 @@ class MainWindow(QMainWindow):
         )
         self.multi_gateway.connect()
         self.multi_device_page = MultiDevicePage(self.multi_gateway)
+        self.analysis_page = AnalysisPage(self.experiment_repository)
         self.history_page = HistoryPage()
         self.alarm_page = AlarmPage()
         self.settings_page = SettingsPage(self.settings)
@@ -148,12 +150,14 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self.recipe_page, "配方")
         self.tabs.addTab(self.monitor_tabs, "监控")
+        self.tabs.addTab(self.analysis_page, "数据分析")
         self.tabs.addTab(self.history_page, "历史")
         self.tabs.addTab(self.alarm_page, "报警")
         self.tabs.addTab(self.settings_page, "设置")
         layout.addWidget(self.tabs)
         self.multi_device_page.refresh()
         self.multi_device_page.start()
+        self.analysis_page.refresh_experiments()
 
         self.presenter = MainWindowPresenter(
             recipe_combo=self.recipe_combo,

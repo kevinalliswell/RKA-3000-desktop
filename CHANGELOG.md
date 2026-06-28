@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-28
+### Added
+- **数据分析** (data analysis) is now a headline top-level tab: 失重法 (mass-loss method)
+  reduction-degree kinetics. Pick an experiment, enter/save per-experiment sample params
+  (initial mass m₀, TFe%, FeO%), and view R(t) and dR/dt curves plus key indices (final
+  reduction degree, time to 40%/60%, reduction rate at 40%).
+- `rka_desktop.analysis.reduction_kinetics`: pure, hardware-free computation of reduction
+  degree and rate, validated against hand-computed values.
+- Per-experiment sample parameters persisted on the `experiments` table (schema v2 migration,
+  applied idempotently to existing databases).
+
+### Changed
+- Device communication is demoted from a headline to a supporting service: the multi-device
+  monitor/control panel is now a **设备状态** view nested under 监控, not a top-level tab.
+
 ## [0.2.0] - 2026-06-27
 
 ### Added

@@ -98,6 +98,9 @@ class DatabaseManager:
         with self._lock, self._connect() as conn:
             conn.executescript(ddl)
             self._ensure_column(conn, "experiments", "recipe_id", "INTEGER")
+            self._ensure_column(conn, "experiments", "initial_mass_g", "REAL")
+            self._ensure_column(conn, "experiments", "tfe_pct", "REAL")
+            self._ensure_column(conn, "experiments", "feo_pct", "REAL")
             self._ensure_column(conn, "alarms", "acknowledged_by", "TEXT")
             apply_migrations(conn)
             conn.commit()
@@ -138,6 +141,22 @@ class DatabaseManager:
         """
         with self._lock, self._connect() as conn:
             conn.execute(sql, (status, experiment_id))
+            conn.commit()
+
+    def set_experiment_sample_params(
+        self,
+        experiment_id: int,
+        initial_mass_g: float,
+        tfe_pct: float,
+        feo_pct: float,
+    ) -> None:
+        sql = """
+        UPDATE experiments
+        SET initial_mass_g = ?, tfe_pct = ?, feo_pct = ?
+        WHERE id = ?
+        """
+        with self._lock, self._connect() as conn:
+            conn.execute(sql, (initial_mass_g, tfe_pct, feo_pct, experiment_id))
             conn.commit()
 
     def get_latest_experiment_id(self) -> int | None:
@@ -205,7 +224,8 @@ class DatabaseManager:
 
     def get_experiment_detail(self, experiment_id: int) -> dict[str, Any] | None:
         sql = """
-        SELECT e.id, e.name, e.status, e.recipe_id, e.started_at, e.finished_at, r.name AS recipe_name
+        SELECT e.id, e.name, e.status, e.recipe_id, e.started_at, e.finished_at,
+               e.initial_mass_g, e.tfe_pct, e.feo_pct, r.name AS recipe_name
         FROM experiments e
         LEFT JOIN recipes r ON r.id = e.recipe_id
         WHERE e.id = ?
