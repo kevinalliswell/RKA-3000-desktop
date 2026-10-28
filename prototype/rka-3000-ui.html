@@ -3,75 +3,367 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%2338bdf8'/%3E%3Ctext x='12' y='28' font-size='26' font-family='Arial' font-weight='bold' fill='%230b0f15'%3ER%3C/text%3E%3C/svg%3E">
   <title>RKA-3000 · 实验控制台 UI 原型</title>
   <style>
     :root {
       font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
-      color: #172c39;
-      background: #edf1f2;
-      --nav: #142a38;
-      --nav-soft: #1c3949;
-      --ink: #172c39;
-      --ink-soft: #4e6471;
-      --muted: #6e828d;
-      --line: #d9e2e5;
-      --line-strong: #bdcbd0;
-      --canvas: #edf1f2;
-      --surface: #ffffff;
-      --surface-soft: #f6f8f8;
-      --brand: #176c78;
-      --brand-dark: #105a64;
-      --brand-soft: #e1f0f0;
-      --good: #19785c;
-      --good-soft: #e5f4ec;
-      --warn: #a75e1f;
-      --warn-soft: #fff1df;
-      --danger: #b43e39;
-      --danger-soft: #fae8e6;
+      color: var(--ink);
+      background: var(--canvas);
+      /* ===== 浅色主题（默认）· 黑白灰，侧栏/卡片/按键统一浅灰 ===== */
+      --nav: #e2e2e2;
+      --nav-end: #dedede;
+      --nav-soft: #ececec;
+      --ink: #171717;
+      --ink-soft: #525252;
+      --muted: #737373;
+      --line: #d6d6d6;
+      --line-strong: #bdbdbd;
+      --canvas: #ebebeb;
+      --surface: #f7f7f7;
+      --surface-soft: #efefef;
+      --brand: #171717;
+      --brand-dark: #000000;
+      --brand-soft: #e0e0e0;
+      --on-brand: #ffffff;
+      --good: #166534;
+      --good-soft: #eaf6ee;
+      --warn: #92400e;
+      --warn-soft: #faf3e4;
+      --danger: #b91c1c;
+      --danger-soft: #faeaea;
       --radius: 10px;
-      --shadow: 0 10px 28px rgba(18, 44, 56, .06);
+      --radius-sm: 8px;
+      --ease: cubic-bezier(.2, .8, .25, 1);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .06);
+      --shadow-lg: 0 4px 12px rgba(0, 0, 0, .08), 0 24px 60px rgba(0, 0, 0, .12);
+      --ring: 0 0 0 3px rgba(23, 23, 23, .14);
+      /* 外观令牌 */
+      --focus-outline: #525252;
+      --selection-bg: #c8c8c8;
+      --selection-color: #171717;
+      --scrollbar: #c4c4c4;
+      --scrollbar-hover: #a0a0a0;
+      --sidebar-shadow: 1px 0 0 rgba(0, 0, 0, .07);
+      --brand-mark-border: #b5b5b5;
+      --brand-mark-text: #171717;
+      --brand-mark-bg: #f4f4f4;
+      --brand-title-color: #171717;
+      --brand-sub: #8a8a8a;
+      --nav-border: rgba(0, 0, 0, .08);
+      --nav-label: #8a8a8a;
+      --nav-item: #404040;
+      --nav-item-hover-bg: #d4d4d4;
+      --nav-item-active: #f7f7f7;
+      --nav-accent: #171717;
+      --nav-foot: #8a8a8a;
+      --nav-foot-strong: #404040;
+      --count-bg: #b91c1c;
+      --count-shadow: none;
+      --topbar-bg: rgba(247, 247, 247, .92);
+      --top-action-bg: #efefef;
+      --top-action-hover-border: #a8a8a8;
+      --proto-bg: #e6e6e6;
+      --proto-border: #d0d0d0;
+      --proto-text: #525252;
+      --proto-strong: #171717;
+      --panel-header-bg: #f1f1f1;
+      --panel-footer-bg: #f1f1f1;
+      --hero-bg: #2b2b2b;
+      --hero-border: #2b2b2b;
+      --hero-eyebrow: #b0b0b0;
+      --hero-text: #d4d4d4;
+      --hero-label: #b0b0b0;
+      --hero-side-bg: rgba(255, 255, 255, .07);
+      --hero-side-border: rgba(255, 255, 255, .1);
+      --hero-btn-color: #f0f0f0;
+      --hero-btn-border: #666666;
+      --hero-btn-hover-bg: #3a3a3a;
+      --hero-btn-hover-border: #8a8a8a;
+      --metric-bg: #f7f7f7;
+      --metric-hover-border: #a0a0a0;
+      --badge-bg: #e2e2e2;
+      --badge-color: #525252;
+      --badge-dark-bg: #2b2b2b;
+      --badge-dark-color: #e8e8e8;
+      --good-dot-ring: rgba(22, 101, 52, .15);
+      --danger-dot-ring: rgba(185, 28, 28, .15);
+      --btn-sec-bg: #e8e8e8;
+      --btn-sec-hover-bg: #dcdcdc;
+      --btn-sec-hover-border: #a8a8a8;
+      --btn-primary-bg: #cfcfcf;
+      --btn-primary-hover-bg: #bfbfbf;
+      --btn-primary-color: #171717;
+      --btn-primary-border: #a8a8a8;
+      --btn-danger-hover: #991b1b;
+      --btn-primary-shadow: none;
+      --btn-primary-shadow-hover: 0 2px 6px rgba(0, 0, 0, .18);
+      --btn-danger-shadow: none;
+      --segmented-bg: #e8e8e8;
+      --segmented-active: #f7f7f7;
+      --segmented-ring: rgba(23, 23, 23, .1);
+      --tabs-bg: #f1f1f1;
+      --tab-hover-line: #9a9a9a;
+      --callout-bg: #efefef;
+      --callout-border: #d0d0d0;
+      --callout-color: #404040;
+      --callout-warn-border: #e8d8a8;
+      --callout-warn-color: #92400e;
+      --callout-danger-border: #e8b8b8;
+      --callout-danger-color: #991b1b;
+      --field-bg: #f4f4f4;
+      --field-hover-border: #a0a0a0;
+      --field-disabled-bg: #e6e6e6;
+      --check-line: #dcdcdc;
+      --check-on-bg: #e8e8e8;
+      --table-th-bg: #ececec;
+      --table-th-color: #525252;
+      --table-line: #dcdcdc;
+      --table-hover: #efefef;
+      --table-selected: #e2e2e2;
+      --list-line: #dcdcdc;
+      --readout-bg: #efefef;
+      --readout-border: #d6d6d6;
+      --readout-hover-border: #a0a0a0;
+      --progress-bg: #dedede;
+      --progress-done-bg: #dcefe3;
+      --progress-done-color: #166534;
+      --progress-done-border: #b8dcc4;
+      --progress-now-bg: #e2e2e2;
+      --progress-now-color: #171717;
+      --progress-now-border: #9a9a9a;
+      --progress-now-ring: rgba(23, 23, 23, .12);
+      --timeline-line: #c8c8c8;
+      --timeline-dot: #525252;
+      --timeline-dot-border: #f7f7f7;
+      --timeline-dot-ring: #c8c8c8;
+      --chart-bg: #f1f1f1;
+      --chart-grid: #dcdcdc;
+      --chart-label: #737373;
+      --chart-axis: #737373;
+      --chart-temp: #171717;
+      --chart-mass: #909090;
+      --quick-bg: #f1f1f1;
+      --quick-hover-bg: #e4e4e4;
+      --quick-hover-border: #a0a0a0;
+      --empty-icon: #737373;
+      --step-bg: #efefef;
+      --step-hover-border: #a0a0a0;
+      --step-current-bg: #e2e2e2;
+      --step-current-border: #171717;
+      --step-current-ring: rgba(23, 23, 23, .12);
+      --step-done-bg: #e4f2e9;
+      --step-done-border: #b8dcc4;
+      --op-bg: #efefef;
+      --login-bg: #ebebeb;
+      --login-card-bg: #f7f7f7;
+      --toast-bg: #2b2b2b;
+      --toast-text: #f4f4f4;
+      --backdrop: rgba(0, 0, 0, .5);
+      --dialog-shadow: var(--shadow-lg);
+      --toast-shadow: 0 10px 30px rgba(0, 0, 0, .2);
+      color-scheme: light;
+    }
+    /* ===== 深色主题 · 黑白灰 ===== */
+    :root[data-theme="dark"] {
+      --nav: #0a0a0a;
+      --nav-end: #0a0a0a;
+      --nav-soft: #171717;
+      --ink: #f5f5f5;
+      --ink-soft: #a3a3a3;
+      --muted: #737373;
+      --line: #262626;
+      --line-strong: #404040;
+      --canvas: #0f0f0f;
+      --surface: #171717;
+      --surface-soft: #1c1c1c;
+      --brand: #e5e5e5;
+      --brand-dark: #ffffff;
+      --brand-soft: #262626;
+      --on-brand: #171717;
+      --good: #4ade80;
+      --good-soft: rgba(74, 222, 128, .12);
+      --warn: #fbbf24;
+      --warn-soft: rgba(251, 191, 36, .12);
+      --danger: #f87171;
+      --danger-soft: rgba(248, 113, 113, .12);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 8px 24px rgba(0, 0, 0, .3);
+      --shadow-lg: 0 4px 12px rgba(0, 0, 0, .35), 0 24px 60px rgba(0, 0, 0, .45);
+      --ring: 0 0 0 3px rgba(229, 229, 229, .18);
+      --focus-outline: #a3a3a3;
+      --selection-bg: #525252;
+      --selection-color: #f5f5f5;
+      --scrollbar: #404040;
+      --scrollbar-hover: #525252;
+      --sidebar-shadow: 1px 0 0 rgba(255, 255, 255, .06);
+      --brand-mark-border: #525252;
+      --brand-mark-text: #e5e5e5;
+      --brand-mark-bg: #262626;
+      --brand-title-color: #ffffff;
+      --brand-sub: #737373;
+      --nav-border: rgba(255, 255, 255, .08);
+      --nav-label: #525252;
+      --nav-item: #a3a3a3;
+      --nav-item-hover-bg: #1c1c1c;
+      --nav-item-active: #262626;
+      --nav-accent: #e5e5e5;
+      --nav-foot: #525252;
+      --nav-foot-strong: #a3a3a3;
+      --count-bg: #ef4444;
+      --count-shadow: none;
+      --topbar-bg: rgba(23, 23, 23, .92);
+      --top-action-bg: #1c1c1c;
+      --top-action-hover-border: #525252;
+      --proto-bg: #1c1c1c;
+      --proto-border: #262626;
+      --proto-text: #a3a3a3;
+      --proto-strong: #e5e5e5;
+      --panel-header-bg: #1c1c1c;
+      --panel-footer-bg: #141414;
+      --hero-bg: #262626;
+      --hero-border: #262626;
+      --hero-eyebrow: #a3a3a3;
+      --hero-text: #d4d4d4;
+      --hero-label: #a3a3a3;
+      --hero-side-bg: rgba(255, 255, 255, .05);
+      --hero-side-border: rgba(255, 255, 255, .08);
+      --hero-btn-color: #e5e5e5;
+      --hero-btn-border: #525252;
+      --hero-btn-hover-bg: #333333;
+      --hero-btn-hover-border: #737373;
+      --metric-bg: #171717;
+      --metric-hover-border: #525252;
+      --badge-bg: #262626;
+      --badge-color: #a3a3a3;
+      --badge-dark-bg: #0a0a0a;
+      --badge-dark-color: #d4d4d4;
+      --good-dot-ring: rgba(74, 222, 128, .2);
+      --danger-dot-ring: rgba(248, 113, 113, .2);
+      --btn-sec-bg: #1c1c1c;
+      --btn-sec-hover-bg: #262626;
+      --btn-sec-hover-border: #525252;
+      --btn-primary-bg: #e5e5e5;
+      --btn-primary-hover-bg: #ffffff;
+      --btn-primary-color: #171717;
+      --btn-primary-border: #e5e5e5;
+      --btn-danger-hover: #dc2626;
+      --btn-primary-shadow: none;
+      --btn-primary-shadow-hover: 0 2px 8px rgba(255, 255, 255, .12);
+      --btn-danger-shadow: none;
+      --segmented-bg: #1c1c1c;
+      --segmented-active: #262626;
+      --segmented-ring: rgba(229, 229, 229, .15);
+      --tabs-bg: #1c1c1c;
+      --tab-hover-line: #525252;
+      --callout-bg: #1c1c1c;
+      --callout-border: #262626;
+      --callout-color: #a3a3a3;
+      --callout-warn-border: rgba(251, 191, 36, .3);
+      --callout-warn-color: #fbbf24;
+      --callout-danger-border: rgba(248, 113, 113, .3);
+      --callout-danger-color: #f87171;
+      --field-bg: #1c1c1c;
+      --field-hover-border: #525252;
+      --field-disabled-bg: #141414;
+      --check-line: #262626;
+      --check-on-bg: #1c1c1c;
+      --table-th-bg: #1c1c1c;
+      --table-th-color: #a3a3a3;
+      --table-line: #262626;
+      --table-hover: #1c1c1c;
+      --table-selected: #262626;
+      --list-line: #262626;
+      --readout-bg: #1c1c1c;
+      --readout-border: #262626;
+      --readout-hover-border: #525252;
+      --progress-bg: #262626;
+      --progress-done-bg: rgba(74, 222, 128, .12);
+      --progress-done-color: #4ade80;
+      --progress-done-border: rgba(74, 222, 128, .25);
+      --progress-now-bg: #262626;
+      --progress-now-color: #f5f5f5;
+      --progress-now-border: #525252;
+      --progress-now-ring: rgba(229, 229, 229, .15);
+      --timeline-line: #262626;
+      --timeline-dot: #737373;
+      --timeline-dot-border: #171717;
+      --timeline-dot-ring: #404040;
+      --chart-bg: #141414;
+      --chart-grid: #262626;
+      --chart-label: #737373;
+      --chart-axis: #737373;
+      --chart-temp: #e5e5e5;
+      --chart-mass: #737373;
+      --quick-bg: #1c1c1c;
+      --quick-hover-bg: #262626;
+      --quick-hover-border: #525252;
+      --empty-icon: #737373;
+      --step-bg: #1c1c1c;
+      --step-hover-border: #525252;
+      --step-current-bg: #262626;
+      --step-current-border: #e5e5e5;
+      --step-current-ring: rgba(229, 229, 229, .15);
+      --step-done-bg: rgba(74, 222, 128, .1);
+      --step-done-border: rgba(74, 222, 128, .25);
+      --op-bg: #1c1c1c;
+      --login-bg: #0f0f0f;
+      --login-card-bg: #171717;
+      --toast-bg: #e5e5e5;
+      --toast-text: #171717;
+      --backdrop: rgba(0, 0, 0, .65);
+      --dialog-shadow: var(--shadow-lg);
+      --toast-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+      color-scheme: dark;
     }
     * { box-sizing: border-box; }
+    ::selection { background: var(--selection-bg); color: var(--selection-color); }
+    * { scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); background-clip: content-box; border: 3px solid transparent; }
     html { scroll-behavior: smooth; }
-    body { margin: 0; min-width: 320px; }
+    body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--ink); }
     button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: .47; }
-    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
-      outline: 3px solid #7cc9d0; outline-offset: 2px;
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible, summary:focus-visible {
+      outline: 3px solid var(--focus-outline); outline-offset: 2px;
     }
     a { color: var(--brand); }
     .icon { width: 18px; height: 18px; stroke-width: 1.8; flex: none; vertical-align: middle; }
     .icon.small { width: 15px; height: 15px; }
     .shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); }
-    .sidebar { background: var(--nav); color: #deeaed; min-height: 100vh; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; z-index: 30; }
-    .brand { height: 78px; display: flex; gap: 12px; align-items: center; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,.1); }
-    .brand-mark { width: 38px; height: 38px; border: 1.5px solid #81cbd0; color: #a9e1e3; display: grid; place-items: center; border-radius: 9px; font-weight: 800; font-size: 18px; letter-spacing: -.08em; }
-    .brand-title { font-size: 16px; font-weight: 750; letter-spacing: .02em; color: #fff; }
-    .brand-sub { color: #a9bcc4; font-size: 11px; margin-top: 3px; letter-spacing: .06em; }
+    .sidebar { background: linear-gradient(180deg, var(--nav) 0%, var(--nav-end) 100%); color: var(--nav-foot-strong); min-height: 100vh; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; z-index: 30; box-shadow: var(--sidebar-shadow); }
+    .brand { height: 78px; display: flex; gap: 12px; align-items: center; padding: 0 20px; border-bottom: 1px solid var(--nav-border); }
+    .brand-mark { width: 38px; height: 38px; border: 1.5px solid var(--brand-mark-border); color: var(--brand-mark-text); display: grid; place-items: center; border-radius: 10px; font-weight: 800; font-size: 18px; letter-spacing: -.08em; background: var(--brand-mark-bg); }
+    .brand-title { font-size: 16px; font-weight: 750; letter-spacing: .02em; color: var(--brand-title-color); }
+    .brand-sub { color: var(--brand-sub); font-size: 11px; margin-top: 3px; letter-spacing: .06em; }
     .nav-scroll { overflow-y: auto; padding: 15px 11px 20px; flex: 1; }
     .nav-group { margin-bottom: 14px; }
-    .nav-label { color: #809ca8; font-size: 10px; letter-spacing: .15em; font-weight: 700; padding: 11px 13px 7px; }
-    .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; border: 0; background: transparent; color: #c4d4da; padding: 10px 13px; border-radius: 7px; text-align: left; font-size: 13px; font-weight: 600; transition: background .17s, color .17s; }
-    .nav-item:hover { background: #254554; color: #fff; }
-    .nav-item.active { background: #27505d; color: #fff; box-shadow: inset 3px 0 #88d1d2; }
-    .nav-item .count { margin-left: auto; background: #bb463f; color: #fff; border-radius: 20px; padding: 1px 6px; font-size: 10px; }
-    .nav-foot { border-top: 1px solid rgba(255,255,255,.1); padding: 15px 20px 17px; font-size: 11px; color: #a6bcc4; line-height: 1.7; }
-    .nav-foot strong { color: #dce8eb; font-weight: 650; }
+    .nav-label { color: var(--nav-label); font-size: 10px; letter-spacing: .15em; font-weight: 700; padding: 11px 13px 7px; }
+    .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; border: 0; background: transparent; color: var(--nav-item); padding: 10px 13px; border-radius: 8px; text-align: left; font-size: 13px; font-weight: 600; transition: background .18s var(--ease), color .18s var(--ease), transform .18s var(--ease); }
+    .nav-item:hover { background: var(--nav-item-hover-bg); color: var(--brand-title-color); transform: translateX(2px); }
+    .nav-item.active { background: var(--nav-item-active); color: var(--brand-title-color); box-shadow: inset 3px 0 var(--nav-accent), 0 2px 10px rgba(0, 0, 0, .12); }
+    .nav-item .count { margin-left: auto; background: var(--count-bg); color: #fff; border-radius: 20px; padding: 1px 7px; font-size: 10px; box-shadow: var(--count-shadow); }
+    .nav-foot { border-top: 1px solid var(--nav-border); padding: 15px 20px 17px; font-size: 11px; color: var(--nav-foot); line-height: 1.7; }
+    .nav-foot strong { color: var(--nav-foot-strong); font-weight: 650; }
     .workspace { min-width: 0; }
-    .topbar { height: 68px; position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.98); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 15px; padding: 0 28px; }
+    .topbar { height: 68px; position: sticky; top: 0; z-index: 20; background: var(--topbar-bg); backdrop-filter: blur(14px) saturate(1.25); -webkit-backdrop-filter: blur(14px) saturate(1.25); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 15px; padding: 0 28px; }
     .menu-button { display: none !important; }
     .top-path { min-width: 0; margin-right: auto; }
     .top-path small { display: block; color: var(--muted); font-size: 10px; letter-spacing: .11em; font-weight: 700; }
     .top-path strong { display: block; font-size: 15px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .top-status { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-    .top-action { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 10px; border-radius: 7px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; }
-    .top-action:hover { border-color: #93b9bd; background: var(--surface-soft); }
-    .proto-strip { background: #fff7e8; color: #765424; border-bottom: 1px solid #efdfbf; padding: 9px 28px; font-size: 11px; display: flex; align-items: center; gap: 8px; }
-    .proto-strip strong { color: #664413; }
-    .page { width: min(100%, 1540px); margin: 0 auto; padding: 25px 28px 48px; animation: rise .22s ease-out; }
-    @keyframes rise { from { opacity: .65; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+    .top-action { border: 1px solid var(--line); background: var(--top-action-bg); color: var(--ink); padding: 8px 10px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; transition: background .16s var(--ease), border-color .16s var(--ease), transform .16s var(--ease), box-shadow .16s var(--ease); }
+    .top-action:hover { border-color: var(--top-action-hover-border); background: var(--surface-soft); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .proto-strip { background: var(--proto-bg); color: var(--proto-text); border-bottom: 1px solid var(--proto-border); padding: 9px 28px; font-size: 11px; display: flex; align-items: center; gap: 8px; }
+    .proto-strip strong { color: var(--proto-strong); }
+    .page { width: min(100%, 1540px); margin: 0 auto; padding: 25px 28px 48px; animation: rise .26s var(--ease); }
+    @keyframes rise { from { opacity: .6; transform: translateY(7px); } to { opacity: 1; transform: none; } }
     .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 21px; }
     .eyebrow { margin: 0 0 6px; color: var(--brand); font-size: 10px; letter-spacing: .13em; font-weight: 800; text-transform: uppercase; }
     h1, h2, h3, p { margin-top: 0; }
@@ -89,144 +381,182 @@
     .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
     .grid-main { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(290px, .85fr); gap: 16px; align-items: start; }
     .grid-side { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(330px, .85fr); gap: 16px; align-items: start; }
-    .panel { min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-    .panel-header { padding: 17px 19px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .panel { min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; transition: box-shadow .25s var(--ease); }
+    .panel:hover { box-shadow: var(--shadow), 0 2px 8px rgba(0, 0, 0, .05); }
+    .panel-header { padding: 17px 19px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--panel-header-bg); }
     .panel-header p { margin: 3px 0 0; }
     .panel-body { padding: 18px 19px; }
     .panel-body.compact { padding: 0; }
-    .panel-footer { border-top: 1px solid var(--line); padding: 13px 19px; background: #fbfcfc; }
-    .hero-panel { background: #16313f; color: white; border: 1px solid #16313f; border-radius: var(--radius); overflow: hidden; display: grid; grid-template-columns: minmax(0,1fr) 290px; box-shadow: var(--shadow); }
-    .hero-main { padding: 22px 24px; }
-    .hero-main .eyebrow { color: #9bd6d7; }
-    .hero-main h2 { font-size: 22px; margin: 7px 0; color: #fff; }
-    .hero-main p { color: #bbd0d6; font-size: 12px; line-height: 1.7; margin-bottom: 15px; }
-    .hero-side { background: #204453; padding: 19px 22px; display: grid; align-content: center; gap: 9px; }
-    .hero-side span { font-size: 11px; color: #a9c6ce; }
+    .panel-footer { border-top: 1px solid var(--line); padding: 13px 19px; background: var(--panel-footer-bg); }
+    .hero-panel { background: var(--hero-bg); color: white; border: 1px solid var(--hero-border); border-radius: var(--radius); overflow: hidden; display: grid; grid-template-columns: minmax(0,1fr) 290px; box-shadow: var(--shadow-lg); position: relative; }
+    .hero-main { padding: 22px 24px; position: relative; }
+    .hero-main .eyebrow { color: var(--hero-eyebrow); }
+    .hero-main h2 { font-size: 22px; margin: 7px 0; color: #fff; letter-spacing: -.015em; }
+    .hero-main p { color: var(--hero-text); font-size: 12px; line-height: 1.7; margin-bottom: 15px; max-width: 58ch; }
+    .hero-side { background: var(--hero-side-bg); border-left: 1px solid var(--hero-side-border); padding: 19px 22px; display: grid; align-content: center; gap: 9px; position: relative; }
+    .hero-side span { font-size: 11px; color: var(--hero-label); }
     .hero-side strong { display: block; color: #fff; font-size: 13px; line-height: 1.5; }
-    .hero-side .clock { font-size: 21px; }
-    .hero-panel .button.secondary { color: #eaf8f8; border-color: #648d97; background: transparent; }
-    .hero-panel .button.secondary:hover { background: #2b5967; }
+    .hero-side .clock { font-size: 21px; letter-spacing: .02em; }
+    .hero-panel .button.secondary { color: var(--hero-btn-color); border-color: var(--hero-btn-border); background: var(--hero-side-bg); }
+    .hero-panel .button.secondary:hover { background: var(--hero-btn-hover-bg); border-color: var(--hero-btn-hover-border); }
     .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
-    .metric { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
-    .metric-label { display: flex; gap: 6px; align-items: center; color: var(--ink-soft); font-size: 11px; font-weight: 650; margin-bottom: 9px; }
-    .metric-value { font-weight: 700; font-size: 24px; letter-spacing: -.04em; white-space: nowrap; }
-    .metric-value em { font-family: inherit; font-style: normal; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
-    .metric-meta { color: var(--muted); font-size: 10px; margin-top: 4px; }
-    .badge { display: inline-flex; gap: 5px; align-items: center; vertical-align: middle; padding: 4px 8px; border-radius: 5px; background: #e8eef1; color: #405c69; font-size: 10px; font-weight: 750; white-space: nowrap; }
+    .metric { background: var(--metric-bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px 17px; min-width: 0; position: relative; overflow: hidden; transition: transform .22s var(--ease), box-shadow .22s var(--ease), border-color .22s; }
+    .metric::after { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--brand); opacity: 0; transform: scaleY(.6); transition: opacity .22s var(--ease), transform .22s var(--ease); }
+    .metric:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--metric-hover-border); }
+    .metric:hover::after { opacity: 1; transform: scaleY(1); }
+    .metric-label { display: flex; gap: 8px; align-items: center; color: var(--ink-soft); font-size: 11px; font-weight: 650; margin-bottom: 10px; }
+    .metric-icon { width: 28px; height: 28px; border-radius: 9px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none; }
+    .metric-icon .icon { width: 15px; height: 15px; }
+    .metric-value { font-weight: 700; font-size: 23px; letter-spacing: -.035em; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; }
+    .metric-value em { font-family: inherit; font-style: normal; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0; white-space: nowrap; }
+    .metric-meta { color: var(--muted); font-size: 10px; margin-top: 5px; }
+    .badge { display: inline-flex; gap: 5px; align-items: center; vertical-align: middle; padding: 4px 9px; border-radius: 99px; background: var(--badge-bg); color: var(--badge-color); font-size: 10px; font-weight: 750; white-space: nowrap; letter-spacing: .01em; }
     .badge.good { background: var(--good-soft); color: var(--good); }
     .badge.warn { background: var(--warn-soft); color: var(--warn); }
     .badge.danger { background: var(--danger-soft); color: var(--danger); }
     .badge.info { background: var(--brand-soft); color: var(--brand-dark); }
-    .badge.dark { background: #294754; color: #e2f1f2; }
+    .badge.dark { background: var(--badge-dark-bg); color: var(--badge-dark-color); }
     .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-    .button { border: 1px solid transparent; border-radius: 7px; min-height: 34px; padding: 7px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; text-align: center; font-size: 11px; font-weight: 750; line-height: 1.3; text-decoration: none; white-space: nowrap; transition: background .16s, border-color .16s, transform .16s; }
+    .badge.good .dot { box-shadow: 0 0 0 3px var(--good-dot-ring); }
+    .badge.danger .dot { box-shadow: 0 0 0 3px var(--danger-dot-ring); }
+    .button { border: 1px solid transparent; border-radius: 8px; min-height: 34px; padding: 7px 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; text-align: center; font-size: 11px; font-weight: 750; line-height: 1.3; text-decoration: none; white-space: nowrap; transition: background .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease); }
     .button:hover:not(:disabled) { transform: translateY(-1px); }
-    .button.primary { color: #fff; background: var(--brand); border-color: var(--brand); }
-    .button.primary:hover:not(:disabled) { background: var(--brand-dark); }
-    .button.secondary { color: var(--ink); background: #fff; border-color: var(--line-strong); }
-    .button.secondary:hover:not(:disabled) { background: #f3f7f7; border-color: #8eb1b6; }
-    .button.danger { color: #fff; background: var(--danger); border-color: var(--danger); }
-    .button.danger:hover:not(:disabled) { background: #9d302c; }
+    .button:active:not(:disabled) { transform: translateY(0) scale(.98); }
+    .button.primary { color: var(--btn-primary-color); background: var(--btn-primary-bg); border-color: var(--btn-primary-border); box-shadow: var(--btn-primary-shadow); }
+    .button.primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg); box-shadow: var(--btn-primary-shadow-hover); }
+    .button.secondary { color: var(--ink); background: var(--btn-sec-bg); border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+    .button.secondary:hover:not(:disabled) { background: var(--btn-sec-hover-bg); border-color: var(--btn-sec-hover-border); }
+    .button.danger { color: #fff; background: var(--danger); border-color: var(--danger); box-shadow: var(--btn-danger-shadow); }
+    .button.danger:hover:not(:disabled) { background: var(--btn-danger-hover); }
     .button.ghost { color: var(--brand); background: transparent; border-color: transparent; }
-    .button.ghost:hover:not(:disabled) { background: var(--brand-soft); }
+    .button.ghost:hover:not(:disabled) { background: var(--brand-soft); transform: none; }
     .button.full { width: 100%; }
     .button.icon-only { width: 34px; padding: 7px; }
-    .segmented { display: inline-flex; border: 1px solid var(--line-strong); background: #fff; border-radius: 7px; padding: 2px; gap: 2px; }
-    .segmented button { border: 0; background: transparent; color: var(--ink-soft); border-radius: 5px; padding: 5px 10px; font-size: 11px; font-weight: 700; }
-    .segmented button[aria-pressed="true"] { background: #dceced; color: var(--brand-dark); }
-    .tabs { display: flex; gap: 3px; border-bottom: 1px solid var(--line); padding: 0 18px; overflow-x: auto; }
-    .tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-soft); padding: 13px 14px 11px; white-space: nowrap; font-size: 11px; font-weight: 700; }
-    .tabs button:hover { color: var(--brand); }
-    .tabs button[aria-selected="true"] { border-bottom-color: var(--brand); color: var(--brand); }
-    .callout { border: 1px solid #bddfe1; background: #edf8f7; color: #245d64; border-radius: 8px; padding: 12px 14px; font-size: 11px; line-height: 1.65; }
-    .callout.warn { background: var(--warn-soft); border-color: #f0d5af; color: #805222; }
-    .callout.danger { background: var(--danger-soft); border-color: #e9b9b5; color: #883c38; }
+    .segmented { display: inline-flex; border: 1px solid var(--line-strong); background: var(--segmented-bg); border-radius: 8px; padding: 2px; gap: 2px; box-shadow: var(--shadow-sm); }
+    .segmented button { border: 0; background: transparent; color: var(--ink-soft); border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 700; transition: background .16s, color .16s; }
+    .segmented button:hover { color: var(--brand-dark); }
+    .segmented button[aria-pressed="true"] { background: var(--segmented-active); color: var(--brand-dark); box-shadow: inset 0 0 0 1px var(--segmented-ring); }
+    .tabs { display: flex; gap: 3px; border-bottom: 1px solid var(--line); padding: 0 18px; overflow-x: auto; background: var(--tabs-bg); }
+    .tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-soft); padding: 13px 14px 11px; white-space: nowrap; font-size: 11px; font-weight: 700; transition: color .18s, border-color .18s; }
+    .tabs button:hover { color: var(--brand); border-bottom-color: var(--tab-hover-line); }
+    .tabs button[aria-selected="true"] { border-bottom-color: var(--brand); color: var(--brand); font-weight: 800; }
+    .callout { border: 1px solid var(--callout-border); border-left: 3px solid var(--brand); background: var(--callout-bg); color: var(--callout-color); border-radius: 9px; padding: 12px 14px; font-size: 11px; line-height: 1.65; }
+    .callout.warn { background: var(--warn-soft); border-color: var(--callout-warn-border); border-left-color: var(--warn); color: var(--callout-warn-color); }
+    .callout.danger { background: var(--danger-soft); border-color: var(--callout-danger-border); border-left-color: var(--danger); color: var(--callout-danger-color); }
     .callout strong { color: inherit; }
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
     .field { display: grid; gap: 6px; min-width: 0; }
     .field label { color: var(--ink-soft); font-size: 11px; font-weight: 700; }
-    .field input, .field select, .field textarea, .input { min-height: 35px; width: 100%; border: 1px solid var(--line-strong); border-radius: 6px; background: white; color: var(--ink); padding: 7px 10px; outline: none; font-size: 12px; }
+    .field input, .field select, .field textarea, .input { min-height: 35px; width: 100%; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--field-bg); color: var(--ink); padding: 7px 10px; outline: none; font-size: 12px; transition: border-color .16s var(--ease), box-shadow .16s var(--ease), background .16s; }
     .field textarea { min-height: 70px; resize: vertical; }
-    .field input:focus, .field select:focus, .field textarea:focus, .input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px #e1f0f0; }
-    .field input:disabled, .field select:disabled { background: #eff2f3; color: var(--muted); }
+    .field input:hover:not(:disabled), .field select:hover:not(:disabled), .field textarea:hover:not(:disabled), .input:hover:not(:disabled) { border-color: var(--field-hover-border); }
+    .field input:focus, .field select:focus, .field textarea:focus, .input:focus { border-color: var(--brand); box-shadow: var(--ring); }
+    .field input:disabled, .field select:disabled { background: var(--field-disabled-bg); color: var(--muted); }
     .field .hint { color: var(--muted); font-size: 10px; line-height: 1.45; }
     .field.span-2 { grid-column: span 2; }
-    .check-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #ecf0f1; font-size: 11px; line-height: 1.55; }
+    .check-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--check-line); font-size: 11px; line-height: 1.55; transition: background .18s var(--ease); }
     .check-row:last-child { border-bottom: 0; }
+    .check-row:has(input:checked) { background: var(--check-on-bg); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
     .check-row input { accent-color: var(--brand); margin: 2px 0 0; width: 15px; height: 15px; flex: none; }
     .check-row strong { display: block; font-size: 11px; }
     .check-row span { display: block; color: var(--muted); font-size: 10px; }
+    .check-row summary { list-style: none; cursor: pointer; }
+    .check-row summary::-webkit-details-marker { display: none; }
+    details.check-row summary::after { content: "＋"; float: right; color: var(--muted); font-weight: 700; }
+    details.check-row[open] summary::after { content: "−"; }
+    details.check-row p { margin: 8px 0 2px; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
-    .data-table th { background: #f5f8f8; color: #55707a; text-align: left; font-size: 10px; letter-spacing: .03em; font-weight: 750; border-bottom: 1px solid var(--line); padding: 10px 12px; }
-    .data-table td { padding: 11px 12px; border-bottom: 1px solid #edf0f1; color: var(--ink); }
+    .data-table th { background: var(--table-th-bg); color: var(--table-th-color); text-align: left; font-size: 10px; letter-spacing: .03em; font-weight: 750; border-bottom: 1px solid var(--line); padding: 10px 12px; position: sticky; top: 0; z-index: 1; }
+    .data-table td { padding: 11px 12px; border-bottom: 1px solid var(--table-line); color: var(--ink); }
     .data-table tbody tr:last-child td { border-bottom: 0; }
-    .data-table tbody tr:hover { background: #f7faf9; }
-    .data-table tr.selected { background: #eaf5f4; }
+    .data-table tbody tr { transition: background .15s var(--ease); }
+    .data-table tbody tr:hover { background: var(--table-hover); }
+    .data-table tr.selected { background: var(--table-selected); box-shadow: inset 3px 0 var(--brand); }
     .data-table .muted-cell { color: var(--muted); }
     .data-table .click-row { cursor: pointer; }
     .table-wrap { overflow-x: auto; }
-    .list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid #e9eff0; }
+    .list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--list-line); transition: background .15s var(--ease); }
     .list-row:last-child { border: 0; }
     .list-row strong { display: block; font-size: 11px; }
     .list-row span { display: block; font-size: 10px; color: var(--muted); margin-top: 4px; }
     .readout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .readout-item { background: #f7f9f9; border: 1px solid #e8eeef; border-radius: 7px; padding: 10px; }
+    .readout-item { background: var(--readout-bg); border: 1px solid var(--readout-border); border-radius: 9px; padding: 11px 12px; transition: border-color .18s, transform .18s var(--ease); }
+    .readout-item:hover { border-color: var(--readout-hover-border); transform: translateY(-1px); }
     .readout-item small { display: block; color: var(--muted); font-size: 10px; margin-bottom: 6px; }
     .readout-item strong { font: 700 15px "Cascadia Code", Consolas, monospace; }
     .readout-item em { font-style: normal; color: var(--muted); font-size: 10px; }
     .progress-track { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 5px; }
-    .progress-node { min-width: 0; padding: 9px 8px; background: #edf1f2; color: var(--muted); border-radius: 5px; text-align: center; font-size: 10px; font-weight: 700; }
-    .progress-node.done { background: #ddefe9; color: #216b58; }
-    .progress-node.now { background: #dceff0; color: #135e68; outline: 1px solid #7bbfc5; }
+    .progress-node { min-width: 0; padding: 9px 8px; background: var(--progress-bg); color: var(--muted); border-radius: 8px; text-align: center; font-size: 10px; font-weight: 700; border: 1px solid transparent; transition: background .25s var(--ease), color .25s, border-color .25s, box-shadow .25s; }
+    .progress-node.done { background: var(--progress-done-bg); color: var(--progress-done-color); border-color: var(--progress-done-border); }
+    .progress-node.now { background: var(--progress-now-bg); color: var(--progress-now-color); border-color: var(--progress-now-border); box-shadow: 0 0 0 3px var(--progress-now-ring); }
     .timeline { margin: 0; padding: 0; list-style: none; }
-    .timeline li { position: relative; padding: 0 0 16px 22px; border-left: 1px solid #cfdbde; margin-left: 5px; }
+    .timeline li { position: relative; padding: 0 0 16px 22px; border-left: 1px solid var(--timeline-line); margin-left: 5px; }
     .timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
-    .timeline li::before { content: ""; position: absolute; left: -5px; top: 1px; width: 9px; height: 9px; background: #6cabb0; border: 2px solid #fff; border-radius: 50%; }
+    .timeline li::before { content: ""; position: absolute; left: -5px; top: 1px; width: 9px; height: 9px; background: var(--timeline-dot); border: 2px solid var(--timeline-dot-border); border-radius: 50%; box-shadow: 0 0 0 2px var(--timeline-dot-ring); }
     .timeline strong { display: block; font-size: 11px; font-weight: 700; }
     .timeline small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
-    .chart-box { width: 100%; min-height: 235px; background: #fbfcfc; }
+    .chart-box { width: 100%; min-height: 235px; background: var(--chart-bg); border-radius: 8px; overflow: hidden; }
     .chart-box svg { width: 100%; height: auto; display: block; }
     .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--ink-soft); font-size: 10px; }
     .chart-legend span::before { content: ""; display: inline-block; width: 12px; height: 3px; vertical-align: 3px; margin-right: 6px; background: var(--legend); border-radius: 2px; }
     .quick-links { display: flex; gap: 8px; flex-wrap: wrap; }
-    .quick-link { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 7px; padding: 10px 12px; display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; }
-    .quick-link:hover { background: #f4f8f8; border-color: #9fc4c8; }
+    .quick-link { border: 1px solid var(--line); background: var(--quick-bg); color: var(--ink); border-radius: 9px; padding: 10px 13px; display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; box-shadow: var(--shadow-sm); transition: background .18s var(--ease), border-color .18s, transform .18s var(--ease), box-shadow .18s; }
+    .quick-link:hover { background: var(--quick-hover-bg); border-color: var(--quick-hover-border); transform: translateY(-2px); box-shadow: var(--shadow); }
     .empty { text-align: center; display: grid; justify-items: center; gap: 9px; padding: 38px 24px; color: var(--muted); }
-    .empty .icon { width: 31px; height: 31px; color: #7aa8ae; }
+    .empty .icon { width: 34px; height: 34px; color: var(--empty-icon); padding: 7px; border-radius: 12px; background: var(--brand-soft); box-sizing: content-box; }
     .empty h3 { color: var(--ink); font-size: 14px; }
     .empty p { font-size: 11px; max-width: 390px; line-height: 1.6; margin: 0; }
     .step-nav { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 2px; }
-    .step-nav button { border: 1px solid var(--line); background: #fff; color: var(--ink-soft); padding: 10px 12px; min-width: 115px; text-align: left; border-radius: 7px; font-size: 11px; font-weight: 700; }
-    .step-nav button.current { border-color: #8fbfc3; color: var(--brand-dark); background: #e8f3f3; }
-    .step-nav button.done { border-color: #c3e5d3; color: var(--good); background: #eef8f2; }
-    .step-nav small { display: block; font-size: 9px; font-weight: 700; opacity: .7; margin-bottom: 3px; }
+    .step-nav button { border: 1px solid var(--line); background: var(--step-bg); color: var(--ink-soft); padding: 10px 12px; min-width: 115px; text-align: left; border-radius: 9px; font-size: 11px; font-weight: 700; box-shadow: var(--shadow-sm); transition: border-color .18s, background .18s, color .18s, transform .18s var(--ease); }
+    .step-nav button:hover { transform: translateY(-1px); border-color: var(--step-hover-border); }
+    .step-nav button.current { border-color: var(--step-current-border); color: var(--brand-dark); background: var(--step-current-bg); box-shadow: 0 0 0 3px var(--step-current-ring); }
+    .step-nav button.done { border-color: var(--step-done-border); color: var(--good); background: var(--step-done-bg); }
+    .step-nav small { display: block; font-size: 9px; font-weight: 700; opacity: .7; margin-bottom: 3px; letter-spacing: .04em; }
     .operation-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
-    .op-status { padding: 11px 12px; border: 1px solid var(--line); background: #f7f9f9; border-radius: 7px; font-size: 11px; }
+    .op-status { padding: 11px 12px; border: 1px solid var(--line); background: var(--op-bg); border-radius: 9px; font-size: 11px; transition: border-color .18s, box-shadow .18s; }
+    .op-status:hover { border-color: var(--metric-hover-border); box-shadow: var(--shadow-sm); }
     .op-status strong { display: block; margin-bottom: 4px; }
-    .op-status span { color: var(--muted); }
+    .op-status span { color: var(--muted); line-height: 1.55; }
     .notice-line { display: flex; align-items: flex-start; gap: 8px; color: var(--ink-soft); font-size: 10px; line-height: 1.6; }
     .notice-line .icon { margin-top: 1px; }
     .shell.logged-out { display: block; }
     .shell.logged-out .sidebar, .shell.logged-out .topbar { display: none; }
-    .login-wrap { min-height: calc(100vh - 35px); display: grid; place-items: center; padding: 30px 16px; background: radial-gradient(circle at 80% 10%, #dbeceb, transparent 35%), #edf1f2; }
-    .login-card { width: min(100%, 440px); background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 30px; box-shadow: 0 20px 65px #17354118; }
+    .login-wrap { min-height: calc(100vh - 35px); display: grid; place-items: center; padding: 30px 16px; background: var(--login-bg); }
+    .login-card { width: min(100%, 440px); background: var(--login-card-bg); border: 1px solid var(--line); border-radius: 16px; padding: 30px; box-shadow: var(--shadow-lg); }
     .login-card .brand-mark { background: var(--nav); margin-bottom: 18px; }
     .login-card h1 { margin-bottom: 7px; }
     .login-card .stack { margin-top: 22px; }
-    dialog { border: 0; border-radius: 11px; padding: 0; max-width: min(92vw, 480px); width: 100%; box-shadow: 0 22px 70px rgba(9,27,38,.28); color: var(--ink); }
-    dialog::backdrop { background: rgba(8,25,34,.58); }
+    dialog { border: 0; border-radius: 14px; padding: 0; max-width: min(92vw, 480px); width: 100%; background: var(--surface); box-shadow: var(--dialog-shadow); color: var(--ink); }
+    dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
     .modal-head { padding: 19px 21px 14px; border-bottom: 1px solid var(--line); }
     .modal-head h2 { font-size: 17px; }
     .modal-body { padding: 18px 21px; font-size: 12px; color: var(--ink-soft); line-height: 1.75; }
     .modal-actions { padding: 13px 21px 18px; display: flex; justify-content: flex-end; gap: 8px; }
-    #toast { position: fixed; z-index: 100; right: 22px; bottom: 20px; max-width: min(420px, calc(100vw - 40px)); background: #173541; color: #fff; box-shadow: 0 14px 34px #1735413c; border-radius: 8px; padding: 12px 15px; font-size: 12px; line-height: 1.5; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .18s, transform .18s; }
+    #toast { position: fixed; z-index: 100; right: 22px; bottom: 20px; max-width: min(420px, calc(100vw - 40px)); background: var(--toast-bg); color: var(--toast-text); box-shadow: var(--toast-shadow); border: 1px solid rgba(127, 127, 127, .18); border-radius: 10px; padding: 12px 15px; font-size: 12px; line-height: 1.5; opacity: 0; transform: translateY(10px) scale(.98); pointer-events: none; transition: opacity .22s var(--ease), transform .22s var(--ease); }
     #toast.show { opacity: 1; transform: none; }
     .mobile-backdrop { display: none; }
     @media (max-width: 1200px) { .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .grid-main, .grid-side { grid-template-columns: minmax(0,1fr) 300px; } }
     @media (max-width: 950px) { .shell { grid-template-columns: 70px minmax(0,1fr); } .sidebar { width: 70px; } .brand { padding: 0 15px; } .brand-copy, .nav-label, .nav-item span, .nav-foot { display: none; } .nav-scroll { padding: 15px 9px; } .nav-item { justify-content: center; padding: 11px; } .nav-item .count { display: none; } .grid-main, .grid-side { grid-template-columns: minmax(0,1fr); } }
-    @media (max-width: 680px) { .shell { display: block; } .sidebar { position: fixed; left: 0; top: 0; width: 244px; transform: translateX(-105%); transition: transform .2s; } .sidebar.open { transform: none; } .sidebar .brand-copy, .sidebar .nav-label, .sidebar .nav-item span, .sidebar .nav-foot { display: block; } .sidebar .nav-item { justify-content: flex-start; } .mobile-backdrop.open { display: block; position: fixed; inset: 0; background: #122b3880; z-index: 25; } .menu-button { display: inline-flex !important; } .topbar { padding: 0 14px; height: 60px; } .top-status .badge:not(.mode-badge) { display: none; } .top-action span { display: none; } .proto-strip { padding: 8px 14px; } .page { padding: 18px 14px 36px; } .hero-panel { grid-template-columns: 1fr; } .hero-side { grid-template-columns: 1fr 1fr; } .page-head { flex-wrap: wrap; } .grid-2, .grid-3 { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } .field.span-2 { grid-column: auto; } }
+    @media (max-width: 680px) { .shell { display: block; } .sidebar { position: fixed; left: 0; top: 0; width: 244px; transform: translateX(-105%); transition: transform .2s; } .sidebar.open { transform: none; } .sidebar .brand-copy, .sidebar .nav-label, .sidebar .nav-item span, .sidebar .nav-foot { display: block; } .sidebar .nav-item { justify-content: flex-start; } .mobile-backdrop.open { display: block; position: fixed; inset: 0; background: var(--backdrop); z-index: 25; } .menu-button { display: inline-flex !important; } .topbar { padding: 0 14px; height: 60px; } .top-status .badge:not(.mode-badge) { display: none; } .top-action span { display: none; } .proto-strip { padding: 8px 14px; } .page { padding: 18px 14px 36px; } .hero-panel { grid-template-columns: 1fr; } .hero-side { grid-template-columns: 1fr 1fr; } .page-head { flex-wrap: wrap; } .grid-2, .grid-3 { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } .field.span-2 { grid-column: auto; } }
     @media (max-width: 430px) { .metric-grid { grid-template-columns: 1fr 1fr; gap: 8px; } .metric { padding: 11px; } .metric-value { font-size: 19px; } .readout { grid-template-columns: repeat(2,minmax(0,1fr)); } .hero-side { grid-template-columns: 1fr; } .top-path small { display: none; } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+    /* RKA v2 · instrument console tokens */
+    :root { --canvas:#f2f5f9;--surface:#fff;--surface-soft:#f6f8fb;--ink:#18202f;--ink-soft:#4d5b73;--muted:#677790;--line:#dbe2ec;--line-strong:#b6c2d4;--brand:#0369a1;--brand-dark:#0369a1;--brand-soft:#e0f2fe;--nav:#e9eef5;--nav-end:#e9eef5;--nav-item:#4d5b73;--nav-label:#677790;--nav-item-active:#fff;--nav-accent:#0369a1;--brand-title-color:#18202f;--brand-mark-bg:#e0f2fe;--brand-mark-text:#0369a1;--btn-primary-bg:#e0f2fe;--btn-primary-color:#0369a1;--btn-primary-border:#0369a1;--btn-primary-hover-bg:#ccecff;--btn-sec-bg:#fff;--btn-sec-hover-bg:#e9eef5;--field-bg:#fff;--field-disabled-bg:#f6f8fb;--focus-outline:#0369a1;--ring:0 0 0 2px #0369a133;--chart-temp:#2a78d6;--chart-mass:#00aa95;--chart-bg:#fff;--hero-bg:#182536;--hero-border:#31485f;--hero-eyebrow:#7dd3fc;--hero-text:#cad9e9;--panel-header-bg:var(--surface);--table-th-bg:var(--surface-soft);--table-th-color:var(--muted);--good:#15803d;--warn:#a16207;--danger:#dc2626;--radius:10px;--radius-sm:6px; }
+    :root[data-theme="dark"] { --canvas:#0b0f15;--surface:#151a24;--surface-soft:#1b2231;--ink:#e8edf6;--ink-soft:#9fabc4;--muted:#8a99b2;--line:#252d43;--line-strong:#38445f;--brand:#38bdf8;--brand-dark:#38bdf8;--brand-soft:#123349;--nav:#10141d;--nav-end:#10141d;--nav-soft:#151a24;--nav-item:#9fabc4;--nav-label:#8a99b2;--nav-item-active:#123349;--nav-accent:#38bdf8;--nav-item-hover-bg:#1b2231;--brand-title-color:#e8edf6;--brand-mark-bg:#38bdf8;--brand-mark-text:#0b0f15;--brand-mark-border:#38bdf8;--brand-sub:#8a99b2;--nav-foot:#8a99b2;--nav-foot-strong:#9fabc4;--topbar-bg:#10141df5;--top-action-bg:#151a24;--proto-bg:#10141d;--proto-border:#252d43;--proto-text:#8a99b2;--proto-strong:#38bdf8;--btn-primary-bg:#123349;--btn-primary-color:#7dd3fc;--btn-primary-border:#2499c8;--btn-primary-hover-bg:#17465f;--btn-sec-bg:#1b2231;--btn-sec-hover-bg:#232c40;--btn-sec-hover-border:#536587;--field-bg:#0b0f15;--field-disabled-bg:#10141d;--field-hover-border:#38bdf8;--focus-outline:#38bdf8;--ring:0 0 0 2px #38bdf844;--hero-bg:#121c2b;--hero-border:#294057;--hero-eyebrow:#38bdf8;--hero-text:#9fabc4;--hero-label:#9fabc4;--hero-btn-border:#38445f;--hero-btn-hover-bg:#123349;--metric-bg:#151a24;--badge-bg:#232c40;--badge-color:#9fabc4;--table-th-bg:#10141d;--table-th-color:#9fabc4;--table-line:#252d43;--table-hover:#1b2231;--table-selected:#123349;--tabs-bg:#10141d;--panel-header-bg:#151a24;--panel-footer-bg:#10141d;--readout-bg:#10141d;--readout-border:#252d43;--chart-bg:#10141d;--chart-grid:#252d43;--chart-label:#8a99b2;--chart-temp:#3897e5;--chart-mass:#0f9b89;--callout-bg:#101c2c;--callout-border:#294057;--callout-color:#9fabc4;--good:#22c55e;--good-soft:#123821;--warn:#f59e0b;--warn-soft:#3b2d12;--danger:#ef4444;--danger-soft:#3a1b23;--callout-warn-border:#6a4b1f;--callout-warn-color:#fbbf24;--callout-danger-border:#76353d;--callout-danger-color:#f87171;--progress-now-bg:#123349;--progress-now-color:#38bdf8;--progress-now-border:#2499c8;--step-bg:#151a24;--step-current-bg:#123349;--step-current-border:#38bdf8;--op-bg:#10141d;--toast-bg:#e8edf6;--toast-text:#18202f;--timeline-dot:#38bdf8;--timeline-line:#38445f;--timeline-dot-border:#151a24;--timeline-dot-ring:#294057;--check-line:#252d43;--check-on-bg:#123349;--list-line:#252d43;--segmented-bg:#10141d;--segmented-active:#123349;--segmented-ring:#38bdf84d; }
+    [hidden]{display:none!important} body {font-size:13px} .shell{grid-template-columns:220px minmax(0,1fr)} .sidebar{width:220px}.topbar{height:56px;padding:0 20px}.page{padding:20px;max-width:1660px}.panel{box-shadow:none}.panel:hover{box-shadow:none}.panel-header{padding:14px 16px}.panel-body{padding:16px}.button{min-height:36px;font-size:12px;border-radius:6px}.data-table{font-size:12px}.subtle,.lead{font-size:12px}.hero-panel{box-shadow:none}.hero-main{padding:18px 20px}.hero-main h2{font-size:20px}.badge{font-size:11px}.proto-strip{padding:6px 20px}.metric-value{font-family:'Cascadia Mono',Consolas,monospace}.nav-label{font-size:11px}.nav-item.active{color:var(--brand)}.button.danger{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}.button.danger:hover:not(:disabled){background:#7f1d1d;color:#fff}
+    .gas-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.gas-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.gas-card{border:1px solid var(--line);border-radius:8px;background:var(--surface-soft);padding:14px;min-width:0}.gas-name{font-size:19px;font-weight:700;letter-spacing:.02em}.gas-card .field{margin:12px 0 0}.gas-card input{width:100%}.gas-card label{font-size:11px}.gas-card .pv{font:22px 'Cascadia Mono',Consolas,monospace;margin:14px 0}.gas-card .pv small{font:11px 'Segoe UI',sans-serif;color:var(--muted)}.gas-foot{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:12px}.supply-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}.safety-box{padding:16px;border:1px solid var(--callout-danger-border);border-radius:8px;background:var(--danger-soft)}.safety-box h3{color:var(--danger);margin-bottom:8px}.safety-box p{font-size:12px;color:var(--ink-soft);line-height:1.7}.safety-box .button{white-space:normal}.mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mode-card{padding:15px;border:1px solid var(--line);border-radius:8px;background:var(--surface-soft);color:var(--ink);text-align:left;line-height:1.7}.mode-card[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);box-shadow:inset 0 0 0 1px var(--brand)}.mode-card strong{display:block;font-size:15px;margin-bottom:3px}.mode-card span{font-size:12px;color:var(--ink-soft)}.gas-chip{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;padding:4px 9px;color:var(--ink-soft);font-size:12px;background:var(--surface-soft)}.gas-chip.co{background:#f97316;color:#171717;border-color:#f97316;font-weight:700}.flow-strip{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:12px 16px;background:var(--surface-soft);border:1px solid var(--line);border-radius:8px;color:var(--ink-soft);font-size:12px}.flow-strip b{color:var(--brand)}.recipe-table input{width:100%;min-width:68px}.recipe-table th{white-space:nowrap}.recipe-table td{padding:8px}.recipe-table td:first-child{color:var(--muted)}.recipe-table .stage-name{min-width:125px}.experiment-layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;align-items:start}.status-banner{padding:14px 16px;background:var(--brand-soft);border:1px solid var(--brand);border-radius:8px;line-height:1.7}.gas-map{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.gas-map>div{padding:12px;border:1px solid var(--line);border-radius:6px;text-align:center;background:var(--surface-soft);line-height:1.7}.gas-map small{display:block;color:var(--muted)}.gas-map strong{font-size:15px}.manual-delta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:9px;border-bottom:1px solid var(--line)}dialog{width:min(610px,calc(100vw - 32px))}.audit-reason{width:100%}
+    @media(max-width:1100px){.supply-layout,.experiment-layout{grid-template-columns:1fr}.gas-map{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:950px){.shell{grid-template-columns:70px minmax(0,1fr)}.sidebar{width:70px}}
+    @media(max-width:680px){.shell{display:block}.sidebar{width:244px}.gas-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mode-cards{grid-template-columns:1fr}.page{padding:16px 12px}.topbar{padding:0 12px}.top-status{gap:4px}.top-action{padding:6px}.top-path strong{font-size:12px}.topbar .emergency-global{display:none}.gas-map{grid-template-columns:repeat(2,1fr)}}
+
+
+    :root {--hero-bg:#ffffff;--hero-border:#dbe2ec;--hero-eyebrow:#0369a1;--hero-text:#4d5b73;--hero-label:#677790;--hero-side-bg:#edf5fb;--hero-side-border:#dbe2ec;--hero-btn-color:#0369a1;--hero-btn-border:#b6c2d4;--hero-btn-hover-bg:#e0f2fe;--hero-btn-hover-border:#0369a1;--hero-ink:#18202f;--callout-bg:#edf7ff;--callout-border:#b9daed;--callout-color:#385571;--tabs-bg:#f6f8fb;--proto-bg:#edf2f7;--proto-border:#dbe2ec;--proto-text:#4d5b73;--proto-strong:#0369a1;--topbar-bg:#ffffffed;--top-action-bg:#fff;--nav-item-active:#e0f2fe;--panel-footer-bg:#f6f8fb;--readout-bg:#f6f8fb;--readout-border:#dbe2ec;--chart-label:#677790;--chart-axis:#677790;--chart-grid:#dbe2ec;--op-bg:#f6f8fb;--quick-bg:#f6f8fb;--step-bg:#f6f8fb;--step-current-bg:#e0f2fe;--step-current-border:#0369a1;--table-line:#dbe2ec;--list-line:#dbe2ec;--check-line:#dbe2ec;--check-on-bg:#e0f2fe;--segmented-bg:#edf2f7;--segmented-active:#fff;--selection-bg:#c9eaff;--selection-color:#18202f;--hazard-bg:#fff0df;--hazard-fg:#9a3412;--hazard-line:#fdba74;--oxidizer-bg:#fef9c3;--oxidizer-fg:#854d0e;--oxidizer-line:#eab308;}
+    :root[data-theme="dark"] {--hero-ink:#e8edf6;--hero-side-bg:#192637;--hero-side-border:#294057;--hazard-bg:#412514;--hazard-fg:#fdba74;--hazard-line:#b85c27;--oxidizer-bg:#382c14;--oxidizer-fg:#fcd34d;--oxidizer-line:#8a6720;--selection-bg:#123349;--selection-color:#e8edf6;}
+    .hero-panel,.hero-main h2,.hero-side strong{color:var(--hero-ink)}
+    .gas-chip.hazard{gap:7px;align-items:center;background:var(--hazard-bg);color:var(--hazard-fg);border-color:var(--hazard-line);font-size:14px;font-weight:750;padding:4px 8px;white-space:nowrap}.gas-chip.hazard small{font-size:10px;font-weight:600;letter-spacing:0;display:inline;color:inherit}.gas-chip.oxidizer{background:var(--oxidizer-bg);color:var(--oxidizer-fg);border-color:var(--oxidizer-line)}.gas-name>.gas-chip:not(.hazard){font-size:19px;background:transparent;border:0;padding:0;color:var(--ink)}.gas-name .gas-chip.hazard{font-size:17px}.recipe-table th .gas-chip{font-size:12px}.recipe-table th .gas-chip small{display:block}.recipe-table th .gas-chip.hazard{flex-direction:column;gap:0}.limit-pill{padding:5px 8px;border-radius:5px;background:var(--surface-soft);border:1px solid var(--line);font-size:11px;color:var(--ink-soft)}.limit-pill b{color:var(--ink);font-family:Consolas,monospace}.limits-table input{min-width:100px;max-width:140px}.limits-table td{vertical-align:middle}.limits-table th{white-space:nowrap}.limits-table .gas-chip{white-space:nowrap}.gas-foot{gap:8px;flex-wrap:wrap}.gas-map .gas-chip small{display:inline;color:inherit}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media(max-width:680px){.topbar{gap:6px;padding:0 10px}.topbar .emergency-global{display:inline-flex;font-size:0;padding:7px}.emergency-global::after{content:'■ 停气';font-size:11px}.top-path{min-width:48px}.top-status{flex-wrap:nowrap;gap:4px}.gas-name .gas-chip.hazard{font-size:15px;flex-direction:column;gap:0;align-items:flex-start}.gas-card{padding:12px}.gas-name .gas-chip.hazard small{font-size:10px}.top-action[data-action="scenario"]{display:none}.tabs{padding:0 8px}.tabs button{padding-left:10px;padding-right:10px}}
+
   </style>
 </head>
 <body>
@@ -235,14 +565,14 @@
     <aside class="sidebar" id="sidebar" aria-label="主导航"></aside>
     <div class="workspace">
       <header class="topbar" id="topbar"></header>
-      <div class="proto-strip"><strong>交互原型</strong><span>所有数值均为演示数据，操作只改变页面状态，不连接真实设备。</span></div>
+      <div class="proto-strip"><strong>交互原型</strong><span>7 种气体 / 6 台 MFC · N₂ 与 Ar 二选一 · 所有控制和回读均为模拟，不连接真实设备。</span></div>
       <main id="main-content" tabindex="-1"></main>
     </div>
   </div>
   <dialog id="confirm-dialog" aria-labelledby="modal-title">
     <div class="modal-head"><h2 id="modal-title"></h2></div>
     <div class="modal-body" id="modal-body"></div>
-    <div class="modal-actions"><button class="button secondary" id="modal-cancel" type="button">取消</button><button class="button primary" id="modal-confirm" type="button">确认</button></div>
+    <div class="modal-actions"><button class="button danger" id="modal-emergency" data-action="emergency-gas" type="button" hidden>■ 紧急停气</button><button class="button secondary" id="modal-cancel" type="button">取消</button><button class="button primary" id="modal-confirm" type="button">确认</button></div>
   </dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <script>
@@ -251,6 +581,31 @@
     const $ = (selector, root = document) => root.querySelector(selector);
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const clone = value => JSON.parse(JSON.stringify(value));
+    /* ===== 主题系统：浅色 / 深色（黑白灰），一键切换并持久化 ===== */
+    const themes = {
+      light: { name: '浅色' },
+      dark:  { name: '深色' }
+    };
+    function normalizeTheme(key) {
+      if(key === 'dark' || key === 'light') return key;
+      if(typeof key === 'string' && key.startsWith('dark')) return 'dark';
+      return 'light';
+    }
+    function cssVar(name, fallback='') { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; }
+    function currentTheme() { return normalizeTheme(document.documentElement.dataset.theme); }
+    function applyTheme(key, persist=true) {
+      key = normalizeTheme(key);
+      document.documentElement.dataset.theme = key;
+      const meta = document.querySelector('meta[name="color-scheme"]');
+      if(meta) meta.setAttribute('content', key === 'dark' ? 'dark light' : 'light dark');
+      if(persist) { try { localStorage.setItem('rka-theme', key); } catch(e) {} }
+    }
+    (function initTheme(){
+      const fromUrl = new URLSearchParams(location.search).get('theme');
+      let saved = null;
+      try { saved = localStorage.getItem('rka-theme'); } catch(e) {}
+      applyTheme(fromUrl || saved || 'dark', !fromUrl);
+    })();
     const paths = {
       grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
       flask:'<path d="M9 3h6M10 3v6l-5.8 9.5A2 2 0 0 0 5.9 21h12.2a2 2 0 0 0 1.7-2.5L14 9V3M7.5 15h9"/>',
@@ -281,7 +636,10 @@
       thermometer:'<path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z"/><path d="M12 9v9"/>',
       scale:'<path d="M4 9h16l-2 11H6L4 9ZM8 9a4 4 0 1 1 8 0M12 13v3l2 1"/>',
       gas:'<path d="M8 4h8M10 4v3h4V4M8 7h8l2 3v11H6V10zM9 13h6M12 11v5"/>',
-      chevrondown:'<path d="m5 9 7 7 7-7"/>'
+      chevrondown:'<path d="m5 9 7 7 7-7"/>',
+      sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+      moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/>',
+      palette:'<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10.5" r="1.2"/><circle cx="12" cy="7.8" r="1.2"/><circle cx="15.5" cy="10.5" r="1.2"/><circle cx="9.2" cy="15" r="1.2"/><path d="M12 21a9 9 0 1 1 0-18c.6 0 1 .5 1 1.1 0 .9-1 1.6-1 2.6 0 .6.5 1.1 1.1 1.1h1.6c1.5 0 2.7 1.2 2.7 2.7 0 1.5-1.2 2.5-2.5 2.5h-1.2c-.8 0-1.4.6-1.4 1.4 0 .8.7 1.4 1.4 1.6 2.3.6 4 2.2 4 4 0 .8-.6 1.2-1.2 1.2z"/>'
     };
     function icon(name, cls = '') { return `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.info}</svg>`; }
     const nav = [
@@ -315,7 +673,7 @@
       {id:'mfc', label:'MFC 总线', model:'Azbil · 6 通道', port:'COM4', value:'4.80 L/min', role:'气体流量'},
       {id:'balance', label:'电子天平', model:'串口 ASCII', port:'COM5', value:'53.142 g', role:'重量采集'}
     ];
-    const mfcChannels=[['1','H₂','2.0'],['2','N₂','5.0'],['3','CO','2.0'],['4','CO₂','2.0'],['5','Ar','5.0'],['6','Air','5.0']];
+    const mfcChannels=[['1','N₂ / Ar（共用）','20'],['2','CO','10'],['3','CO₂','20'],['4','H₂','10'],['5','CH₄','10'],['6','O₂','20']];
     const initialEvents = [
       {time:'09:50:24', title:'第 3 阶段：等温还原', detail:'温度达到目标范围，开始测定计时', tone:'good'},
       {time:'09:44:10', title:'气体设定已回读', detail:'N₂ 3.00 / H₂ 1.00 / CO 0.80 L/min', tone:'good'},
@@ -324,29 +682,73 @@
     ];
     function demoRun() { return {id:'RKA-2026-1027-018', sample:'球团矿 A-18', recipe:'RC-014', recipeVersion:3, status:'running', phase:'等温还原', stepIndex:2, elapsed:'00:38:24', started:'2026-10-27 09:12:03', sampleMass:'54.280'}; }
     const initialPreflight = () => ({step:0, recipeId:'RC-014', mode:'科研自定义', sampleId:'RKA-2026-1027-019', sampleName:'球团矿 A-19', mass:'54.280', tfe:'64.21', feo:'8.42', operator:'实验员 A', notes:'', checks:{serial:false, calibration:false, balance:false, gas:false, ventilation:false, interlock:false}});
-    const state = {page:'overview', tabs:{recipes:'list',current:'overview',history:'summary',alarms:'active',devices:'overview',audit:'all',settings:'general',analysis:'overview',reports:'list'}, scenario:'normal', run:demoRun(), recipes:clone(initialRecipes), recipeSnapshots:[], selectedRecipeId:'RC-014', draft:clone(initialRecipes[0]), editingNew:false, viewingVersion:false, preflight:initialPreflight(), selectedHistoryId:history[0].id, historySearch:'', historyStatus:'all', historyApplied:'', historyStatusApplied:'all', alarms:[], events:clone(initialEvents), chartRange:'1h', mobileOpen:false, loggedIn:true, userRole:'实验员', userName:'实验员 A', settings:{sampleMs:'500', display:'标准密度', autoRefresh:true}, lastOperation:'OP-1027-0042 · 启动已验证'};
+    const state = {page:'current', tabs:{recipes:'list',current:'gas',history:'summary',alarms:'active',devices:'overview',audit:'all',settings:'gasLimits',analysis:'overview',reports:'list'}, scenario:'normal', run:demoRun(), recipes:clone(initialRecipes), recipeSnapshots:[], selectedRecipeId:'RC-014', draft:clone(initialRecipes[0]), editingNew:false, viewingVersion:false, preflight:initialPreflight(), selectedHistoryId:history[0].id, historySearch:'', historyStatus:'all', historyApplied:'', historyStatusApplied:'all', alarms:[], events:clone(initialEvents), chartRange:'1h', mobileOpen:false, loggedIn:true, userRole:'实验员', userName:'实验员 A', settings:{sampleMs:'500', display:'标准密度', autoRefresh:true}, lastOperation:'OP-1027-0042 · 启动已验证'};
+
+    const gasMeta={n2:{label:'N₂',mfc:1,max:20,defaultLimit:20},ar:{label:'Ar',mfc:1,max:20,defaultLimit:20},co:{label:'CO',mfc:2,max:10,defaultLimit:5,hazard:'有毒 / 可燃'},co2:{label:'CO₂',mfc:3,max:20,defaultLimit:20},h2:{label:'H₂',mfc:4,max:10,defaultLimit:5,hazard:'易燃'},ch4:{label:'CH₄',mfc:5,max:10,defaultLimit:5,hazard:'易燃'},o2:{label:'O₂',mfc:6,max:20,defaultLimit:10,hazard:'助燃'}};
+    Object.values(gasMeta).forEach(Object.freeze);Object.freeze(gasMeta);
+    const gasKeys=Object.keys(gasMeta), reactiveKeys=['co','co2','h2','ch4','o2'];
+
+    const defaultLimits=()=>Object.fromEntries(gasKeys.map(k=>[k,gasMeta[k].defaultLimit]));
+    const isAdmin=()=>state.loggedIn&&state.userRole==='管理员';
+    const limitLocked=()=>!!state.run;
+    const gasLimit=(k,limits=state.limitPolicy.values)=>Number(limits[k]);
+    const limitStorageKey='rka-gas-limit-policy-v1';
+    const localDate=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date());
+    function limitsProblem(values){for(const k of gasKeys){const v=values?.[k];if(v===''||v==null||!Number.isFinite(Number(v))||Number(v)<=0||Number(v)>gasMeta[k].max||Math.abs(Number(v)*100-Math.round(Number(v)*100))>1e-6)return `${gasMeta[k].label} 使用上限须大于 0、不超过设备上限 ${gasMeta[k].max} L/min，最多两位小数。`;}return '';}
+    function loadLimitPolicy(){const fallback={version:1,values:defaultLimits(),updated:'默认策略',actor:'系统初始值',audit:[]};try{const raw=localStorage.getItem(limitStorageKey);if(!raw)return fallback;const p=JSON.parse(raw);if(!Number.isInteger(p.version)||p.version<1||limitsProblem(p.values)||!Array.isArray(p.audit))throw Error('invalid');return {...p,values:Object.fromEntries(gasKeys.map(k=>[k,Number(p.values[k])]))};}catch(_){state.limitLoadWarning='使用上限配置读取失败。已恢复出厂默认限制，请管理员复核后开始实验。';return fallback;}}
+    state.limitPolicy=loadLimitPolicy();state.limitDraft=clone(state.limitPolicy.values);state.limitReason='';
+    function gasLabel(k){const g=gasMeta[k];return g.hazard?`<span class="gas-chip hazard ${k==='o2'?'oxidizer':'flammable'}">${g.label}<small>${g.hazard}</small></span>`:`<span class="gas-chip">${g.label}</span>`;}
+    function limitGuard(){if(!isAdmin()){toast('仅管理员可修改气体使用上限。');return false;}if(limitLocked()){toast('本次实验尚未归档，使用上限已锁定。');return false;}return true;}
+    function renderGasLimits(){const p=state.limitPolicy,editable=isAdmin()&&!limitLocked(),problem=limitsProblem(state.limitDraft);return `<div class="stack"><div class="row space"><div class="row">${badge('使用上限策略 v'+p.version,'info')}${badge(isAdmin()?'管理员':'仅查看',isAdmin()?'good':'')}${limitLocked()?badge('实验未归档 · 禁止修改','warn'):badge('待机可配置','good')}</div><span class="subtle">单位 L/min</span></div><div class="callout"><strong>设备上限是硬件能力，使用上限是本机运行限制。</strong>只有管理员能更改使用上限；配方保存、启动、阶段切换及手动调气均不得超过它。实验未归档前不能修改。</div>${state.limitLoadWarning?`<div class="callout warn">${esc(state.limitLoadWarning)}</div>`:''}<div class="table-wrap"><table class="data-table limits-table"><thead><tr><th>气体 / 危险属性</th><th>控制器</th><th>设备上限（固定）</th><th>默认使用上限</th><th>当前生效上限</th><th>拟设使用上限</th></tr></thead><tbody>${gasKeys.map(k=>`<tr><td>${gasLabel(k)}</td><td class="mono">MFC-0${gasMeta[k].mfc}${gasMeta[k].mfc===1?' · 共用':''}</td><td class="numeric">${gasMeta[k].max.toFixed(2)}</td><td class="numeric">${gasMeta[k].defaultLimit.toFixed(2)}</td><td class="numeric"><strong>${gasLimit(k).toFixed(2)}</strong></td><td><label class="sr-only" for="limit-${k}">${gasMeta[k].label} 使用上限</label><input class="input" id="limit-${k}" data-gas-limit="${k}" type="number" min="0.01" max="${gasMeta[k].max}" step="0.01" value="${esc(state.limitDraft[k])}" ${editable?'':'disabled'}></td></tr>`).join('')}</tbody></table></div><div class="form-grid"><div class="field"><label for="limit-reason">上限变更原因 *</label><textarea id="limit-reason" data-limit-reason placeholder="记录实验条件、审批依据或限制调整原因" ${editable?'':'disabled'} maxlength="300">${esc(state.limitReason)}</textarea></div><div class="op-status"><strong>生效范围与规则</strong><span>应用后生成新策略版本，保存到当前浏览器。已有配方不自动修改；超限配方需修正后才能启动。N₂ 与 Ar 可分别配置介质限制，但物理上仍共用一台 MFC、不可并用。</span></div></div><div class="row">${button('预览上限变更','preview-limits','primary',editable?'':'disabled')}${button('撤销未保存修改','cancel-limits','secondary',editable?'':'disabled')}${!isAdmin()?button('切换演示角色','account','secondary'):''}<span class="subtle">${esc(p.updated)} · ${esc(p.actor)} · 当前策略 v${p.version}</span></div><div id="limit-validation" class="subtle" role="status">${problem?esc(problem):editable?'输入后预览变更，再确认应用。':'当前仅可查看生效值。'}</div>${panel('使用上限变更记录',p.audit.length?`<div class="table-wrap"><table class="data-table"><thead><tr><th>时间 / 版本</th><th>管理员</th><th>变更 · L/min</th><th>原因</th></tr></thead><tbody>${p.audit.map(a=>`<tr><td>${esc(a.time)}<br>v${a.version}</td><td>${esc(a.actor)}</td><td>${esc(a.detail)}</td><td>${esc(a.reason)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="subtle">尚无管理员变更记录。</div>','记录当前浏览器中的原型配置变更')}<div class="subtle">角色切换仅用于原型演示。真机版本需由服务端验证管理员身份，并在控制下发端校验权限、使用上限及设备上限。</div></div>`;}
+    function previewLimits(){if(!limitGuard())return;const p=limitsProblem(state.limitDraft);if(p){toast(p);return;}if(!state.limitReason.trim()){toast('请填写上限变更原因。');$('#limit-reason').focus();return;}const pending=Object.fromEntries(gasKeys.map(k=>[k,Number(state.limitDraft[k])])),changed=gasKeys.filter(k=>gasLimit(k)!==pending[k]);if(!changed.length&&!state.limitLoadWarning){toast('使用上限未发生变化。');return;}const affected=state.recipes.filter(r=>r.steps.length&&recipeProblem(r,pending)),version=state.limitPolicy.version,reason=state.limitReason.trim();modal('管理员复核使用上限',`<div class="stack"><div class="manual-delta"><strong>气体</strong><strong>当前</strong><strong>拟设 · L/min</strong></div>${changed.map(k=>`<div class="manual-delta"><span>${gasLabel(k)}</span><span class="mono">${gasLimit(k).toFixed(2)}</span><span class="mono">${pending[k].toFixed(2)}</span></div>`).join('')}<div class="callout ${affected.length?'warn':''}">${affected.length?`应用后 ${affected.length} 个已有配方超出新限制，将阻止启动：${affected.map(r=>esc(r.id)).join('、')}。请随后调整配方。`:'现有可执行配方均符合拟设使用上限。'}</div><div class="op-status"><strong>变更原因</strong><span>${esc(reason)}</span></div></div>`,'确认应用上限',()=>{if(!limitGuard())return false;if(version!==state.limitPolicy.version){toast('策略版本已变化，请重新预览。');return false;}const problem=limitsProblem(pending);if(problem){toast(problem);return false;}const time=localDate(),detail=changed.map(k=>`${gasMeta[k].label} ${gasLimit(k).toFixed(2)} → ${pending[k].toFixed(2)}`).join('；'),next={version:version+1,values:pending,updated:time,actor:state.userName+'（管理员）',audit:[{time,version:version+1,actor:state.userName+'（管理员）',detail,reason},...state.limitPolicy.audit].slice(0,100)};try{localStorage.setItem(limitStorageKey,JSON.stringify(next));}catch(_){toast('配置无法持久保存，未应用上限变更。请检查浏览器存储。');return false;}state.limitPolicy=next;state.limitDraft=clone(pending);state.limitReason='';state.limitLoadWarning='';state.preflight.checks.gas=false;state.preflight.checks.interlock=false;addEvent('管理员变更气体使用上限',`策略 v${next.version}；${detail}；原因：${reason}`,'warn');render();toast('使用上限已生效，配方与手动调气同步受限。');});}
+
+    const typeName=t=>t==='oxidation'?'氧化实验':'还原实验';
+    const allowedGases=r=>[r.inert||'n2',...(r.experimentType==='oxidation'?['co2','o2']:['co','co2','h2','ch4'])];
+    const gasValues=s=>Object.fromEntries(gasKeys.map(k=>[k,Number(s?.[k]||0)]));
+    const gasSummary=s=>gasKeys.filter(k=>Number(s[k])>0).map(k=>`${gasMeta[k].label} ${Number(s[k]).toFixed(2)}`).join(' / ')||'全部关闭';
+    function normalizeRecipe(r){r.experimentType ||= 'reduction';r.inert ||= 'n2';r.purgeFlow ??=4;r.purgeSeconds ??=600;r.steps.forEach(s=>gasKeys.forEach(k=>s[k]??=0));return r;}
+    initialRecipes.forEach(normalizeRecipe);
+    initialRecipes.splice(2,0,normalizeRecipe({id:'OX-001',name:'850℃ 氧化 · Ar/O₂',kind:'科研自定义',version:1,updated:'2026-10-28 10:00',owner:'工艺工程师',status:'可执行',experimentType:'oxidation',inert:'ar',purgeFlow:4,purgeSeconds:600,steps:[{name:'Ar 惰性置换',temp:150,ramp:10,hold:600,ar:4},{name:'升温准备',temp:850,ramp:10,hold:300,ar:4},{name:'等温氧化',temp:850,ramp:0,hold:3600,ar:3,o2:0.5},{name:'Ar 处置冷却',temp:200,ramp:0,hold:900,ar:4}]}));
+    state.recipes=clone(initialRecipes);state.draft=clone(initialRecipes[0]);
+    function bindRun(r,recipe){if(!r)return;r.snapshot=clone(normalizeRecipe(recipe));r.limitPolicy=clone(state.limitPolicy);r.experimentType=r.snapshot.experimentType;r.inert=r.snapshot.inert;r.controlMode='auto';r.flows=gasValues(r.snapshot.steps[r.stepIndex]);r.manualDraft=clone(r.flows);r.emergency=false;}
+    if(recipeProblem(state.recipes[0])||state.limitLoadWarning){state.run=null;state.startupNotice='当前使用上限策略需要复核，已进入待机。请确认配方符合管理员限制后启动。';}else bindRun(state.run,state.recipes[0]);
+    function liveRecipe(){return state.run?.snapshot||state.recipes[0];}
+    function supplyProblem(r,flows,limits=state.limitPolicy.values){
+      if(!['reduction','oxidation'].includes(r.experimentType))return '请选择有效实验类型。';
+      if(!['n2','ar'].includes(r.inert))return '请选择 N₂ 或 Ar 作为本次惰性气体。';
+      const allowed=allowedGases(r);
+      for(const k of gasKeys){if(flows[k]==='')return `${gasMeta[k].label} 流量不能为空。`;const v=Number(flows[k]??0);if(!Number.isFinite(v)||v<0||v>gasLimit(k,limits))return `${gasMeta[k].label} 超出管理员使用上限：允许 0–${gasLimit(k,limits)} L/min（设备上限 ${gasMeta[k].max}）。`;if(v>0&&!allowed.includes(k))return `${typeName(r.experimentType)}不允许使用 ${gasMeta[k].label}；N₂/Ar 共用通道且只能使用已选惰性气体。`;}
+      return '';
+    }
+    function recipeProblem(r,limits=state.limitPolicy.values){
+      if(!r.name.trim())return '请填写配方名称。';if(r.steps.length<3)return '请至少设置惰性置换、反应和惰性收尾三个阶段。';
+      if(!Number.isFinite(Number(r.purgeFlow))||r.purgeFlow<=0||r.purgeFlow>gasLimit(r.inert,limits)||!Number.isFinite(Number(r.purgeSeconds))||r.purgeSeconds<1)return `请设置有效吹扫流量（大于 0、不超过 ${gasLimit(r.inert,limits)} L/min）和置换时长（大于 0 s）。`;
+      for(let i=0;i<r.steps.length;i++){const s=r.steps[i],p=supplyProblem(r,s,limits);if(p)return `第 ${i+1} 段：${p}`;if(!s.name.trim())return `第 ${i+1} 段缺少名称。`;for(const k of ['temp','ramp','hold'])if(s[k]===''||!Number.isFinite(Number(s[k])))return `第 ${i+1} 段参数不完整。`;if(s.temp<0||s.temp>1600||s.ramp<0||s.ramp>20||s.hold<0)return `第 ${i+1} 段温度、速率或时间超出范围。`;}
+      for(const i of [0,r.steps.length-1]){const s=r.steps[i];if(Number(s[r.inert])<=0||reactiveKeys.some(k=>Number(s[k])>0)||Number(s.hold)<Number(r.purgeSeconds))return `第 ${i+1} 段须为纯 ${gasMeta[r.inert].label} 置换/收尾，持续时间至少 ${r.purgeSeconds} s。`;}
+      return '';
+    }
+    function applyStage(){const r=state.run;if(!r)return;const problem=supplyProblem(r.snapshot,r.snapshot.steps[r.stepIndex]);if(problem){safeSupply('阶段校验失败：'+problem);toast(problem);return;}r.controlMode='auto';r.flows=gasValues(r.snapshot.steps[r.stepIndex]);r.manualDraft=clone(r.flows);}
+    function safeSupply(reason,emergency=false){const r=state.run;if(!r)return;r.flows=gasValues({[r.inert]:r.snapshot.purgeFlow});r.manualDraft=clone(r.flows);r.controlMode='safety';r.emergency ||= emergency;r.status='cooling';r.phase=emergency?'紧急停气 · 惰性吹扫':'惰性吹扫与冷却';r.stepIndex=r.snapshot.steps.length-1;r.safetyStarted=Date.now();r.safetyConfirmed=false;r.emergencyResult=isStale()?'unknown':'verified';addEvent(emergency?'紧急停气与吹扫请求':'进入惰性安全处置',`${reason}；工艺气体全部归零；${gasMeta[r.inert].label} ${r.snapshot.purgeFlow} L/min；${isStale()?'回读未知，须操作现场急停并核实气路':'模拟回读一致'}`,emergency?'danger':'info');}
+    function gasCards(){const r=state.run,recipe=liveRecipe(),editable=canOperateExperiment()&&!isStale()&&!hasAlarm()&&r.status==='running'&&!r.emergency;return `<div class="gas-grid">${allowedGases(recipe).map(k=>`<div class="gas-card"><div class="row space"><span class="gas-name">${gasLabel(k)}</span>${badge(Number(r.flows[k])>0?'供气中':'已关闭',Number(r.flows[k])>0?'good':'')}</div><div class="gas-foot"><span>MFC-0${gasMeta[k].mfc}</span><span>${gasMeta[k].mfc===1?'N₂ / Ar 共用':'独立通道'}</span></div><div class="pv">${isStale()?'—':Number(r.flows[k]).toFixed(2)} <small>L/min · 模拟实测</small></div><div class="field"><label for="manual-${k}">目标流量 · L/min</label><input id="manual-${k}" data-manual-gas="${k}" type="number" min="0" max="${gasLimit(k)}" step="0.01" value="${r.manualDraft[k]}" ${editable?'':'disabled'} aria-describedby="manual-error-${k}"><span id="manual-error-${k}" class="input-error" aria-live="polite"></span></div><div class="gas-foot"><span>当前设定 ${Number(r.flows[k]).toFixed(2)}</span><span>使用上限 ${gasLimit(k).toFixed(2)}</span></div><div class="gas-foot"><span>设备上限 ${gasMeta[k].max.toFixed(2)} L/min</span><span>管理员策略 v${state.limitPolicy.version}</span></div></div>`).join('')}</div>`;}
+    function emergencyPanel(){const r=state.run,active=r&&r.status!=='completed';return `<div class="safety-box"><h3>${icon('shield','small')} 紧急停气 / 惰性吹扫</h3><p>立即结束测定，关闭 CO、CO₂、H₂、CH₄、O₂，充入本次选定的 <strong>${r?gasMeta[r.inert].label:'惰性气体'}</strong>。操作后锁定工艺供气。</p>${button(`■ 紧急停气并充${r?.inert==='ar'?'氩':'氮'}`,'emergency-gas','danger full',active&&canOperateExperiment()?'':'disabled')}<p style="margin:10px 0 0">${r?`吹扫 ${r.snapshot.purgeFlow.toFixed(2)} L/min · 最短 ${r.snapshot.purgeSeconds} s`:'启动前配置吹扫参数'}<br>本次入口直接执行演示，不弹二次确认。</p>${isStale()?'<div class="callout danger" style="margin-top:12px">设备回读未知。软件无法确认断气/吹扫，请立即按现场流程操作硬件急停。</div>':''}</div>`;}
+    function gasControl(){const r=state.run,recipe=liveRecipe(),editable=canOperateExperiment()&&!isStale()&&!hasAlarm()&&r.status==='running'&&!r.emergency;return `<div class="stack"><div class="gas-toolbar"><div class="row">${badge(typeName(r.experimentType),'info')}${badge(r.controlMode==='manual'?'手动接管':r.controlMode==='safety'?'安全吹扫':'配方自动',r.controlMode==='manual'?'warn':'good')}<span class="subtle">惰性气体 ${gasMeta[r.inert].label} · 本次已锁定</span></div><span class="subtle">单位 L/min</span></div><div class="callout">${r.experimentType==='oxidation'?'氧化模式：仅开放惰性气体、CO₂、O₂；CO / H₂ / CH₄ 已互锁。':'还原模式：仅开放惰性气体、CO / CO₂ / H₂ / CH₄；O₂ 已互锁。'} N₂ 与 Ar 不同时供气。</div>${r.emergency?`<div class="callout danger"><strong>紧急停气已锁存</strong> · ${r.emergencyResult==='verified'?'模拟回读一致，正在惰性吹扫':'回读未知，等待现场核实'}。本次实验只能完成安全收尾后归档。</div>`:''}<div class="row space"><span class="subtle">使用上限策略 v${state.limitPolicy.version} · 配方与手动设定共同受限</span>${button('查看使用上限','open-gas-limits','ghost')}</div>${gasCards()}<div class="row">${button('预览并应用手动设定','preview-gas','primary',editable?'':'disabled')}${button('恢复当前阶段配方','restore-gas','secondary',editable&&r.controlMode==='manual'?'':'disabled')}<span class="subtle">修改仅对当前阶段生效；进入下一阶段前需复核。</span></div></div>`;}
+    function gasMap(){return `<div class="gas-map">${mfcChannels.map(([id,name,scale])=>{const keys=gasKeys.filter(k=>String(gasMeta[k].mfc)===id);return `<div><small>MFC-0${id}</small><strong>${keys.length===1?gasLabel(keys[0]):name}</strong><small>使用上限 ${keys.map(k=>`${gasMeta[k].label} ${gasLimit(k)}`).join(' / ')}</small><small>设备上限 ${scale} L/min</small></div>`;}).join('')}</div>`;}
+    function recipeLimitSummary(r){const problem=r.steps.length?recipeProblem(r):'';return `<div class="stack"><div class="row space"><div class="row">${allowedGases(r).map(k=>`<span class="limit-pill">${gasMeta[k].label} ≤ <b>${gasLimit(k).toFixed(2)}</b></span>`).join('')}</div>${button('查看使用上限','open-gas-limits','ghost')}</div>${problem?`<div class="callout warn">当前配方待修正：${esc(problem)}</div>`:''}</div>`;}
     function currentRecipe() { return state.recipes.find(item => item.id === state.selectedRecipeId) || state.recipes[0]; }
     function chosenRecipe() { return state.recipes.find(item => item.id === state.preflight.recipeId) || state.recipes[0]; }
     function selectedHistory() { return history.find(item => item.id === state.selectedHistoryId) || history[0]; }
     function isConnected() { return state.scenario !== 'offline'; }
     function isStale() { return state.scenario === 'stale' || state.scenario === 'offline'; }
-    function hasAlarm() { return state.scenario === 'alarm' || state.alarms.some(item => !item.ack); }
+    function hasAlarm() { return state.scenario === 'alarm' || state.alarms.some(item => !item.cleared); }
     function canOperateExperiment() { return state.userRole==='实验员'||state.userRole==='管理员'; }
-    function runSnapshot() {
-      if(!state.run) return {temp:'25.4',sp:'—',weight:'0.000',initial:'—',n2:'0.00',h2:'0.00',co:'0.00'};
-      const finalMass=(Number(state.run.sampleMass)*53.142/54.28).toFixed(3),warmMass=(Number(state.run.sampleMass)*54.15/54.28).toFixed(3);
-      if(state.run.status==='completed') return {temp:'196.4',sp:'—',weight:finalMass,initial:state.run.sampleMass,n2:'0.00',h2:'0.00',co:'0.00'};
-      if(state.run.status==='cooling'||state.run.stepIndex>=3) return {temp:'620.4',sp:'200.0',weight:finalMass,initial:state.run.sampleMass,n2:'4.00',h2:'0.00',co:'0.00'};
-      if(state.run.stepIndex===0) return {temp:'25.4',sp:'150.0',weight:state.run.sampleMass,initial:state.run.sampleMass,n2:'4.00',h2:'0.00',co:'0.00'};
-      if(state.run.stepIndex===1) return {temp:'720.1',sp:'900.0',weight:warmMass,initial:state.run.sampleMass,n2:'4.00',h2:'0.00',co:'0.00'};
-      return {temp:'897.6',sp:'900.0',weight:finalMass,initial:state.run.sampleMass,n2:'3.00',h2:'1.00',co:'0.80'};
-    }
+    function runSnapshot(){const r=state.run;if(!r)return {temp:'25.4',sp:'—',weight:'0.000',initial:'—',...gasValues({})};const s=r.snapshot.steps[r.stepIndex],finalMass=(Number(r.sampleMass)*53.142/54.28).toFixed(3);return {temp:r.status==='completed'?'196.4':r.status==='cooling'?'620.4':r.stepIndex===0?'25.4':r.stepIndex===1?'720.1':(Number(s.temp)-2.4).toFixed(1),sp:r.status==='completed'?'—':Number(s.temp).toFixed(1),weight:r.stepIndex===0?r.sampleMass:finalMass,initial:r.sampleMass,...r.flows};}
     function badge(text, tone='') { return `<span class="badge ${tone}">${tone ? '<span class="dot"></span>' : ''}${esc(text)}</span>`; }
     function button(text, action, style='secondary', extra='') { return `<button class="button ${style}" type="button" data-action="${esc(action)}" ${extra}>${text}</button>`; }
     function pageHead(kicker,title,subtitle,actions='') { return `<div class="page-head"><div><p class="eyebrow">${esc(kicker)}</p><h1>${esc(title)}</h1><p class="lead">${esc(subtitle)}</p></div><div class="row">${actions}</div></div>`; }
     function panel(title,body,subtitle='',right='',footer='') { return `<section class="panel"><div class="panel-header"><div><h2>${title}</h2>${subtitle ? `<p class="subtle small">${subtitle}</p>` : ''}</div>${right}</div><div class="panel-body">${body}</div>${footer ? `<div class="panel-footer">${footer}</div>` : ''}</section>`; }
     function tabs(key, items) { return `<div class="tabs" role="tablist" aria-label="${esc(pageNames[key] || key)}子页面">${items.map(([id,label]) => `<button type="button" role="tab" aria-selected="${state.tabs[key]===id}" data-tabgroup="${key}" data-tab="${id}">${esc(label)}</button>`).join('')}</div>`; }
-    function metric(label,value,unit,meta,which) { return `<div class="metric"><div class="metric-label">${icon(which,'small')}${label}</div><div class="metric-value">${esc(value)} <em>${esc(unit)}</em></div><div class="metric-meta">${meta}</div></div>`; }
+    function metric(label,value,unit,meta,which) { return `<div class="metric"><div class="metric-label"><span class="metric-icon">${icon(which,'small')}</span>${label}</div><div class="metric-value">${esc(value)} <em>${esc(unit)}</em></div><div class="metric-meta">${meta}</div></div>`; }
+    let chartSeq=0;
     function chartSvg(kind,historical=false) {
       const temp = kind==='temp';
       let values = temp ? [782,793,805,817,833,849,866,883,894,900,899,898,898,897.6] : [54.280,54.205,54.133,54.019,53.942,53.812,53.696,53.592,53.470,53.381,53.293,53.227,53.188,53.142];
@@ -359,24 +761,32 @@
       if(historical) values=values.map(value=>value+(temp?Number(selectedHistory().temp)-900:Number(selectedHistory().mass)-53.142));
       const dataMin=Math.min(...values),dataMax=Math.max(...values),padding=temp?Math.max(1,(dataMax-dataMin)*.15):Math.max(.05,(dataMax-dataMin)*.15);
       const min=dataMin-padding,max=dataMax+padding;
-      const color = temp ? '#176c78' : '#c47b3a';
-      const points = values.map((v,i) => `${52+i*44},${178-(v-min)/(max-min)*145}`).join(' ');
+      const color = temp ? cssVar('--chart-temp','#171717') : cssVar('--chart-mass','#a3a3a3');
+      const gridColor = cssVar('--chart-grid','#e5e5e5');
+      const labelColor = cssVar('--chart-label','#737373');
+      const axisColor = cssVar('--chart-axis','#737373');
+      const plot=(v,i)=>`${52+i*44},${178-(v-min)/(max-min)*145}`;
+      const points = values.map(plot).join(' ');
+      const areaD = `M52,178 L${values.map((v,i)=>plot(v,i).replace(',',' ')).join(' L ')} L${52+(values.length-1)*44},178 Z`;
       const lastX = 52+(values.length-1)*44, lastY = 178-(values.at(-1)-min)/(max-min)*145;
-      const grid = [33,81,130,178].map(y => `<line x1="52" x2="625" y1="${y}" y2="${y}" stroke="#e5ecee" stroke-dasharray="3 4"/>`).join('');
+      const grid = [33,81,130,178].map(y => `<line x1="52" x2="625" y1="${y}" y2="${y}" stroke="${gridColor}" stroke-dasharray="3 4"/>`).join('');
       const labels = Array.from({length:4},(_,i)=>temp?(max-i*(max-min)/3).toFixed(0):(max-i*(max-min)/3).toFixed(2));
       const axis=historical?['09:12','09:30','09:50']:!state.run?['待机','连续监测','当前']:state.run.started.includes('09:52')?['09:52','阶段中','当前']:['09:12','09:30','09:50'];
-      return `<div class="chart-box"><svg viewBox="0 0 650 220" role="img" aria-label="${temp?'炉温':'样品重量'}演示趋势图，横轴为时间，纵轴为${temp?'摄氏度':'克'}"><rect width="650" height="220" fill="#fbfcfc"/>${grid}${labels.map((v,i)=>`<text x="4" y="${37+i*48.3}" fill="#78909a" font-size="10" font-family="Consolas,monospace">${v}</text>`).join('')}<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lastX}" cy="${lastY}" r="5" fill="${color}" stroke="white" stroke-width="2"/><text x="52" y="207" fill="#82959e" font-size="10">${axis[0]}</text><text x="292" y="207" fill="#82959e" font-size="10">${axis[1]}</text><text x="568" y="207" fill="#82959e" font-size="10">${axis[2]}</text></svg></div>`;
+      const gid=`cg${++chartSeq}`;
+      const lastLabel=temp?values.at(-1):Number(values.at(-1)).toFixed(3);
+      return `<div class="chart-box"><svg viewBox="0 0 650 220" role="img" aria-label="${temp?'炉温':'样品重量'}演示趋势图，横轴为时间，纵轴为${temp?'摄氏度':'克'}"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity=".24"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>${grid}${labels.map((v,i)=>`<text x="4" y="${37+i*48.3}" fill="${labelColor}" font-size="10" font-family="Consolas,monospace">${v}</text>`).join('')}<path d="${areaD}" fill="url(#${gid})"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lastX}" cy="${lastY}" r="5.5" fill="${color}" stroke="white" stroke-width="2.2"/><text x="${Math.min(lastX+10, 625)}" y="${Math.max(lastY-11, 16)}" fill="${color}" font-size="11" font-weight="700" font-family="Consolas,monospace" text-anchor="${lastX>560?'end':'start'}">${lastLabel}</text><text x="52" y="207" fill="${axisColor}" font-size="10">${axis[0]}</text><text x="292" y="207" fill="${axisColor}" font-size="10">${axis[1]}</text><text x="568" y="207" fill="${axisColor}" font-size="10">${axis[2]}</text></svg></div>`;
     }
     function renderSidebar() {
       const count = state.alarms.filter(item=>!item.ack).length || (state.scenario==='alarm' ? 1 : 0);
-      $('#sidebar').innerHTML = `<div class="brand"><div class="brand-mark" aria-hidden="true">R</div><div class="brand-copy"><div class="brand-title">RKA-3000</div><div class="brand-sub">实验控制工作台</div></div></div><div class="nav-scroll">${nav.map(group => `<div class="nav-group"><div class="nav-label">${group.label}</div>${group.items.map(([id,label,ic])=>`<button class="nav-item ${state.page===id?'active':''}" type="button" data-page="${id}" aria-current="${state.page===id?'page':'false'}" title="${label}">${icon(ic)}<span>${label}</span>${id==='alarms'&&count?`<b class="count">${count}</b>`:''}</button>`).join('')}</div>`).join('')}</div><div class="nav-foot"><strong>UI 交互原型 · v1.0</strong><br>标准候选与科研自定义分开呈现<br>所有控制行为仅为页面演示</div>`;
+      $('#sidebar').innerHTML = `<div class="brand"><div class="brand-mark" aria-hidden="true">R</div><div class="brand-copy"><div class="brand-title">RKA-3000</div><div class="brand-sub">实验控制工作台</div></div></div><div class="nav-scroll">${nav.map(group => `<div class="nav-group"><div class="nav-label">${group.label}</div>${group.items.map(([id,label,ic])=>`<button class="nav-item ${state.page===id?'active':''}" type="button" data-page="${id}" aria-current="${state.page===id?'page':'false'}" title="${label}">${icon(ic)}<span>${label}</span>${id==='alarms'&&count?`<b class="count">${count}</b>`:''}</button>`).join('')}</div>`).join('')}</div><div class="nav-foot"><strong>UI 交互原型 · v2.1</strong><br>7 种气体 · 6 台 MFC · 类型互锁<br>所有控制行为仅为页面演示</div>`;
       $('#sidebar').classList.toggle('open', state.mobileOpen);
       $('#mobile-backdrop').classList.toggle('open', state.mobileOpen);
     }
     function renderTopbar() {
       const dev = isConnected() ? badge(isStale()?'数据已过期':'设备已连接',isStale()?'warn':'good') : badge('设备离线','danger');
       const runText = state.run ? ({running:'实验运行中',paused:'实验已暂停',cooling:'安全处置中',completed:'实验已完成'}[state.run.status]||'待机') : '当前无实验';
-      $('#topbar').innerHTML = `<button class="top-action menu-button" type="button" data-action="menu" aria-label="打开导航">${icon('menu')}</button><div class="top-path"><small>USTB / RKA-3000</small><strong>${esc(pageNames[state.page])}</strong></div><div class="top-status">${badge('仿真演示','warn').replace('badge warn','badge warn mode-badge')}${dev}${badge(runText, state.run?.status==='running'?'info':'')}<button class="top-action" type="button" data-action="scenario" aria-label="切换演示状态">${icon('settings','small')}<span>演示状态</span>${icon('chevrondown','small')}</button><button class="top-action" type="button" data-action="account" aria-label="查看演示身份">${esc(state.userRole)} ${icon('chevrondown','small')}</button></div>`;
+      const next = currentTheme()==='dark' ? 'light' : 'dark';
+      $('#topbar').innerHTML = `<button class="top-action menu-button" type="button" data-action="menu" aria-label="打开导航">${icon('menu')}</button><div class="top-path"><small>USTB / RKA-3000</small><strong>${esc(pageNames[state.page])}</strong></div><div class="top-status">${badge('仿真演示','warn').replace('badge warn','badge warn mode-badge')}${dev}${state.run&&state.run.status!=='completed'?button('■ 紧急停气','emergency-gas','danger emergency-global',canOperateExperiment()?'':'disabled'):''}<button class="top-action" type="button" data-action="toggle-theme" aria-label="切换为${next==='dark'?'深色':'浅色'}界面">${icon(next==='dark'?'moon':'sun','small')}<span>${next==='dark'?'深色':'浅色'}</span></button><button class="top-action" type="button" data-action="scenario" aria-label="切换演示状态">${icon('settings','small')}<span>演示状态</span>${icon('chevrondown','small')}</button><button class="top-action" type="button" data-action="account" aria-label="查看演示身份">${esc(state.userRole)} ${icon('chevrondown','small')}</button></div>`;
     }
     function renderOverview() {
       const running = !!state.run;
@@ -387,18 +797,18 @@
       const phase = running ? state.run.phase : '待机';
       return `${pageHead('工作台 / OVERVIEW','实时总览','按实验任务组织设备、采样与下一步操作。',button(`${icon('arrow','small')} 实验准备`,'go-preflight','primary'))}
         <div class="stack"><section class="hero-panel"><div class="hero-main"><p class="eyebrow">${running?'CURRENT EXPERIMENT':'READY TO PREPARE'}</p><h2>${esc(title)}</h2><p>${esc(desc)}</p>${actions}</div><div class="hero-side"><div><span>运行阶段</span><strong>${esc(phase)}</strong></div><div><span>运行时长</span><strong class="clock">${running?state.run.elapsed:'--:--:--'}</strong></div><div><span>数据完整性</span><strong>${isStale()?'需核查 · 数据过期':'正常 · 最新采样已接收'}</strong></div></div></section>
-        <div class="metric-grid">${metric('炉温 PV / SP',isStale()?'—':`${snapshot.temp} / ${snapshot.sp}`,'℃',isStale()?'过期数据不作为实时许可':'最近采样 · 0.5 s','thermometer')}${metric('样品重量',isStale()?'—':snapshot.weight,'g',isStale()?'等待有效读数':running?'当前阶段的有效读数':'设备待机 · 天平空载','scale')}${metric('N₂ / H₂ / CO',isStale()?'—':`${snapshot.n2} / ${snapshot.h2} / ${snapshot.co}`,'L/min','设定与实测需分别核对','gas')}${metric('待确认报警',String(state.alarms.filter(x=>!x.ack).length || (state.scenario==='alarm'?1:0)),'条',hasAlarm()?'请前往报警事件处理':'当前无待确认报警','bell')}</div>
+        <div class="metric-grid">${metric('炉温 PV / SP',isStale()?'—':`${snapshot.temp} / ${snapshot.sp}`,'℃',isStale()?'过期数据不作为实时许可':'最近采样 · 0.5 s','thermometer')}${metric('样品重量',isStale()?'—':snapshot.weight,'g',isStale()?'等待有效读数':running?'当前阶段的有效读数':'设备待机 · 天平空载','scale')}${metric('总供气流量',isStale()?'—':state.run?Object.values(state.run.flows).reduce((a,b)=>a+Number(b),0).toFixed(2):'0.00','L/min',state.run?gasSummary(state.run.flows):'7 种气体 / 6 台 MFC','gas')}${metric('待确认报警',String(state.alarms.filter(x=>!x.ack).length || (state.scenario==='alarm'?1:0)),'条',hasAlarm()?'请前往报警事件处理':'当前无待确认报警','bell')}</div>
         <div class="grid-main">${panel('温度趋势',chartSvg('temp'),'炉温单独使用 ℃ 纵轴；示例数据用于展示趋势结构。',button('查看完整趋势','go-trends','ghost'))}<div class="stack">${panel('下一步操作',`<div class="list-row"><div><strong>${running?'持续监控实验':'完成实验前预检'}</strong><span>${running?'检查设定值、实测值与状态是否一致':'录入样品并逐项确认设备与现场条件'}</span></div>${icon('chevron')}</div><div class="list-row"><div><strong>核对数据质量</strong><span>原始数据、时间戳和缺口需可追溯</span></div>${icon('chevron')}</div><div class="list-row"><div><strong>安全处置后归档</strong><span>测定结束不等于设备安全完成</span></div>${icon('chevron')}</div>`,'按实验阶段呈现可执行事项')}${panel('设备链路',deviceRows.map(d=>`<div class="list-row"><div><strong>${d.label}</strong><span>${d.port} · ${d.role}</span></div>${badge(isConnected()?(isStale()?'数据过期':'在线'):'离线',isConnected()?(isStale()?'warn':'good'):'danger')}</div>`).join(''),'多设备分别直连的演示拓扑','',button('打开设备诊断','go-devices','ghost'))}</div></div>
         <div class="quick-links"><button class="quick-link" data-action="go-recipes">${icon('flask','small')} 配方管理 ${icon('arrow','small')}</button><button class="quick-link" data-action="go-history">${icon('clock','small')} 历史实验 ${icon('arrow','small')}</button><button class="quick-link" data-action="go-alarms">${icon('bell','small')} 报警事件 ${icon('arrow','small')}</button><button class="quick-link" data-action="go-help">${icon('help','small')} 操作说明 ${icon('arrow','small')}</button></div></div>`;
     }
     function recipeRows() {
-      return state.recipes.map(r=>`<tr class="click-row ${state.selectedRecipeId===r.id?'selected':''}" data-select-recipe="${r.id}" tabindex="0"><td class="mono">${r.id}</td><td><strong>${esc(r.name)}</strong></td><td>${badge(r.kind,r.kind==='标准候选'?'warn':'info')}</td><td class="mono">v${r.version}</td><td>${badge(r.status,r.status==='可执行'?'good':'warn')}</td><td class="muted-cell">${r.updated}</td><td><button class="button ghost" type="button" data-action="edit-recipe" data-id="${r.id}">${canOperateExperiment()?'查看 / 编辑':'查看'}</button></td></tr>`).join('');
+      return state.recipes.map(r=>`<tr class="click-row ${state.selectedRecipeId===r.id?'selected':''}" data-select-recipe="${r.id}" tabindex="0"><td class="mono">${r.id}</td><td><strong>${esc(r.name)}</strong></td><td>${badge(typeName(r.experimentType),'info')} ${badge(gasMeta[r.inert].label)}</td><td class="mono">v${r.version}</td><td>${badge(r.status==='可执行'&&recipeProblem(r)?'超限 / 待修正':r.status,r.status==='可执行'&&!recipeProblem(r)?'good':'warn')}</td><td class="muted-cell">${r.updated}</td><td><button class="button ghost" type="button" data-action="edit-recipe" data-id="${r.id}">${canOperateExperiment()?'查看 / 编辑':'查看'}</button></td></tr>`).join('');
     }
     function renderRecipeEditor() {
-      const r=state.draft, readonly=r.kind==='标准候选'||state.viewingVersion||!canOperateExperiment();
-      const field=(label,key,type='text',hint='')=>`<div class="field"><label for="recipe-${key}">${label}</label><input id="recipe-${key}" data-recipe-field="${key}" type="${type}" value="${esc(r[key]||'')}" ${readonly||key==='id'?'disabled':''}>${hint?`<span class="hint">${hint}</span>`:''}</div>`;
-      const stepRows=r.steps.map((s,i)=>`<tr><td class="mono">${String(i+1).padStart(2,'0')}</td>${[['name','text'],['temp','number'],['ramp','number'],['hold','number'],['n2','number'],['h2','number'],['co','number']].map(([key,type])=>`<td><input class="input" style="min-width:${key==='name'?'110':'66'}px" type="${type}" ${type==='number'?'step="0.01"':''} value="${esc(s[key])}" data-step-index="${i}" data-step-field="${key}" ${readonly?'disabled':''} aria-label="第${i+1}步 ${key}"></td>`).join('')}<td>${readonly?'—':`<button class="button ghost icon-only" type="button" data-action="remove-step" data-index="${i}" aria-label="删除第${i+1}步">×</button>`}</td></tr>`).join('');
-      return `<div class="stack"><div class="form-grid">${field('配方名称','name')}${field('配方编号','id','text','保存后编号固定')}</div><div class="row">${badge(r.kind,readonly?'warn':'info')}${badge(`版本 v${r.version}`)}<span class="subtle">${!canOperateExperiment()?'当前演示角色仅可查看配方。':state.viewingVersion?'历史快照只读；复制后可建立新自定义配方。':r.kind==='标准候选'?'标准候选模板尚未完成方法审核，不能启动真机实验。':'保存修改将生成新版本，运行中的实验继续使用已固化快照。'}</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>段</th><th>阶段名称</th><th>目标℃</th><th>升温℃/min</th><th>保温 s</th><th>N₂</th><th>H₂</th><th>CO</th><th></th></tr></thead><tbody>${stepRows||'<tr><td colspan="9" class="muted-cell">尚无已批准的标准工艺参数。</td></tr>'}</tbody></table></div><div class="row">${readonly?(canOperateExperiment()?button(`${icon('copy','small')} 复制为自定义配方`,'copy-recipe','secondary'):''):button(`${icon('plus','small')} 添加阶段`,'add-step','secondary')}${readonly?'':button('保存为新版本','save-recipe','primary')}${readonly?'':button('校验参数','validate-recipe','ghost')}</div><div class="callout warn">配方范围与气路能力在原型中仅做示例校验。现场额定量程、置换时长和安全条件应以获批设备资料及 SOP 为准。</div></div>`;
+      const r=normalizeRecipe(state.draft),readonly=r.kind==='标准候选'||state.viewingVersion||!canOperateExperiment(),disabled=readonly?'disabled':'';
+      const field=(label,key,value,type='text',extra='')=>`<div class="field"><label for="recipe-${key}">${label}</label><input id="recipe-${key}" data-recipe-field="${key}" type="${type}" value="${esc(value)}" ${disabled} ${extra}></div>`;
+      const gases=allowedGases(r),columns=[['name','阶段名称','text'],['temp','目标 ℃','number'],['ramp','速率 ℃/min','number'],['hold','时长 s','number'],...gases.map(k=>[k,gasLabel(k),'number'])];
+      return `<div class="stack"><div class="flow-strip"><b>01 选择实验类型</b><span>→</span><b>02 配置气源</b><span>→</span><b>03 编排阶段</b><span>→</span><b>04 校验并保存版本</b></div><div class="form-grid">${field('配方名称','name',r.name)}<div class="field"><label>配方编号 / 版本</label><input value="${esc(r.id)} / v${r.version}" disabled></div></div><div class="mode-cards">${['reduction','oxidation'].map(t=>`<button type="button" class="mode-card" data-action="recipe-type" data-type="${t}" aria-pressed="${r.experimentType===t}" ${disabled}><strong>${t==='reduction'?'还原实验':'氧化实验'}</strong><span>${t==='reduction'?'CO / H₂ / CH₄ · O₂ 禁用':'O₂ · CO / H₂ / CH₄ 禁用'}</span></button>`).join('')}</div><div class="form-grid"><div class="field"><label for="recipe-inert">共用 MFC-01 · 惰性气体</label><select id="recipe-inert" data-inert-select ${disabled}><option value="n2" ${r.inert==='n2'?'selected':''}>N₂ · 氮气</option><option value="ar" ${r.inert==='ar'?'selected':''}>Ar · 氩气</option></select><span class="hint">启动前核对气源和介质标定；运行中不可切换。</span></div>${field('紧急吹扫流量 · L/min','purgeFlow',r.purgeFlow,'number',`min="0.01" max="${gasLimit(r.inert)}" step="0.01"`)}${field('最短惰性置换 / 吹扫 · s','purgeSeconds',r.purgeSeconds,'number','min="1" step="1"')}<div class="field"><label>本配方可用气体</label><div class="row">${gases.map(gasLabel).join('')}</div><span class="hint">CO₂ 两类实验均可用；相斥气体不进入阶段编辑。</span></div></div><div class="callout">${typeName(r.experimentType)} · ${gasMeta[r.inert].label} 气源 · 首尾阶段必须为纯惰性气体。气体流量单位均为 L/min，0 表示关闭。</div>${recipeLimitSummary(r)}<div class="table-wrap"><table class="data-table recipe-table"><thead><tr><th>段</th>${columns.map(c=>`<th>${c[1]}</th>`).join('')}<th>操作</th></tr></thead><tbody>${r.steps.map((s,i)=>`<tr><td class="mono">${String(i+1).padStart(2,'0')}</td>${columns.map(([k,label,type])=>`<td><input class="input ${k==='name'?'stage-name':''}" type="${type}" ${type==='number'?`min="0" step="0.01" ${gasMeta[k]?`max="${gasLimit(k)}"`:''}`:''} value="${esc(s[k])}" data-step-index="${i}" data-step-field="${k}" aria-label="第${i+1}段 ${gasMeta[k]?.label||label}" ${disabled}></td>`).join('')}<td>${readonly?'—':button('删除','remove-step','ghost',`data-index="${i}"`)}</td></tr>`).join('')||`<tr><td colspan="${columns.length+2}">添加惰性置换、反应和安全收尾阶段。</td></tr>`}</tbody></table></div><div class="row">${readonly?(canOperateExperiment()?button('复制为自定义配方','copy-recipe','secondary'):''):button('＋ 添加阶段','add-step','secondary')}${readonly?'':button('校验参数','validate-recipe','secondary')}${readonly?'':button('保存为新版本','save-recipe','primary')}${badge(r.kind)}${badge(`v${r.version}`)}</div><div class="subtle">按管理员使用上限策略 v${state.limitPolicy.version} 校验；设备上限不可修改。切换实验类型会提示清除不相容气体；修改保存为新版本，已启动实验使用独立快照。</div></div>`;
     }
     function renderRecipes() {
       const tab=state.tabs.recipes;
@@ -409,36 +819,35 @@
       else body=`<div class="stack"><div class="callout">已保存的版本不可原地覆盖。实验启动时固化所选版本及完整阶段参数；原有样例的旧版快照尚未导入。</div><div class="table-wrap"><table class="data-table"><thead><tr><th>配方</th><th>版本</th><th>快照状态</th><th>修改人</th><th>时间</th><th>操作</th></tr></thead><tbody>${state.recipes.flatMap(r=>Array.from({length:r.version},(_,i)=>{const v=r.version-i,saved=state.recipeSnapshots.find(s=>s.id===r.id&&s.version===v),latest=v===r.version;return `<tr><td>${esc(saved?.name||r.name)}</td><td class="mono">v${v}</td><td>${badge(latest||saved?'可查看':'样例旧版未导入',latest||saved?'good':'warn')}</td><td>${latest?esc(r.owner):saved?esc(saved.owner):'—'}</td><td>${latest?r.updated:saved?saved.updated:'—'}</td><td>${latest||saved?`<button class="button ghost" type="button" data-action="view-version" data-id="${r.id}" data-version="${v}">查看快照</button>`:'—'}</td></tr>`;})).join('')}</tbody></table></div></div>`;
       return `${pageHead('实验管理 / RECIPE','实验配方','标准候选与科研自定义分开管理；版本、条件和偏离可追溯。',actions)}<div class="stack"><section class="panel">${tabs('recipes',[['list','配方列表'],['editor','阶段编辑'],['versions','版本与审核']])}<div class="panel-body ${tab==='list'?'compact':''}">${body}</div></section></div>`;
     }
-    const preflightChecks=[['serial','三类设备已联机且采样新鲜','温控器、MFC 总线、天平均显示有效读数'],['calibration','本次实验所需校准状态已核对','校准有效期和设备身份由现场负责人确认'],['balance','天平稳定且已完成去皮','记录去皮动作和稳定读数'],['gas','气路、钢瓶与设定范围已核对','惰性气体与还原气体管路由现场人员确认'],['ventilation','排风和废气处理系统正常','不得将软件读数替代现场检查'],['interlock','独立联锁与安全处置已现场确认','此项为原型记录；未经实测，不放行危险气体真机实验']];
-    function preflightSample() { const p=state.preflight; return `<fieldset ${canOperateExperiment()?'':'disabled'} style="border:0;padding:0;margin:0;min-width:0"><div class="form-grid"><div class="field"><label for="pf-recipe">实验配方</label><select id="pf-recipe" data-pf-field="recipeId">${state.recipes.map(r=>`<option value="${r.id}" ${r.id===p.recipeId?'selected':''}>${r.id} · ${esc(r.name)}</option>`).join('')}</select></div><div class="field"><label for="pf-mode">实验模式</label><input id="pf-mode" value="${esc(chosenRecipe().kind)}" disabled></div><div class="field"><label for="pf-id">实验编号 *</label><input id="pf-id" data-pf-field="sampleId" value="${esc(p.sampleId)}"></div><div class="field"><label for="pf-sample">样品名称 *</label><input id="pf-sample" data-pf-field="sampleName" value="${esc(p.sampleName)}"></div><div class="field"><label for="pf-mass">初始装样质量 g *</label><input id="pf-mass" data-pf-field="mass" type="number" step="0.001" min="0.001" max="300" value="${esc(p.mass)}"></div><div class="field"><label for="pf-operator">实验员 *</label><input id="pf-operator" data-pf-field="operator" value="${esc(p.operator)}"></div><div class="field"><label for="pf-tfe">全铁 TFe %</label><input id="pf-tfe" data-pf-field="tfe" type="number" step="0.01" min="0" max="100" value="${esc(p.tfe)}"><span class="hint">用于后续方法验证的分析依据，首期不自动判定。</span></div><div class="field"><label for="pf-feo">FeO %</label><input id="pf-feo" data-pf-field="feo" type="number" step="0.01" min="0" max="100" value="${esc(p.feo)}"></div><div class="field span-2"><label for="pf-notes">样品与现场备注</label><textarea id="pf-notes" data-pf-field="notes" placeholder="样品批次、准备方式、偏离说明">${esc(p.notes)}</textarea></div></div></fieldset>`; }
+    const preflightChecks=[['serial','三类设备已联机且采样新鲜','温控器、MFC 总线、天平均显示有效读数'],['calibration','本次实验所需校准状态已核对','校准有效期和设备身份由现场负责人确认'],['balance','天平稳定且已完成去皮','记录去皮动作和稳定读数'],['gas','气路、钢瓶与设定范围已核对','确认实验类型、N₂/Ar 选择、共用 MFC 介质标定、气路与吹扫参数'],['ventilation','排风和废气处理系统正常','不得将软件读数替代现场检查'],['interlock','独立联锁与安全处置已现场确认','此项为原型记录；未经实测，不放行危险气体真机实验']];
+    function preflightSample() { const p=state.preflight; return `<fieldset ${canOperateExperiment()?'':'disabled'} style="border:0;padding:0;margin:0;min-width:0"><div class="form-grid"><div class="field"><label for="pf-recipe">实验配方</label><select id="pf-recipe" data-pf-field="recipeId">${state.recipes.map(r=>`<option value="${r.id}" ${r.id===p.recipeId?'selected':''}>${r.id} · ${esc(r.name)}</option>`).join('')}</select></div><div class="field"><label for="pf-mode">实验类型 / 惰性气体</label><input id="pf-mode" value="${esc(typeName(chosenRecipe().experimentType)+' · '+gasMeta[chosenRecipe().inert].label)}" disabled></div><div class="field"><label for="pf-id">实验编号 *</label><input id="pf-id" data-pf-field="sampleId" value="${esc(p.sampleId)}"></div><div class="field"><label for="pf-sample">样品名称 *</label><input id="pf-sample" data-pf-field="sampleName" value="${esc(p.sampleName)}"></div><div class="field"><label for="pf-mass">初始装样质量 g *</label><input id="pf-mass" data-pf-field="mass" type="number" step="0.001" min="0.001" max="300" value="${esc(p.mass)}"></div><div class="field"><label for="pf-operator">实验员 *</label><input id="pf-operator" data-pf-field="operator" value="${esc(p.operator)}"></div><div class="field"><label for="pf-tfe">全铁 TFe %</label><input id="pf-tfe" data-pf-field="tfe" type="number" step="0.01" min="0" max="100" value="${esc(p.tfe)}"><span class="hint">用于后续方法验证的分析依据，首期不自动判定。</span></div><div class="field"><label for="pf-feo">FeO %</label><input id="pf-feo" data-pf-field="feo" type="number" step="0.01" min="0" max="100" value="${esc(p.feo)}"></div><div class="field span-2"><label for="pf-notes">样品与现场备注</label><textarea id="pf-notes" data-pf-field="notes" placeholder="样品批次、准备方式、偏离说明">${esc(p.notes)}</textarea></div></div></fieldset>`; }
     function preflightDevice() { return `<div class="stack"><div class="callout warn"><strong>现场安全边界：</strong>独立联锁和惰性气体处置尚未在本项目完成真机验证。本原型中的勾选仅用于演示预检信息架构。</div>${preflightChecks.map(([id,title,detail])=>`<label class="check-row"><input type="checkbox" data-check="${id}" ${state.preflight.checks[id]?'checked':''} ${canOperateExperiment()?'':'disabled'}><div><strong>${title}</strong><span>${detail}</span></div></label>`).join('')}</div>`; }
-    function preflightConfirm() { const p=state.preflight,r=chosenRecipe(),checks=Object.values(p.checks).filter(Boolean).length,ready=canOperateExperiment()&&checks===6 && r.status==='可执行' && isConnected() && !isStale() && !hasAlarm() && !state.run; return `<div class="stack"><div class="grid-2"><div class="op-status"><strong>实验身份</strong><span>${esc(p.sampleId)} · ${esc(p.sampleName)}<br>实验员 ${esc(p.operator)} · ${esc(p.mass)} g</span></div><div class="op-status"><strong>配方快照</strong><span>${esc(r.id)} · v${r.version}<br>${esc(r.name)} · ${esc(r.kind)}</span></div></div><div class="op-status"><strong>启动门槛</strong><span>${checks}/6 项预检已确认 · ${isConnected()&&!isStale()?'设备读数新鲜':'设备状态不可用'} · ${hasAlarm()?'存在待处理报警':'无待处理报警'}</span></div>${r.status!=='可执行'?'<div class="callout danger">标准候选模板待方法审核，目前不可执行。可复制为科研自定义配方并记录偏离。</div>':''}${state.run?'<div class="callout warn">已有实验处于运行或收尾状态；请先完成当前实验的安全收尾。</div>':''}<div class="row">${button(`${icon('play','small')} 确认启动演示实验`,'start-run','primary',ready?'':'disabled title="请完成预检、权限、报警和设备状态检查"')}<span class="subtle small">控制命令需再次确认；此原型不会向真实设备写入。</span></div></div>`; }
-    function renderPreflight() { const p=state.preflight; const stepTitles=['样品与配方','设备与现场','复核与启动']; const content=[preflightSample,preflightDevice,preflightConfirm][p.step](); return `${pageHead('实验工作流 / PREPARE','实验准备','从样品身份、配方版本到设备和现场条件逐项确认。')}
+    function preflightConfirm() { const p=state.preflight,r=chosenRecipe(),checks=Object.values(p.checks).filter(Boolean).length,ready=startReady(); return `<div class="stack"><div class="grid-2"><div class="op-status"><strong>实验身份</strong><span>${esc(p.sampleId)} · ${esc(p.sampleName)}<br>实验员 ${esc(p.operator)} · ${esc(p.mass)} g</span></div><div class="op-status"><strong>配方快照</strong><span>${esc(r.id)} · v${r.version}<br>${esc(r.name)} · ${typeName(r.experimentType)} · ${gasMeta[r.inert].label}<br>紧急吹扫 ${r.purgeFlow} L/min / ${r.purgeSeconds} s</span></div></div><div class="op-status"><strong>启动门槛</strong><span>${checks}/6 项预检已确认 · ${isConnected()&&!isStale()?'设备读数新鲜':'设备状态不可用'} · ${hasAlarm()?'存在待处理报警':'无待处理报警'}</span></div>${recipeProblem(r)?`<div class="callout danger">${esc(recipeProblem(r))}</div>`:''}${r.status!=='可执行'?'<div class="callout danger">标准候选模板待方法审核，目前不可执行。可复制为科研自定义配方并记录偏离。</div>':''}${state.run?'<div class="callout warn">已有实验处于运行或收尾状态；请先完成当前实验的安全收尾。</div>':''}<div class="row">${button(`${icon('play','small')} 确认启动演示实验`,'start-run','primary',ready?'':'disabled title="请完成预检、权限、报警和设备状态检查"')}<span class="subtle small">控制命令需再次确认；此原型不会向真实设备写入。</span></div></div>`; }
+    function renderPreflight() { const p=state.preflight; const stepTitles=['样品与配方','设备与现场','复核与启动']; const content=[preflightSample,preflightDevice,preflightConfirm][p.step](); return `${pageHead('实验工作流 / PREPARE','实验准备','从样品身份、实验类型、共用气源到设备和现场条件逐项确认。')}
       <div class="grid-side"><div class="stack"><div class="step-nav" aria-label="预检步骤">${stepTitles.map((title,i)=>`<button type="button" data-pf-step="${i}" class="${p.step===i?'current':p.step>i?'done':''}"><small>0${i+1} / 03</small>${title}</button>`).join('')}</div>${panel(stepTitles[p.step],content,`当前步骤 ${p.step+1} / 3`,'',`<div class="row space">${button('上一步','pf-prev','secondary',p.step===0?'disabled':'')}<div class="row">${p.step<2?button(`下一步 ${icon('arrow','small')}`,'pf-next','primary'):button('返回工作台','go-overview','secondary')}</div></div>`)}</div><div class="stack">${panel('本次准备摘要',`<div class="list-row"><div><strong>配方</strong><span>${esc(chosenRecipe().name)}</span></div>${badge(chosenRecipe().status,chosenRecipe().status==='可执行'?'good':'warn')}</div><div class="list-row"><div><strong>样品</strong><span>${esc(p.sampleName||'未填写')} · ${esc(p.mass||'—')} g</span></div></div><div class="list-row"><div><strong>设备状态</strong><span>温控器 / MFC / 天平</span></div>${badge(isConnected()?'在线':'离线',isConnected()?'good':'danger')}</div><div class="list-row"><div><strong>现场预检</strong><span>${Object.values(p.checks).filter(Boolean).length} / 6 项已确认</span></div></div>`,'准备信息随步骤保留')}${panel('方法提示',`<p class="subtle">GB/T 13241 候选流程只表示参考该方法建立的模板。正式标准符合性须经条款、参数和真机验证后签发。</p><div class="callout warn">真实还原气体实验需要独立硬件联锁和安全处置的现场验收记录。</div>`,'实验边界')}</div></div>`; }
     function runTone() { return state.run?.status==='running'?'good':state.run?.status==='paused'?'warn':state.run?.status==='cooling'?'info':''; }
     function runStatusText() { return ({running:'运行中',paused:'已暂停',cooling:'安全处置中',completed:'已完成'})[state.run?.status] || '待机'; }
     function runProgress() { const nodes=['预检','惰性准备','升温','测定','安全处置']; const index=state.run?.status==='cooling'||state.run?.status==='completed'?4:Math.min(3,1+(state.run?.stepIndex||0)); return `<div class="progress-track">${nodes.map((n,i)=>`<div class="progress-node ${i<index?'done':i===index?'now':''}">${n}</div>`).join('')}</div>`; }
-    function runReadouts() { const s=runSnapshot();return `<div class="readout"><div class="readout-item"><small>炉温 · PV / SP</small><strong>${isStale()?'—':`${s.temp} / ${s.sp}`}</strong> <em>℃</em></div><div class="readout-item"><small>重量 · 当前 / 初始</small><strong>${isStale()?'—':`${s.weight} / ${s.initial}`}</strong> <em>g</em></div><div class="readout-item"><small>N₂ · PV / SP</small><strong>${isStale()?'—':`${s.n2} / ${s.n2}`}</strong> <em>L/min</em></div><div class="readout-item"><small>H₂ · PV / SP</small><strong>${isStale()?'—':`${s.h2} / ${s.h2}`}</strong> <em>L/min</em></div><div class="readout-item"><small>CO · PV / SP</small><strong>${isStale()?'—':`${s.co} / ${s.co}`}</strong> <em>L/min</em></div><div class="readout-item"><small>采样质量</small><strong>${isStale()?'过期':'有效'}</strong></div></div>`; }
+    function runReadouts(){const s=runSnapshot();return `<div class="readout"><div class="readout-item"><small>炉温 · PV / SP</small><strong>${isStale()?'—':`${s.temp} / ${s.sp}`}</strong> <em>℃</em></div><div class="readout-item"><small>样品重量</small><strong>${isStale()?'—':s.weight}</strong> <em>g</em></div><div class="readout-item"><small>总供气流量</small><strong>${isStale()?'—':Object.values(state.run.flows).reduce((a,b)=>a+Number(b),0).toFixed(2)}</strong> <em>L/min</em></div></div>`;}
     function rawRows(historical=false) { const s=runSnapshot();const reduction=!historical&&state.run?.stepIndex===2&&state.run?.status==='running';const rows=historical||!state.run||reduction ? [
       ['09:50:24.500','897.6','53.142','3.00','1.00','0.80','有效'],['09:50:24.000','897.5','53.143','3.00','1.00','0.80','有效'],['09:50:23.500','897.6','53.144','3.00','1.00','0.80','有效'],['09:50:23.000','897.4','53.145','3.00','1.00','0.80','有效'],['09:50:22.500','897.2','53.145','3.00','1.00','0.80','有效']
     ] : Array.from({length:5},(_,i)=>[`09:52:${String(4-i).padStart(2,'0')}.500`,s.temp,s.weight,s.n2,s.h2,s.co,isStale()?'过期':'有效']);if(reduction)rows.forEach(row=>row[2]=(Number(row[2])*Number(state.run.sampleMass)/54.28).toFixed(3));if(historical)rows.forEach(row=>row[2]=(Number(row[2])+Number(selectedHistory().mass)-53.142).toFixed(3));return rows.map(row=>`<tr>${row.map((cell,i)=>`<td class="${i<6?'numeric':''}">${cell}</td>`).join('')}</tr>`).join(''); }
-    function renderCurrent() {
-      if(!state.run) return `${pageHead('实验工作流 / RUN','当前实验','实验运行、测定结束与安全完成分别留证。')}<section class="panel"><div class="empty">${icon('flask')}<h3>当前没有运行中的实验</h3><p>从实验准备进入，完成样品、配方和现场条件预检后才能启动。</p>${button('前往实验准备','go-preflight','primary')}</div></section>`;
-      const r=state.run, t=state.tabs.current;
-      const alertLine=state.scenario==='alarm'?'<div class="callout danger"><strong>设备报警：</strong>气体报警信号正在演示。暂停/恢复不可用；停止请求和报警记录仍可查看。</div>':isStale()?'<div class="callout warn"><strong>采样质量异常：</strong>实时读数已失效，页面保留最后有效值但不作为控制许可。</div>':'';
-      let content='';
-      if(t==='overview') content=`<div class="stack">${runProgress()}${runReadouts()}<div class="grid-2">${panel('炉温趋势',chartSvg('temp'),'单独 ℃ 坐标轴')}${panel('重量趋势',chartSvg('mass'),'单独 g 坐标轴')}</div></div>`;
-      if(t==='trends') content=`<div class="stack"><div class="row space"><div class="chart-legend"><span style="--legend:#176c78">炉温 · ℃</span><span style="--legend:#c47b3a">样品重量 · g</span></div><div class="segmented" aria-label="趋势时间范围">${[['15m','15 分钟'],['1h','1 小时'],['all','全程']].map(([id,label])=>`<button type="button" data-range="${id}" aria-pressed="${state.chartRange===id}">${label}</button>`).join('')}</div></div><div class="grid-2">${panel('炉温 · ℃',chartSvg('temp'),'PV 和设定值在正式实现中可分别开关')}${panel('重量 · g',chartSvg('mass'),'测定起点与数据缺口将标注在时间轴上')}</div><div class="callout">当前原型使用固定演示曲线；时间范围切换展示控件状态，正式版本按实际采样和时间窗口查询。</div></div>`;
-      if(t==='events') content=`<div class="grid-2">${panel('实验阶段事件',`<ol class="timeline">${state.events.map(e=>`<li><strong>${esc(e.title)}</strong><small>${esc(e.time)} · ${esc(e.detail)}</small></li>`).join('')}</ol>`,'按时间倒序记录')}${panel('操作结果',`<div class="op-status"><strong>${esc(state.lastOperation)}</strong><span>请求、下发与回读结果单独记录；结果未知时不自动重发。</span></div><div class="list-row"><div><strong>配方快照</strong><span>${esc(r.recipe)} v${r.recipeVersion}</span></div>${badge('已固化','good')}</div><div class="list-row"><div><strong>测定结束</strong><span>${r.status==='cooling'||r.status==='completed'?'已记录':'尚未到达'}</span></div></div><div class="list-row"><div><strong>安全完成</strong><span>${r.status==='completed'?'已确认':'尚未确认'}</span></div></div>`,'命令受理不等于实验完成')}</div>`;
-      if(t==='raw') content=`<div class="stack"><div class="callout">原始采样逐条保留时间戳、设备来源和质量状态；缺失值显示“未知”，不填 0。</div><div class="table-wrap"><table class="data-table"><thead><tr><th>采样时间</th><th>炉温 ℃</th><th>重量 g</th><th>N₂ L/min</th><th>H₂ L/min</th><th>CO L/min</th><th>质量</th></tr></thead><tbody>${rawRows()}</tbody></table></div><div class="subtle">演示最近 5 条。完整数据在历史实验中查询与导出。</div></div>`;
-      const canAct=canOperateExperiment()&&isConnected()&&!isStale()&&state.scenario!=='alarm';
-      const controls=`<div class="stack"><div class="operation-grid">${button(`${icon('pause','small')} 暂停`,'pause-run','secondary',r.status==='running'&&canAct?'':'disabled')}${button(`${icon('play','small')} 恢复`,'resume-run','secondary',r.status==='paused'&&canAct?'':'disabled')}${button(`${icon('scale','small')} 天平去皮`,'tare','secondary',r.status==='paused'&&canAct?'':'disabled')}${button(`${icon('stop','small')} 停止实验`,'stop-run','danger',(r.status==='running'||r.status==='paused')&&canOperateExperiment()?'':'disabled')}</div>${r.status==='running'?button('演示推进到下一阶段','advance-step','ghost full',canAct?'':'disabled'):''}${r.status==='cooling'?button('模拟安全处置完成','finish-cooling','primary full',canAct?'':'disabled'):''}${r.status==='completed'?button('复核并归档实验','archive-run','primary full',canOperateExperiment()?'':'disabled'):''}<div class="notice-line">${icon('shield','small')}<span>暂停、停止与去皮均需确认；设备状态未知时不放行新控制请求。物理急停由独立硬件承担。</span></div></div>`;
-      return `${pageHead('实验工作流 / RUN','当前实验','一个页面看清实验阶段、关键读数、操作结果和安全收尾。',badge(runStatusText(),runTone()))}<div class="stack">${alertLine}<div class="hero-panel"><div class="hero-main"><p class="eyebrow">ACTIVE RUN / ${esc(r.recipe)} v${r.recipeVersion}</p><h2>${esc(r.id)}</h2><p>${esc(r.sample)} · ${esc(r.phase)} · ${esc(r.started)} 启动</p><div class="row">${badge('科研自定义','dark')}${badge(isStale()?'数据不可用':'采样正常',isStale()?'warn':'good')}</div></div><div class="hero-side"><div><span>已运行</span><strong class="clock">${esc(r.elapsed)}</strong></div><div><span>当前阶段</span><strong>${esc(r.phase)}</strong></div></div></div><div class="grid-main"><section class="panel">${tabs('current',[['overview','过程总览'],['trends','实时趋势'],['events','阶段与操作'],['raw','原始采样']])}<div class="panel-body">${content}</div></section><div class="stack">${panel('受控操作',controls,'操作结果需要可核查')}${panel('当前边界',`<div class="list-row"><div><strong>连接与采样</strong><span>${isStale()?'过期/离线':'最近 0.5 秒'}</span></div>${badge(isStale()?'不可用':'有效',isStale()?'warn':'good')}</div><div class="list-row"><div><strong>待确认报警</strong><span>${hasAlarm()?'需处理':'无'}</span></div>${badge(hasAlarm()?'注意':'正常',hasAlarm()?'danger':'good')}</div><div class="list-row"><div><strong>安全联锁</strong><span>现场独立验证待完成</span></div>${badge('未验收','warn')}</div>`,'结果未知与不安全条件均明确展示')}</div></div></div>`;
+    function renderCurrent(){
+      if(!state.run)return `${pageHead('实验工作流 / RUN','当前实验','选择配方，确认气源和现场条件后启动。')}<section class="panel"><div class="empty">${icon('flask')}<h3>当前没有运行中的实验</h3><p>还原与氧化类型在配方中选择；本次运行期间锁定实验类型与惰性气体。</p>${state.startupNotice?`<div class="callout warn">${esc(state.startupNotice)}</div>`:''}${button('前往实验准备','go-preflight','primary')}</div></section>`;
+      const r=state.run,t=state.tabs.current,canAct=canOperateExperiment()&&!isStale()&&!hasAlarm(),recipe=liveRecipe();let content='';
+      if(t==='gas')content=gasControl();
+      if(t==='overview')content=`<div class="stack">${runProgress()}${runReadouts()}<div class="grid-2">${panel('炉温趋势',chartSvg('temp'),'℃ · 模拟曲线')}${panel('重量趋势',chartSvg('mass'),'g · 模拟曲线')}</div>${panel('本次阶段配方',`<div class="table-wrap"><table class="data-table"><thead><tr><th>阶段</th><th>目标 ℃</th><th>时长 s</th><th>气氛 · L/min</th></tr></thead><tbody>${recipe.steps.map((s,i)=>`<tr class="${r.stepIndex===i?'selected':''}"><td>${i+1}. ${esc(s.name)}</td><td>${s.temp}</td><td>${s.hold}</td><td>${gasSummary(s)}</td></tr>`).join('')}</tbody></table></div>`,'使用启动时固化版本')}</div>`;
+      if(t==='trends')content=`<div class="grid-2">${panel('炉温 · ℃',chartSvg('temp'),'固定演示曲线')}${panel('重量 · g',chartSvg('mass'),'固定演示曲线')}</div>`;
+      if(t==='events')content=`<ol class="timeline">${state.events.map(e=>`<li><strong>${esc(e.title)}</strong><small>${esc(e.time)} · ${esc(e.detail)}</small></li>`).join('')}</ol>`;
+      if(t==='raw')content=`<div class="stack"><div class="callout">以下为本次供气状态的模拟采样快照，非真实历史采集。未知读数显示“—”。</div>${liveGasTable()}</div>`;
+      const controls=`<div class="stack"><div class="operation-grid">${button('暂停 / 惰性保持','pause-run','secondary',r.status==='running'&&canAct?'':'disabled')}${button('复核并恢复','resume-run','secondary',r.status==='paused'&&canAct?'':'disabled')}${button('停止实验','stop-run','secondary',['running','paused'].includes(r.status)&&canOperateExperiment()?'':'disabled')}</div>${r.status==='running'?button('演示推进下一阶段','advance-step','ghost full',canAct?'':'disabled'):''}${r.status==='cooling'?button('复核安全收尾','finish-cooling','primary full',canAct?'':'disabled'):''}${r.status==='completed'?button('复核并归档实验','archive-run','primary full',canOperateExperiment()?'':'disabled'):''}<span class="subtle">暂停会关闭工艺气体并保持惰性气氛。紧急停气后，本次实验不可恢复。</span></div>`;
+      return `${pageHead('实验工作流 / LIVE CONTROL','当前实验','配方自动运行 · 按实验类型开放手动控制 · 全程记录供气变更',badge(runStatusText(),runTone()))}<div class="stack">${isStale()?'<div class="callout danger">设备离线或采样过期：实测未知，普通调气已锁定。紧急请求仍可记录，须在现场确认执行结果。</div>':''}<div class="hero-panel"><div class="hero-main"><p class="eyebrow">${typeName(r.experimentType)} / ${esc(r.recipe)} · v${r.recipeVersion}</p><h2>${esc(r.id)}</h2><p>${esc(r.sample)} · ${esc(r.phase)} · ${esc(r.started)} 启动</p><div class="row">${badge('类型已锁定','info')}${badge(`${gasMeta[r.inert].label} 气源已锁定`)}${badge(r.controlMode==='manual'?'手动覆盖当前阶段':r.controlMode==='safety'?'安全气氛保持':'配方自动',r.controlMode==='manual'?'warn':'good')}</div></div><div class="hero-side"><div><span>已运行</span><strong class="clock">${esc(r.elapsed)}</strong></div><div><span>当前供气 · L/min</span><strong>${esc(gasSummary(r.flows))}</strong></div></div></div><div class="experiment-layout"><section class="panel">${tabs('current',[['gas','供气与手动控制'],['overview','过程总览'],['trends','实时趋势'],['events','阶段与操作'],['raw','原始采样']])}<div class="panel-body">${content}</div></section><aside class="stack">${emergencyPanel()}${panel('实验操作',controls)}${panel('互锁状态',`<div class="list-row"><div><strong>实验类型互锁</strong><span>${r.experimentType==='oxidation'?'CO / H₂ / CH₄ 禁用':'O₂ 禁用'}</span></div>${badge('已锁定','good')}</div><div class="list-row"><div><strong>MFC-01 · 共用通道</strong><span>${gasMeta[r.inert].label} 已选 · ${r.inert==='n2'?'Ar':'N₂'} 关闭</span></div></div><div class="list-row"><div><strong>指令 / 回读</strong><span>${isStale()?'回读未知':'模拟设定与回读一致'}</span></div>${badge(isStale()?'待核实':'一致',isStale()?'warn':'good')}</div>`,'7 种气体 / 6 台质量流量控制器')}</aside></div></div>`;
     }
+    function liveGasTable(){const r=state.run;return `<div class="table-wrap"><table class="data-table"><thead><tr><th>气体</th><th>MFC</th><th>设定 L/min</th><th>模拟实测 L/min</th></tr></thead><tbody>${gasKeys.map(k=>`<tr><td>${gasLabel(k)}</td><td>0${gasMeta[k].mfc}</td><td>${Number(r.flows[k]).toFixed(2)}</td><td>${isStale()?'—':Number(r.flows[k]).toFixed(2)}</td></tr>`).join('')}</tbody></table></div>`;}
     function filteredHistory() { return history.filter(x=>(state.historyStatusApplied==='all'||x.status===state.historyStatusApplied) && (!state.historyApplied||`${x.id} ${x.sample} ${x.recipe}`.toLowerCase().includes(state.historyApplied.toLowerCase()))); }
     function historyDetail() {
-      const h=selectedHistory(), tab=state.tabs.history;
-      if(tab==='summary') return `<div class="stack"><div class="grid-2"><div class="op-status"><strong>实验身份</strong><span>${esc(h.id)}<br>${esc(h.sample)} · ${esc(h.recipe)}</span></div><div class="op-status"><strong>归档状态</strong><span>${esc(h.status)} · 数据${esc(h.quality)}<br>运行 ${h.duration}</span></div></div><div class="readout"><div class="readout-item"><small>最高炉温</small><strong>${h.temp}</strong> <em>℃</em></div><div class="readout-item"><small>结束重量</small><strong>${h.mass}</strong> <em>g</em></div><div class="readout-item"><small>报警事件</small><strong>${h.alarms}</strong> <em>条</em></div></div>${h.quality!=='完整'?'<div class="callout warn">本实验存在数据质量限制。指标和报告应标明缺口，不得当作完整实验。</div>':''}</div>`;
+      const h=selectedHistory(), tab=state.tabs.history; if(h.snapshot&&tab==='data')return `<div class="stack"><div class="callout">归档时模拟状态快照；不代表完整采样序列。</div><div class="row">${badge(typeName(h.experimentType),'info')}${badge(gasMeta[h.inert].label)}${badge(h.emergency?'紧急中止':'常规收尾',h.emergency?'danger':'')}</div><div class="table-wrap"><table class="data-table"><thead><tr><th>阶段</th><th>气氛 · L/min</th></tr></thead><tbody>${h.snapshot.steps.map(s=>`<tr><td>${esc(s.name)}</td><td>${gasSummary(s)}</td></tr>`).join('')}</tbody></table></div></div>`;
+      if(tab==='summary') return `<div class="stack"><div class="grid-2"><div class="op-status"><strong>实验身份</strong><span>${esc(h.id)}<br>${esc(h.sample)} · ${esc(h.recipe)}</span></div><div class="op-status"><strong>归档状态</strong><span>${h.experimentType?typeName(h.experimentType)+' · '+gasMeta[h.inert].label+' · ':''}${h.emergency?'紧急中止 · ':''}${esc(h.status)} · 数据${esc(h.quality)}<br>运行 ${h.duration}</span></div></div><div class="readout"><div class="readout-item"><small>最高炉温</small><strong>${h.temp}</strong> <em>℃</em></div><div class="readout-item"><small>结束重量</small><strong>${h.mass}</strong> <em>g</em></div><div class="readout-item"><small>报警事件</small><strong>${h.alarms}</strong> <em>条</em></div></div>${h.quality!=='完整'?'<div class="callout warn">本实验存在数据质量限制。指标和报告应标明缺口，不得当作完整实验。</div>':''}</div>`;
       if(tab==='trend') return `<div class="grid-2">${panel('历史炉温',chartSvg('temp',true),'按该实验时间轴查看')}${panel('历史重量',chartSvg('mass',true),'与温度独立纵轴')}</div>`;
       if(tab==='data') return `<div class="stack"><div class="callout">以下为原始采样表的设计示例。正式实现提供分页、时间范围和质量筛选。</div><div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>炉温 ℃</th><th>重量 g</th><th>N₂</th><th>H₂</th><th>CO</th><th>质量</th></tr></thead><tbody>${rawRows(true)}</tbody></table></div></div>`;
       if(tab==='alarms') return h.alarms?`<div class="list-row"><div><strong>ALM-0080 · 通信质量告警</strong><span>2026-10-25 14:02 · 已确认，数据缺口待核查</span></div>${badge('需复核','warn')}</div>`:`<div class="empty">${icon('bell')}<h3>本次实验无报警事件</h3><p>报警事件会随实验编号归档，并记录确认时间与操作者。</p></div>`;
@@ -458,18 +867,18 @@
       return `${pageHead('实验管理 / ALARMS','报警事件','报警出现、状态解除与人工确认分开记录。',badge(`${current.length} 条当前报警`,current.length?'danger':'good'))}<div class="stack">${current.length?'<div class="callout danger"><strong>当前有设备异常：</strong>确认报警只记录已读，不会解除现场故障或自动恢复实验。</div>':'<div class="callout">当前没有活跃报警。可用右上角“演示状态”切换到报警场景。</div>'}<section class="panel">${tabs('alarms',[['active','当前报警'],['history','历史与确认记录']])}<div class="table-wrap"><table class="data-table"><thead><tr><th>事件编号</th><th>等级</th><th>事件 / 来源</th><th>发生时间</th><th>确认状态</th><th>操作</th></tr></thead><tbody>${rows||`<tr><td colspan="6" class="muted-cell">${tab==='active'?'当前无活跃报警':'暂无已解除的报警事件'}</td></tr>`}</tbody></table></div></section>${panel('处理原则',`<div class="grid-3"><div class="op-status"><strong>01 · 识别</strong><span>确认报警类型、来源、设备状态与实验阶段。</span></div><div class="op-status"><strong>02 · 处置</strong><span>按现场 SOP 处理；危险气体与急停由独立硬件负责。</span></div><div class="op-status"><strong>03 · 复核</strong><span>故障解除、设备新鲜且满足恢复条件后才可申请继续。</span></div></div>`,'软件确认不替代现场安全处置')}</div>`;
     }
     function deviceStatus(id) { if(!isConnected()) return badge('离线','danger'); if(isStale()) return badge('数据过期','warn'); return badge('在线','good'); }
-    function deviceValue(id) { const s=runSnapshot();return id==='temp'?`${s.temp} ℃`:id==='mfc'?`${(Number(s.n2)+Number(s.h2)+Number(s.co)).toFixed(2)} L/min`:`${s.weight} g`; }
+    function deviceValue(id) { const s=runSnapshot();return id==='temp'?`${s.temp} ℃`:id==='mfc'?`${(state.run?Object.values(state.run.flows).reduce((a,b)=>a+Number(b),0):0).toFixed(2)} L/min`:`${s.weight} g`; }
     function renderDevices() {
       const tab=state.tabs.devices;
       let body='';
-      if(tab==='overview') body=`<div class="stack"><div class="grid-3">${deviceRows.map(d=>`<div class="metric"><div class="row space"><div class="metric-label">${icon(d.id==='temp'?'thermometer':d.id==='mfc'?'gas':'scale','small')}${d.label}</div>${deviceStatus(d.id)}</div><div class="metric-value" style="font-size:19px">${isStale()?'—':deviceValue(d.id)}</div><div class="metric-meta">${d.model} · ${d.port}</div></div>`).join('')}</div><div class="callout">控制与采样由后台单一网关持有串口；每个设备独立报告最后有效时间、通信质量与错误原因。</div></div>`;
+      if(tab==='overview') body=`<div class="stack"><div class="grid-3">${deviceRows.map(d=>`<div class="metric"><div class="row space"><div class="metric-label"><span class="metric-icon">${icon(d.id==='temp'?'thermometer':d.id==='mfc'?'gas':'scale','small')}</span>${d.label}</div>${deviceStatus(d.id)}</div><div class="metric-value" style="font-size:19px">${isStale()?'—':deviceValue(d.id)}</div><div class="metric-meta">${d.model} · ${d.port}</div></div>`).join('')}</div><div class="callout">控制与采样由后台单一网关持有串口；每个设备独立报告最后有效时间、通信质量与错误原因。</div></div>`;
       if(tab==='topology') body=`<div class="stack"><div class="grid-3">${deviceRows.map((d,i)=>`<div class="op-status"><strong>0${i+1} · ${d.label}</strong><span>${d.model}<br>${d.port} · ${d.role}<br>应用服务独占访问</span></div>`).join('')}</div><div class="op-status"><strong>Windows 本机服务 → 独立设备适配器</strong><span>前端和桌面壳只访问本机 API；不直接打开串口，不并行创建第二条采控链路。</span></div><div class="callout warn">设备编号、寄存器、通道满量程和物理接线以真机实测表为准。该图仅展示已确认的多设备直连方向。</div></div>`;
-      if(tab==='channels') body=`<div class="stack"><div class="callout warn">以下 6 路和满量程来自当前软件默认配置，仅作界面结构示例。仓库硬件清单写 5 台 MFC，设备目录的气体映射也不同；现场必须核对实物编号、介质、满量程与接线后才可启用控制。</div><div class="table-wrap"><table class="data-table"><thead><tr><th>软件地址</th><th>默认介质</th><th>默认满量程</th><th>现场身份</th><th>状态</th><th>详情</th></tr></thead><tbody>${mfcChannels.map(([address,gas,scale])=>`<tr><td class="mono">${address}</td><td>${gas}</td><td class="mono">${scale} L/min</td><td>待实物核对</td><td>${badge('映射未确认','warn')}</td><td><button class="button ghost" type="button" data-action="channel-detail" data-address="${address}">查看</button></td></tr>`).join('')}</tbody></table></div></div>`;
+      if(tab==='channels') body=`<div class="stack"><div class="callout"><strong>7 种介质 / 6 台 MFC</strong> · MFC-01 由 N₂ 与 Ar 共用，实验启动前二选一。其余五台分别控制 CO、CO₂、H₂、CH₄、O₂。设备上限按提供的能力配置，实际使用受管理员上限限制。地址为原型示意。</div>${gasMap()}<div class="grid-2"><div class="op-status"><strong>还原实验</strong><span>N₂ 或 Ar + CO / CO₂ / H₂ / CH₄<br>O₂ 全程禁止</span></div><div class="op-status"><strong>氧化实验</strong><span>N₂ 或 Ar + CO₂ / O₂<br>CO / H₂ / CH₄ 全程禁止</span></div></div></div>`;
       if(tab==='diagnostics') body=`<div class="stack"><div class="row">${button(`${icon('refresh','small')} 重新读取快照`,'refresh-device','secondary')}${button('演示断线','simulate-offline','secondary')}${button('恢复正常场景','simulate-normal','ghost')}</div><div class="table-wrap"><table class="data-table"><thead><tr><th>设备</th><th>端口</th><th>最新样本</th><th>质量</th><th>处理建议</th></tr></thead><tbody>${deviceRows.map(d=>`<tr><td>${d.label}</td><td class="mono">${d.port}</td><td class="mono">${isStale()?'—':'0.5 s 前'}</td><td>${deviceStatus(d.id)}</td><td>${isStale()?'核对电源、线缆与端口配置':'持续监测，无需操作'}</td></tr>`).join('')}</tbody></table></div><div class="notice-line">${icon('info','small')}<span>诊断按钮只切换演示状态。正式实现由后台记录超时、重试、最后有效样本与错误码。</span></div></div>`;
       return `${pageHead('系统 / DEVICES','设备诊断','温控器、MFC 总线和天平分别直连；状态包含数据新鲜度。',button(`${icon('refresh','small')} 读取状态`,'refresh-device','secondary'))}<div class="stack"><section class="panel">${tabs('devices',[['overview','设备概览'],['topology','连接拓扑'],['channels','MFC 通道与量程'],['diagnostics','通信诊断']])}<div class="panel-body">${body}</div></section>${panel('现场安全状态',`<div class="grid-2"><div class="op-status"><strong>软件可见条件</strong><span>设备通信、测量新鲜度、设定与回读。</span></div><div class="op-status"><strong>独立硬件条件</strong><span>急停、断气、惰性气体安全处置须现场单独验证。</span></div></div>`,'不要用界面在线状态代替物理联锁验收')}</div>`;
     }
     function renderAudit() {
-      const category=e=>/报警|安全|停止|处置/.test(e.title)?'safety':'control';
+      const category=e=>/报警|安全|停止|停气|吹扫|处置/.test(e.title)?'safety':'control';
       const list=state.events.map((e,i)=>({...e,index:i,category:category(e)})).filter(e=>state.tabs.audit==='all'||e.category===state.tabs.audit);
       return `${pageHead('系统 / AUDIT','操作审计','按事件编号、操作者、动作与结果追溯实验过程。',badge('演示记录','warn'))}<div class="stack"><div class="callout">当前为前端演示事件。正式审计需由后台写入真实身份、设备回读、时间戳和不可篡改的操作结果。</div><section class="panel">${tabs('audit',[['all','全部事件'],['control','控制操作'],['safety','报警与安全']])}<div class="table-wrap"><table class="data-table"><thead><tr><th>时间</th><th>操作编号</th><th>类别</th><th>事件</th><th>操作者</th><th>结果</th><th>详情</th></tr></thead><tbody>${list.map(e=>`<tr><td class="mono">2026-10-27 ${esc(e.time)}</td><td class="mono">OP-1027-${String(42+e.index).padStart(4,'0')}</td><td>${badge(e.category==='safety'?'安全':'控制',e.category==='safety'?'warn':'info')}</td><td>${esc(e.title)}</td><td>${esc(e.actor||'实验员 A')}</td><td>${badge(e.tone==='danger'?'需复核':'已记录',e.tone==='danger'?'danger':'good')}</td><td><button class="button ghost" type="button" data-action="audit-detail" data-index="${e.index}">查看</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted-cell">该类别暂无演示记录。</td></tr>'}</tbody></table></div></section></div>`;
     }
@@ -479,11 +888,12 @@
     function renderSettings() {
       const t=state.tabs.settings;
       let body='';
+      if(t==='gasLimits') body=renderGasLimits();
       if(t==='general') body=`<div class="stack"><div class="form-grid"><div class="field"><label for="setting-sample">演示采样间隔</label><select id="setting-sample" data-setting="sampleMs">${[['200','200 ms'],['500','500 ms'],['1000','1000 ms']].map(([v,label])=>`<option value="${v}" ${state.settings.sampleMs===v?'selected':''}>${label}</option>`).join('')}</select></div><div class="field"><label for="setting-density">界面密度</label><select id="setting-density" data-setting="display"><option ${state.settings.display==='标准密度'?'selected':''}>标准密度</option><option ${state.settings.display==='紧凑密度'?'selected':''}>紧凑密度</option></select></div></div><label class="check-row"><input type="checkbox" data-setting-check="autoRefresh" ${state.settings.autoRefresh?'checked':''}><div><strong>实时页面自动刷新</strong><span>仅改变原型中的设置状态；正式实现应显示刷新失败和过期时间。</span></div></label><div class="row">${button('保存界面设置','save-settings','primary')}</div></div>`;
       if(t==='serial') body=`<div class="stack"><div class="callout warn">串口配置属于维护权限。以下为拓扑示意，原型不会写入系统端口。</div><div class="table-wrap"><table class="data-table"><thead><tr><th>设备</th><th>示例端口</th><th>协议</th><th>波特率</th><th>配置状态</th></tr></thead><tbody><tr><td>温控器</td><td class="mono">COM3</td><td>Modbus RTU</td><td class="mono">19200</td><td>${badge('待现场核实','warn')}</td></tr><tr><td>MFC 总线</td><td class="mono">COM4</td><td>Azbil CPL</td><td class="mono">19200</td><td>${badge('待现场核实','warn')}</td></tr><tr><td>电子天平</td><td class="mono">COM5</td><td>串口 ASCII</td><td class="mono">9600</td><td>${badge('待现场核实','warn')}</td></tr></tbody></table></div>${button('前往设备诊断','go-devices','secondary')}</div>`;
       if(t==='safety') body=`<div class="stack"><div class="callout danger"><strong>独立联锁尚未完成真机验证。</strong>软件界面不得成为唯一安全控制层；任何危险气体实验需先完成现场安全验收。</div><div class="grid-2"><div class="op-status"><strong>新控制请求门控</strong><span>离线、数据过期、活跃报警、未知反馈均禁止启动与恢复。</span></div><div class="op-status"><strong>安全收尾</strong><span>测定结束、停止受理、惰性气体处置与冷却分别留证。</span></div><div class="op-status"><strong>模拟模式隔离</strong><span>顶部持续显示“仿真演示”；演示数据不能进入真机证据。</span></div><div class="op-status"><strong>紧急操作</strong><span>物理急停与硬接线联锁优先，软件只显示和留痕。</span></div></div></div>`;
-      if(t==='users') body=`<div class="stack"><div class="table-wrap"><table class="data-table"><thead><tr><th>角色</th><th>可查看</th><th>可操作</th><th>维护边界</th></tr></thead><tbody><tr><td>观察员</td><td>实时、历史、报警</td><td>无</td><td>只读</td></tr><tr><td>实验员</td><td>全部实验页面</td><td>准备、科研配方、启停、确认</td><td>不能修改设备映射</td></tr><tr><td>维护员</td><td>诊断与配置</td><td>维护操作</td><td>需记录原因</td></tr><tr><td>管理员</td><td>全部</td><td>账号与策略管理</td><td>不绕过设备安全状态</td></tr></tbody></table></div><div class="callout">可从右上角身份入口查看登录原型并切换演示角色。该切换只演示界面，不进行身份认证；正式权限必须由后台验证。</div></div>`;
-      return `${pageHead('系统 / SETTINGS','系统设置','将演示偏好、通信、设备安全和用户角色分开呈现。')}<section class="panel">${tabs('settings',[['general','界面与采样'],['serial','串口配置'],['safety','安全边界'],['users','角色权限']])}<div class="panel-body">${body}</div></section>`;
+      if(t==='users') body=`<div class="stack"><div class="table-wrap"><table class="data-table"><thead><tr><th>角色</th><th>可查看</th><th>可操作</th><th>维护边界</th></tr></thead><tbody><tr><td>观察员</td><td>实时、历史、报警</td><td>无</td><td>只读</td></tr><tr><td>实验员</td><td>全部实验页面</td><td>准备、科研配方、启停、确认</td><td>不能修改气体使用上限或设备映射</td></tr><tr><td>维护员</td><td>诊断与配置</td><td>维护操作</td><td>不能修改气体使用上限</td></tr><tr><td>管理员</td><td>全部</td><td>气体使用上限、账号与策略管理</td><td>不绕过设备安全状态</td></tr></tbody></table></div><div class="callout">可从右上角身份入口查看登录原型并切换演示角色。该切换只演示界面，不进行身份认证；正式权限必须由后台验证。</div></div>`;
+      return `${pageHead('系统 / SETTINGS','系统设置','将演示偏好、通信、设备安全和用户角色分开呈现。')}<section class="panel">${tabs('settings',[['gasLimits','气体使用上限'],['general','界面与采样'],['serial','串口配置'],['safety','安全边界'],['users','角色权限']])}<div class="panel-body">${body}</div></section>`;
     }
     function renderAnalysis() {
       const t=state.tabs.analysis;
@@ -501,84 +911,82 @@
       else body=`<div class="stack"><div class="op-status"><strong>原始与过程</strong><span>实验身份、样品批次、设备身份、配方版本、温度/气体/重量时序与报警。</span></div><div class="op-status"><strong>结果与限制</strong><span>指标、单位、算法版本、原始数据引用、缺失原因、异常操作与偏离项。</span></div><div class="op-status"><strong>审签与复算</strong><span>结果核查人、规则批准版本、报告生成时间和历史报告版本。</span></div></div>`;
       return `${pageHead('结果 / REPORTS','报告中心','将原始证据、计算结果和正式审签分开管理。',badge('模板评审中','warn'))}<section class="panel">${tabs('reports',[['list','报告列表'],['preview','报告预览'],['fields','字段与审签']])}<div class="panel-body">${body}</div></section>`;
     }
-    function renderHelp() { return `${pageHead('帮助 / GUIDE','使用帮助','按准备、运行、收尾和复核四步理解整个实验操作。')}<div class="grid-side"><div class="stack">${panel('典型工作流程',`<div class="list-row"><div><strong>1. 建立配方</strong><span>选择科研自定义配方，核对阶段、单位与版本。</span></div>${button('打开','go-recipes','ghost')}</div><div class="list-row"><div><strong>2. 完成预检</strong><span>登记样品与操作员，逐项确认设备及现场条件。</span></div>${button('打开','go-preflight','ghost')}</div><div class="list-row"><div><strong>3. 监控实验</strong><span>区分设定与实测，关注阶段、数据质量与报警。</span></div>${button('打开','go-current','ghost')}</div><div class="list-row"><div><strong>4. 复核与导出</strong><span>安全处置完成后查看历史、原始数据与 CSV。</span></div>${button('打开','go-history','ghost')}</div>`,'交互原型可按此顺序演示')}${panel('常见问题',`<details class="check-row"><summary><strong>“报警确认”会解除联锁吗？</strong></summary><p class="subtle">不会。确认只记录人员已知悉，现场故障仍须排除并复核设备状态。</p></details><details class="check-row"><summary><strong>设备离线时还能看历史吗？</strong></summary><p class="subtle">可以。历史与导出使用已保存的数据，但新的控制请求必须停止放行。</p></details><details class="check-row"><summary><strong>为什么标准候选模板不能启动？</strong></summary><p class="subtle">方法条款、工艺值与真机安全条件尚待正式审核。可以复制为科研自定义配方做无危险介质演示。</p></details><details class="check-row"><summary><strong>测定结束后实验为何仍显示进行中？</strong></summary><p class="subtle">惰性气体处置与冷却仍在进行；安全完成和最终归档需要单独确认。</p></details>`,'点击问题可展开回答')}</div><div class="stack">${panel('演示说明',`<div class="callout">点击右上角“演示状态”切换待机、运行、报警、断线和数据过期，检查各页面的边界状态。</div><div class="row" style="margin-top:12px">${button('切换演示状态','scenario','secondary')}</div>`,'无需真实账号与设备')}${panel('快捷入口',`<div class="stack">${button('实验配方','go-recipes','secondary full')}${button('当前实验','go-current','secondary full')}${button('报警事件','go-alarms','secondary full')}${button('系统设置','go-settings','secondary full')}</div>`,'所有页面由左侧主导航进入')}</div></div>`; }
+    function renderHelp(){return `${pageHead('帮助 / WORKFLOW','实验流程与互锁规则','先选类型与气源，再编排配方；运行中调气，安全收尾后归档。')}<div class="stack"><div class="callout">配方和运行设定不能超过管理员使用上限；修改限值请进入“系统设置 → 气体使用上限”，仅管理员在待机时可操作。</div><div class="flow-strip"><b>类型 / 气源</b> → <b>阶段配方</b> → <b>现场预检</b> → <b>运行 / 手动调整</b> → <b>惰性吹扫 / 冷却</b> → <b>复核归档</b></div>${panel('气体与设备映射',gasMap(),'7 种气体 / 6 台 MFC；设备能力固定，使用上限由管理员设置')}${panel('实验类型互锁',`<div class="grid-2"><div class="op-status"><strong>还原实验</strong><span>N₂ 或 Ar + CO / CO₂ / H₂ / CH₄<br>不显示 O₂ 手动控制，配方校验禁止 O₂ 非零。</span></div><div class="op-status"><strong>氧化实验</strong><span>N₂ 或 Ar + CO₂ / O₂<br>不显示 CO / H₂ / CH₄ 控制，配方校验禁止还原性气体非零。</span></div></div>`)}${panel('供气操作规则',`<div class="list-row"><div><strong>共用惰性气源</strong><span>N₂ 与 Ar 在配方中二选一；启动前核对钢瓶、切换气路和 MFC 介质标定。本次运行中锁定，不允许同时使用。</span></div></div><div class="list-row"><div><strong>手动修改</strong><span>输入目标流量 → 预览前后差异 → 填写原因 → 应用并记录。只覆盖当前段；可恢复配方，推进下一段时复核并结束覆盖。</span></div></div><div class="list-row"><div><strong>紧急停气</strong><span>点击后直接执行演示：工艺气体全部归零 → 充入本次 N₂ 或 Ar → 锁定供气 → 吹扫与冷却复核 → 归档。本次不可恢复。</span></div></div><div class="list-row"><div><strong>设备异常</strong><span>离线、过期或报警禁止普通调气；紧急请求保留，结果未知时提示现场核实。报警确认不会解除故障。</span></div></div><div class="list-row"><div><strong>安全复核</strong><span>确认工艺气体关闭、吹扫达到配置时长、冷却符合条件后，演示关闭惰性供气并归档。原型不替代真实控制或硬件联锁。</span></div></div>`)}<div class="row">${button('实验配方','go-recipes','primary')}${button('实验准备','go-preflight','secondary')}${button('当前实验','go-current','secondary')}${button('切换演示状态','scenario','secondary')}${button('气体使用上限','open-gas-limits','secondary')}</div><div class="subtle">实验与配方演示数据保存在本次会话；管理员使用上限和变更记录保存在当前浏览器。CO₂ 暂按两类实验均可使用。</div></div>`;}
     function renderPage() { return ({overview:renderOverview,recipes:renderRecipes,preflight:renderPreflight,current:renderCurrent,history:renderHistory,alarms:renderAlarms,devices:renderDevices,audit:renderAudit,settings:renderSettings,analysis:renderAnalysis,reports:renderReports,help:renderHelp})[state.page](); }
-    function render(focusMain=false) { $('.shell').classList.toggle('logged-out',!state.loggedIn);if(state.loggedIn){renderSidebar();renderTopbar();} $('#main-content').innerHTML=state.loggedIn?`<div class="page">${renderPage()}</div>`:renderLogin(); document.title=`${state.loggedIn?pageNames[state.page]:'演示身份入口'} · RKA-3000 UI 原型`; if(focusMain) { window.scrollTo(0,0); $('#main-content').focus({preventScroll:true}); } }
+    function render(focusMain=false) { $('.shell').classList.toggle('logged-out',!state.loggedIn);if(state.loggedIn){renderSidebar();renderTopbar();} $('#main-content').innerHTML=state.loggedIn?`<div class="page">${state.limitLoadWarning?`<div class="callout warn" style="margin-bottom:16px">${esc(state.limitLoadWarning)} ${button('复核使用上限','open-gas-limits','ghost')}</div>`:''}${renderPage()}</div>`:renderLogin(); document.title=`${state.loggedIn?pageNames[state.page]:'演示身份入口'} · RKA-3000 UI 原型`; if(focusMain) { window.scrollTo(0,0); $('#main-content').focus({preventScroll:true}); } }
     let modalConfirm=null, toastTimer=null;
     function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3800); }
-    function modal(title,body,confirmText,callback,danger=false) { $('#modal-title').textContent=title; $('#modal-body').innerHTML=body; $('#modal-confirm').textContent=confirmText; $('#modal-confirm').className=`button ${danger?'danger':'primary'}`; modalConfirm=callback; $('#confirm-dialog').showModal(); $('#modal-cancel').focus(); }
+    function modal(title,body,confirmText,callback,danger=false) { $('#modal-title').textContent=title; $('#modal-body').innerHTML=body; $('#modal-confirm').textContent=confirmText; $('#modal-confirm').className=`button ${danger?'danger':'primary'}`; modalConfirm=callback;$('#modal-emergency').hidden=!state.run||state.run.status==='completed'||!canOperateExperiment(); $('#confirm-dialog').showModal(); $('#modal-cancel').focus(); }
     function closeModal() { $('#confirm-dialog').close(); modalConfirm=null; }
     function navigate(page,tab) { if(!state.loggedIn||!pageNames[page]) return; state.page=page; if(tab) state.tabs[page]=tab; state.mobileOpen=false; historyReplace(page); render(true); }
     function historyReplace(page) { try { window.history.replaceState(null,'',`#${page}`); } catch (_) { /* file URL may restrict history updates */ } }
-    function addEvent(title,detail,tone='info') { state.events.unshift({time:'09:51:00',title,detail,tone,actor:state.userName}); state.lastOperation=`OP-1027-${String(42+state.events.length).padStart(4,'0')} · ${title}`; }
+    function addEvent(title,detail,tone='info') { state.events.unshift({time:new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date()),title,detail,tone,actor:state.userName}); state.lastOperation=`OP-1027-${String(42+state.events.length).padStart(4,'0')} · ${title}`; }
     function addAlarm() { if(state.alarms.some(a=>!a.cleared)) return; state.alarms.unshift({id:'ALM-20261027-004',level:'严重',message:'可燃气体报警 · 需现场核查',source:'气体安全系统 / 独立联锁输入',started:'2026-10-27 09:51:00',ack:false,cleared:false}); addEvent('报警事件已记录','可燃气体报警；软件暂停新的控制许可','danger'); }
     function setScenario(value) {
       if(value==='standby') { state.run=null; state.scenario='normal'; state.alarms=[]; state.preflight=initialPreflight(); toast('已切换为待机场景，可从实验准备开始演示。'); }
-      else if(value==='running') { state.run=demoRun(); state.scenario='normal'; state.alarms.forEach(a=>a.cleared=true); state.events=clone(initialEvents); toast('已切换为运行中场景。'); }
-      else if(value==='alarm') { state.run ||= demoRun(); state.scenario='alarm'; addAlarm(); toast('已切换为报警场景；请查看报警页和操作门控。'); }
-      else if(value==='offline') { state.run ||= demoRun(); state.scenario='offline'; toast('设备已模拟断线，实时读数标为未知。'); }
-      else if(value==='stale') { state.run ||= demoRun(); state.scenario='stale'; toast('采样已模拟过期，新的控制操作不被放行。'); }
+      else if(value==='running') { if(recipeProblem(state.recipes[0])||state.limitLoadWarning){state.run=null;state.scenario='normal';toast('演示配方超限或策略待复核，请先调整使用上限或配方。');render();return;}state.run=demoRun();bindRun(state.run,state.recipes[0]); state.scenario='normal'; state.alarms.forEach(a=>a.cleared=true); state.events=clone(initialEvents); toast('已切换为运行中场景。'); }
+      else if(value==='alarm') { if(!state.run&&!recipeProblem(state.recipes[0])&&!state.limitLoadWarning){state.run=demoRun();bindRun(state.run,state.recipes[0]);} state.scenario='alarm'; addAlarm(); toast('已切换为报警场景；请查看报警页和操作门控。'); }
+      else if(value==='offline') { if(!state.run&&!recipeProblem(state.recipes[0])&&!state.limitLoadWarning){state.run=demoRun();bindRun(state.run,state.recipes[0]);} state.scenario='offline'; toast('设备已模拟断线，实时读数标为未知。'); }
+      else if(value==='stale') { if(!state.run&&!recipeProblem(state.recipes[0])&&!state.limitLoadWarning){state.run=demoRun();bindRun(state.run,state.recipes[0]);} state.scenario='stale'; toast('采样已模拟过期，新的控制操作不被放行。'); }
       else { state.scenario='normal'; state.alarms.forEach(a=>a.cleared=true); toast('已恢复正常场景；原有报警保留历史记录。'); }
       render();
     }
-    function validateDraft() {
-      const r=state.draft;
-      if(!r.name.trim()) return '请填写配方名称。';
-      if(!r.steps.length) return '请至少添加一个工艺阶段。';
-      for(let i=0;i<r.steps.length;i++) {
-        const s=r.steps[i], n=i+1;
-        if(!s.name.trim()) return `第 ${n} 阶段缺少名称。`;
-        for(const key of ['temp','ramp','hold','n2','h2','co']) if(!Number.isFinite(Number(s[key]))) return `第 ${n} 阶段存在无效数值。`;
-        if(Number(s.temp)<0||Number(s.temp)>1600) return `第 ${n} 阶段目标温度需在 0–1600 ℃。`;
-        if(Number(s.ramp)<0||Number(s.ramp)>20) return `第 ${n} 阶段升温速率需在 0–20 ℃/min。`;
-        if(Number(s.hold)<0||Number(s.n2)<0||Number(s.n2)>20||Number(s.h2)<0||Number(s.h2)>5||Number(s.co)<0||Number(s.co)>5) return `第 ${n} 阶段保温时间或气体流量超出示例范围。`;
-      }
-      return '';
-    }
+    function validateDraft(){return recipeProblem(normalizeRecipe(state.draft));}
     function saveRecipe() {
       const problem=validateDraft(); if(problem) { toast(problem); return; }
       const r=clone(state.draft);
       if(state.editingNew) { const max=Math.max(...state.recipes.filter(x=>x.id.startsWith('RC-')).map(x=>Number(x.id.slice(3))||0)); r.id=`RC-${String(max+1).padStart(3,'0')}`; r.version=1; state.recipes.unshift(r); state.editingNew=false; }
       else { const old=state.recipes.find(x=>x.id===r.id); if(!old) { toast('找不到原配方。'); return; } state.recipeSnapshots.push(clone(old)); r.version=old.version+1; state.recipes.splice(state.recipes.indexOf(old),1,r); }
-      r.updated='2026-10-27 09:52'; r.owner='实验员 A'; r.status='可执行'; state.selectedRecipeId=r.id; state.draft=clone(r); state.preflight.recipeId=r.id; render(); toast(`${r.id} 已保存为 v${r.version}；历史版本和已启动实验快照不会被覆盖。`);
+      r.updated=localDate(); r.owner=state.userName; r.status='可执行'; state.selectedRecipeId=r.id; state.draft=clone(r); state.preflight.recipeId=r.id;state.preflight.checks.gas=false;state.preflight.checks.interlock=false; render(); toast(`${r.id} 已保存为 v${r.version}；历史版本和已启动实验快照不会被覆盖。`);
     }
     function validSample() { const p=state.preflight; return p.sampleId.trim()&&p.sampleName.trim()&&p.operator.trim()&&Number(p.mass)>0&&Number(p.mass)<=300&&!history.some(h=>h.id===p.sampleId); }
-    function startReady() { const r=chosenRecipe(); return validSample()&&Object.values(state.preflight.checks).every(Boolean)&&r.status==='可执行'&&isConnected()&&!isStale()&&!hasAlarm()&&!state.run; }
-    function exportCsv() {
-      const h=selectedHistory();
-      const rows=[['experiment_id','sampled_at','temperature_c','weight_g','n2_lpm','h2_lpm','co_lpm','quality'],...[
-        ['09:50:24.500','897.6','53.142','3.00','1.00','0.80','valid'],['09:50:24.000','897.5','53.143','3.00','1.00','0.80','valid']
-      ].map(r=>[h.id,`${h.start.slice(0,10)} ${r[0]}`,r[1],(Number(r[2])+Number(h.mass)-53.142).toFixed(3),...r.slice(3)])];
-      const content='\ufeff'+rows.map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\r\n');
-      const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
-      const link=document.createElement('a'); link.href=url; link.download=`${h.id}-demo-raw.csv`; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000); toast('已下载演示 CSV（含 2 条样例数据）。');
-    }
+    function startReady() { const r=chosenRecipe(); return validSample()&&Object.values(state.preflight.checks).every(Boolean)&&r.status==='可执行'&&!state.limitLoadWarning&&!recipeProblem(r)&&isConnected()&&!isStale()&&!hasAlarm()&&!state.run; }
+    function exportCsv(){const h=selectedHistory();const base=h.snapshot?gasValues({}):gasValues({n2:3,h2:1,co:0.8});const header=['experiment_id','sampled_at','experiment_type','inert','temperature_c','weight_g',...gasKeys.map(k=>k+'_lpm'),'quality'];const row=[h.id,h.start,h.experimentType||'reduction',h.inert||'n2',h.temp,h.mass,...gasKeys.map(k=>base[k].toFixed(2)),h.snapshot?'demo_archive_snapshot':'demo_legacy_snapshot'];const content='\ufeff'+[header,row].map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=h.id+'-demo-snapshot.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('已导出演示快照 CSV，包含全部 7 种气体字段。');}
+    function normalControl(){const r=state.run;return !!r&&canOperateExperiment()&&!isStale()&&!hasAlarm()&&r.status==='running'&&!r.emergency;}
     function doAction(action,element) {
+      if(!state.loggedIn&&action!=='login')return;
       if(action.startsWith('go-')) { const target=action.slice(3); if(target==='trends') navigate('current','trends'); else navigate(target); return; }
       if(['new-recipe','copy-recipe','add-step','remove-step','validate-recipe','save-recipe','start-run','advance-step','pause-run','resume-run','stop-run','finish-cooling','archive-run','tare','ack-alarm'].includes(action)&&!canOperateExperiment()){toast('当前演示角色没有实验操作权限。');return;}
       switch(action) {
+        case 'open-gas-limits': navigate('settings','gasLimits');break;
+        case 'preview-limits': previewLimits();break;
+        case 'cancel-limits': if(limitGuard()){state.limitDraft=clone(state.limitPolicy.values);state.limitReason='';render();}break;
+        case 'switch-role': {const role=$('#account-role').value;if(!['观察员','实验员','维护员','管理员'].includes(role))break;closeModal();state.userRole=role;state.limitDraft=clone(state.limitPolicy.values);state.limitReason='';addEvent('切换演示角色',`原型身份：${role}`);render();toast(`已切换为${role}（演示身份）`);break;}
+
+        case 'recipe-type': {if(state.viewingVersion||state.draft.kind==='标准候选'||!canOperateExperiment())break;const type=element.dataset.type;if(type===state.draft.experimentType)break;const apply=()=>{state.draft.experimentType=type;const allowed=allowedGases(state.draft);state.draft.steps.forEach(s=>gasKeys.forEach(k=>{if(!allowed.includes(k))s[k]=0;}));render();toast('实验类型已切换，不相容气体已清零。请复核阶段名称与工艺参数。');};modal('切换实验类型',`切换为${typeName(type)}将清除所有阶段中的${type==='oxidation'?' CO / H₂ / CH₄':' O₂'}流量。请重新复核工艺。`,'切换并清除',apply);break;}
+        case 'emergency-gas': {closeModal();if(!state.run||state.run.status==='completed'||!canOperateExperiment())break;if(state.run.emergency){toast('紧急停气已锁存，保持惰性吹扫。');break;}safeSupply('操作员紧急停气',true);state.tabs.current='gas';state.page='current';historyReplace('current');render();toast(isStale()?'紧急请求已记录，但回读未知；请在现场操作硬件急停并核实气路。':'演示：工艺气体已关闭，正在惰性吹扫。');break;}
+        case 'preview-gas': {if(!normalControl())break;const r=state.run,problem=supplyProblem(liveRecipe(),r.manualDraft);if(problem){toast(problem);break;}const pending=clone(r.manualDraft),changed=allowedGases(liveRecipe()).filter(k=>Number(pending[k])!==Number(r.flows[k]));if(!changed.length){toast('流量未发生变化。');break;}modal('复核手动供气变更',`<div class="stack"><div class="callout">仅覆盖当前阶段；配方版本保持 ${esc(r.recipe)} v${r.recipeVersion}。实验类型和 N₂/Ar 选择保持锁定。</div><div><div class="manual-delta"><strong>气体</strong><strong>当前</strong><strong>拟设 · L/min</strong></div>${changed.map(k=>`<div class="manual-delta"><span>${gasLabel(k)}</span><span class="mono">${Number(r.flows[k]).toFixed(2)}</span><span class="mono">${Number(pending[k]).toFixed(2)}</span></div>`).join('')}</div><div class="field"><label for="manual-reason">修改原因 *</label><input id="manual-reason" class="audit-reason" placeholder="如：调整反应气氛比例" maxlength="200"></div></div>`,'应用手动设定',()=>{if(!normalControl())return;const reason=$('#manual-reason').value.trim();if(!reason){toast('请填写修改原因。');$('#manual-reason').focus();return false;}const p=supplyProblem(liveRecipe(),pending);if(p){toast(p);return;}const before=gasSummary(r.flows);r.flows=gasValues(pending);r.manualDraft=clone(r.flows);r.controlMode='manual';addEvent('手动供气已应用',`原因：${reason}；${before} → ${gasSummary(r.flows)} L/min；模拟回读一致`,'warn');render();});break;}
+        case 'restore-gas': {if(!normalControl())break;modal('恢复当前阶段配方',`将恢复 ${esc(gasSummary(state.run.snapshot.steps[state.run.stepIndex]))} L/min，结束当前手动覆盖。`,'确认恢复配方',()=>{if(!normalControl())return;applyStage();addEvent('恢复配方自动供气',gasSummary(state.run.flows));render();});break;}
+
         case 'menu': state.mobileOpen=!state.mobileOpen; renderSidebar(); break;
         case 'scenario': modal('切换演示状态',`<div class="field"><label for="scenario-select">选择要检查的页面状态</label><select id="scenario-select"><option value="running">实验运行中</option><option value="standby">设备待机 / 无实验</option><option value="alarm">设备报警</option><option value="offline">设备断线</option><option value="stale">采样过期</option><option value="normal">恢复正常</option></select></div><p style="margin:13px 0 0">这里只调整前端演示数据，不连接真实设备。</p>`,'切换',()=>setScenario($('#scenario-select').value)); break;
-        case 'account': modal('演示身份',`<div class="op-status"><strong>${esc(state.userName)} · ${esc(state.userRole)}</strong><span>页面角色仅用于交互评审，不具备真实认证或权限保护。</span></div><div class="row" style="margin-top:14px">${button('打开身份入口','logout','secondary')}</div>`,'关闭',()=>{});break;
+        case 'toggle-theme': {
+          const next = currentTheme()==='dark' ? 'light' : 'dark';
+          applyTheme(next);
+          renderTopbar();
+          toast(`已切换为${next==='dark'?'深色':'浅色'}界面。`);
+          break;
+        }
+        case 'account': modal('演示身份与管理员权限',`<div class="stack"><div class="op-status"><strong>${esc(state.userName)} · ${esc(state.userRole)}</strong><span>实验员可设计配方、调气与启停；仅管理员可在待机状态修改使用上限。维护员与观察员不能修改上限。</span></div><div class="field"><label for="account-role">切换演示角色</label><select id="account-role">${['观察员','实验员','维护员','管理员'].map(role=>`<option ${state.userRole===role?'selected':''}>${role}</option>`).join('')}</select></div><div class="row">${button('切换演示角色','switch-role','primary')}${button('打开身份入口','logout','secondary')}</div><div class="subtle">此单文件仅演示角色权限，未接入真实管理员认证；真机权限由服务端验证。</div></div>`,'关闭',()=>{});break;
         case 'logout': closeModal();state.loggedIn=false;state.mobileOpen=false;render(true);break;
         case 'login': state.userName=$('#login-name').value.trim()||'演示用户';state.userRole=$('#login-role').value;state.loggedIn=true;state.page='overview';historyReplace('overview');render(true);toast(`已以${state.userRole}身份进入演示界面。`);break;
-        case 'new-recipe': state.draft={id:'保存后分配',name:'新建科研配方',kind:'科研自定义',version:0,updated:'尚未保存',owner:'实验员 A',status:'草稿',steps:[]}; state.editingNew=true;state.viewingVersion=false; state.tabs.recipes='editor'; render(); break;
+        case 'new-recipe': state.draft={experimentType:'reduction',inert:'n2',purgeFlow:4,purgeSeconds:600,id:'保存后分配',name:'新建科研配方',kind:'科研自定义',version:0,updated:'尚未保存',owner:'实验员 A',status:'草稿',steps:[]}; state.editingNew=true;state.viewingVersion=false; state.tabs.recipes='editor'; render(); break;
         case 'edit-recipe': { const r=state.recipes.find(x=>x.id===element.dataset.id); if(r){state.selectedRecipeId=r.id;state.draft=clone(r);state.editingNew=false;state.viewingVersion=false;state.tabs.recipes='editor';render();} break; }
         case 'view-version': {const r=state.recipes.find(x=>x.id===element.dataset.id),v=Number(element.dataset.version),snapshot=v===r?.version?r:state.recipeSnapshots.find(x=>x.id===r?.id&&x.version===v);if(snapshot){state.selectedRecipeId=snapshot.id;state.draft=clone(snapshot);state.editingNew=false;state.viewingVersion=true;state.tabs.recipes='editor';render();}break;}
-        case 'copy-recipe': {const source=state.draft;state.draft={id:'保存后分配',name:`${source.name} · 科研自定义`,kind:'科研自定义',version:0,updated:'尚未保存',owner:'实验员 A',status:'草稿',steps:source.kind==='标准候选'?[]:clone(source.steps)};state.editingNew=true;state.viewingVersion=false;render();toast('已建立自定义副本。请复核所有阶段参数和现场安全条件。');break;}
-        case 'add-step': state.draft.steps.push({name:`阶段 ${state.draft.steps.length+1}`,temp:900,ramp:10,hold:600,n2:4,h2:0,co:0}); render(); break;
+        case 'copy-recipe': {const source=state.draft;state.draft={experimentType:source.experimentType,inert:source.inert,purgeFlow:source.purgeFlow,purgeSeconds:source.purgeSeconds,id:'保存后分配',name:`${source.name} · 科研自定义`,kind:'科研自定义',version:0,updated:'尚未保存',owner:'实验员 A',status:'草稿',steps:source.kind==='标准候选'?[]:clone(source.steps)};state.editingNew=true;state.viewingVersion=false;render();toast('已建立自定义副本。请复核所有阶段参数和现场安全条件。');break;}
+        case 'add-step': state.draft.steps.push({...gasValues({[state.draft.inert]:4}),name:`阶段 ${state.draft.steps.length+1}`,temp:900,ramp:10,hold:600}); render(); break;
         case 'remove-step': state.draft.steps.splice(Number(element.dataset.index),1); render(); break;
         case 'validate-recipe': { const problem=validateDraft(); toast(problem||'示例范围校验通过；现场量程和安全条件仍需真机核对。'); break; }
         case 'save-recipe': saveRecipe(); break;
         case 'pf-prev': state.preflight.step=Math.max(0,state.preflight.step-1); render(); break;
         case 'pf-next': if(state.preflight.step===0&&!validSample()) {toast(history.some(h=>h.id===state.preflight.sampleId)?'实验编号已存在，请使用新的唯一编号。':'请填写实验编号、样品、实验员和有效装样质量。');break;} state.preflight.step=Math.min(2,state.preflight.step+1); render(); break;
-        case 'start-run': if(!startReady()) {toast('请先完成预检并确认设备状态、报警和当前实验。');break;} modal('确认启动实验',`将使用 <strong>${esc(chosenRecipe().id)} v${chosenRecipe().version}</strong> 和样品 <strong>${esc(state.preflight.sampleName)}</strong> 创建本次实验。命令受理、回读验证与实验运行状态将分别记录。`,'确认演示启动',()=>{ const p=state.preflight,r=chosenRecipe();state.run={id:p.sampleId,sample:p.sampleName,recipe:r.id,recipeVersion:r.version,status:'running',phase:r.steps[0]?.name||'惰性准备',stepIndex:0,elapsed:'00:00:01',started:'2026-10-27 09:52:00',sampleMass:Number(p.mass).toFixed(3)};state.events=[{time:'09:52:00',title:'实验启动请求已验证',detail:`${r.id} v${r.version} · ${p.operator}`,tone:'good',actor:state.userName}];state.page='current';historyReplace('current');render(true);toast('演示实验已启动；不会向真实设备发送命令。');}); break;
-        case 'advance-step': { const r=state.recipes.find(x=>x.id===state.run.recipe);if(!r)break;state.run.stepIndex=Math.min(state.run.stepIndex+1,r.steps.length-1);state.run.phase=r.steps[state.run.stepIndex]?.name||'安全处置';if(state.run.stepIndex===r.steps.length-1){state.run.status='cooling';addEvent('测定结束，进入安全处置','继续记录惰性气体与冷却阶段');}else addEvent(`进入第 ${state.run.stepIndex+1} 阶段`,state.run.phase);render();break; }
-        case 'pause-run': modal('确认暂停实验','暂停后进入经批准的安全保持策略；配方计时与设备动作由后台统一协调。','确认暂停',()=>{state.run.pausedPhase=state.run.phase;state.run.status='paused';state.run.phase='安全保持';addEvent('实验已暂停','操作员确认；等待恢复条件复核');render();}); break;
-        case 'resume-run': if(!isConnected()||isStale()||hasAlarm()){toast('设备状态或报警未满足恢复条件。');break;}modal('确认恢复实验','请复核设备读数、现场安全条件和当前步骤后恢复；故障结束后不得自动从中间步骤重启。','确认恢复',()=>{state.run.status='running';state.run.phase=state.run.pausedPhase||'当前工艺阶段';addEvent('实验已恢复','操作员确认，恢复当前步骤');render();});break;
-        case 'stop-run': modal('确认停止实验','停止请求会结束测定，但惰性气体处置和冷却仍需继续记录。请先按现场 SOP 确认安全路径。','确认停止',()=>{state.run.status='cooling';state.run.stepIndex=3;state.run.phase='惰性处置与冷却';addEvent('停止请求已受理','测定结束；继续记录安全处置与冷却');render();},true);break;
-        case 'finish-cooling': modal('模拟安全处置完成','本操作仅演示“测定结束”与“安全完成”分开留证。真实完成状态必须来自独立验证的设备反馈与现场复核。','确认演示完成',()=>{state.run.status='completed';state.run.phase='安全完成';addEvent('安全处置完成','冷却与现场确认记录已演示');render();});break;
-        case 'archive-run': modal('复核并归档实验','归档前检查原始采样完整性、报警与操作记录、配方快照以及安全完成依据。','确认归档演示',()=>{const r=state.run;history.unshift({id:r.id,sample:r.sample,recipe:`${r.recipe} · v${r.recipeVersion}`,status:'已归档',start:r.started,duration:r.elapsed,quality:'演示数据',temp:'897.6',mass:(Number(r.sampleMass)*53.142/54.28).toFixed(3),sampleMass:r.sampleMass,alarms:state.alarms.length,events:clone(state.events)});state.selectedHistoryId=r.id;state.run=null;state.preflight=initialPreflight();state.preflight.sampleId=`RKA-2026-1027-${String(19+history.filter(h=>h.start.startsWith('2026-10-27')).length).padStart(3,'0')}`;state.page='history';historyReplace('history');render(true);toast('演示实验已归档，可查看详情与导出 CSV。');});break;
+        case 'start-run': if(!startReady()) {toast('请先完成预检并确认设备状态、报警和当前实验。');break;} modal('确认启动实验',`将使用 <strong>${esc(chosenRecipe().id)} v${chosenRecipe().version}</strong> 和样品 <strong>${esc(state.preflight.sampleName)}</strong> 创建本次实验。命令受理、回读验证与实验运行状态将分别记录。`,'确认演示启动',()=>{if(!startReady()){toast('启动条件或使用上限已变化，请重新复核。');return false;} const p=state.preflight,r=chosenRecipe();state.run={id:p.sampleId,sample:p.sampleName,recipe:r.id,recipeVersion:r.version,status:'running',phase:r.steps[0]?.name||'惰性准备',stepIndex:0,elapsed:'00:00:01',started:'2026-10-27 09:52:00',sampleMass:Number(p.mass).toFixed(3)};bindRun(state.run,r);state.tabs.current='gas';state.events=[{time:'09:52:00',title:'实验启动请求已验证',detail:`${r.id} v${r.version} · ${p.operator}`,tone:'good',actor:state.userName}];state.page='current';historyReplace('current');render(true);toast('演示实验已启动；不会向真实设备发送命令。');}); break;
+        case 'advance-step': {const r=state.run;if(!normalControl())break;const next=()=>{r.stepIndex=Math.min(r.stepIndex+1,r.snapshot.steps.length-1);r.phase=r.snapshot.steps[r.stepIndex].name;applyStage();if(r.stepIndex===r.snapshot.steps.length-1)safeSupply('配方进入末段');else addEvent('进入下一阶段',`${r.phase}；恢复该段配方：${gasSummary(r.flows)}`);render();};if(r.controlMode==='manual')modal('进入下一阶段',`当前存在手动覆盖。下一阶段将使用启动时配方快照：<strong>${esc(r.snapshot.steps[r.stepIndex+1]?.name||'收尾')}</strong>，手动设定随当前段结束。`,'确认进入下一段',next);else next();break;}
+        case 'pause-run': if(!normalControl())break;modal('暂停并保持惰性气氛','关闭全部工艺气体，使用已选惰性气体保持。恢复前需重新确认当前阶段配方。','确认暂停',()=>{const r=state.run;r.pausedPhase=r.phase;r.flows=gasValues({[r.inert]:r.snapshot.purgeFlow});r.manualDraft=clone(r.flows);r.controlMode='safety';r.status='paused';r.phase='暂停 · 惰性保持';addEvent('实验暂停',gasSummary(r.flows));render();});break;
+        case 'resume-run': if(!state.run||state.run.status!=='paused'||isStale()||hasAlarm()||state.run.emergency)break;modal('复核并恢复当前阶段',`恢复当前阶段配方：${esc(gasSummary(state.run.snapshot.steps[state.run.stepIndex]))} L/min。请确认现场恢复条件。`,'确认恢复',()=>{if(!canOperateExperiment()||isStale()||hasAlarm()||state.run.emergency||recipeProblem(state.run.snapshot)){toast('恢复条件或使用上限未满足。');return false;}state.run.status='running';state.run.phase=state.run.pausedPhase;applyStage();addEvent('实验恢复','复核后恢复当前阶段配方');render();});break;
+        case 'stop-run': if(!state.run||!['running','paused'].includes(state.run.status))break;modal('停止实验并惰性收尾',`关闭全部工艺气体，使用 ${gasMeta[state.run.inert].label} ${state.run.snapshot.purgeFlow} L/min 吹扫与冷却。本次实验不可恢复。`,'确认停止',()=>{safeSupply('操作员停止实验');render();});break;
+        case 'finish-cooling': if(!state.run||state.run.status!=='cooling'||isStale()||hasAlarm())break;modal('复核安全收尾',`<div class="stack"><div class="callout">演示中手动确认完成条件；真实设备应依据计时、冷却和实际反馈放行。</div><label class="check-row"><input id="safe-flow" type="checkbox">已核实工艺气体关闭、惰性气体流量正常</label><label class="check-row"><input id="safe-time" type="checkbox">惰性吹扫已达到 ${state.run.snapshot.purgeSeconds} s，冷却达到现场允许条件</label></div>`,'确认演示安全完成',()=>{if(!$('#safe-flow').checked||!$('#safe-time').checked){toast('未完成两项安全复核；保持惰性吹扫。');return false;}state.run.status='completed';state.run.phase='安全完成';state.run.flows=gasValues({});state.run.manualDraft=clone(state.run.flows);addEvent('安全处置完成','现场条件复核演示；供气关闭，允许归档');render();});break;
+        case 'archive-run': modal('复核并归档实验','归档前检查原始采样完整性、报警与操作记录、配方快照以及安全完成依据。','确认归档演示',()=>{const r=state.run;history.unshift({id:r.id,sample:r.sample,recipe:`${r.recipe} · v${r.recipeVersion}`,status:'已归档',start:r.started,duration:r.elapsed,quality:'演示数据',temp:'897.6',mass:(Number(r.sampleMass)*53.142/54.28).toFixed(3),sampleMass:r.sampleMass,alarms:state.alarms.length,events:clone(state.events),limitPolicy:clone(r.limitPolicy),experimentType:r.experimentType,inert:r.inert,snapshot:clone(r.snapshot),emergency:r.emergency});state.selectedHistoryId=r.id;state.run=null;state.preflight=initialPreflight();state.preflight.sampleId=`RKA-2026-1027-${String(19+history.filter(h=>h.start.startsWith('2026-10-27')).length).padStart(3,'0')}`;state.page='history';historyReplace('history');render(true);toast('演示实验已归档，可查看详情与导出 CSV。');});break;
         case 'tare': modal('确认天平去皮','只有设备空载或满足现场去皮条件、且实验处于允许状态时才可执行。','确认演示去皮',()=>{addEvent('天平去皮请求已验证','操作员确认；示例回读成功');render();});break;
         case 'ack-alarm': {const a=state.alarms.find(x=>x.id===element.dataset.id);if(!a)break;modal('确认报警',`确认已阅读 <strong>${esc(a.message)}</strong>。该动作不会解除故障或恢复设备运行。`,'记录确认',()=>{a.ack=true;addEvent('报警已确认',`${a.id} · 实验员 A`);render();toast('已记录确认；仍需现场排除报警条件。');});break;}
         case 'apply-history': state.historyApplied=state.historySearch.trim();state.historyStatusApplied=state.historyStatus;render();break;
@@ -586,7 +994,7 @@
         case 'export-csv': exportCsv();break;
         case 'preview-report': state.selectedHistoryId=element.dataset.id;state.tabs.reports='preview';render();break;
         case 'audit-detail': {const e=state.events[Number(element.dataset.index)];if(e)modal('操作审计详情',`<div class="stack"><div class="op-status"><strong>${esc(e.title)}</strong><span>2026-10-27 ${esc(e.time)} · ${esc(e.actor||'实验员 A')}</span></div><div class="op-status"><strong>事件内容</strong><span>${esc(e.detail)}</span></div><div class="callout warn">演示事件没有真实设备回读或签名证据。</div></div>`,'关闭',()=>{});break;}
-        case 'channel-detail': {const ch=mfcChannels.find(row=>row[0]===element.dataset.address);if(ch)modal(`MFC 地址 ${ch[0]}`,`<div class="stack"><div class="op-status"><strong>软件默认配置</strong><span>介质 ${esc(ch[1])} · 满量程 ${esc(ch[2])} L/min · COM4</span></div><div class="op-status"><strong>现场核查项</strong><span>设备铭牌、实际气体、通信地址、标定量程、管路和回读。</span></div><div class="callout warn">软件默认值与硬件清单并不一致。未经实物映射确认，不能据此发送流量设定。</div></div>`,'关闭',()=>{});break;}
+        case 'channel-detail': {const ch=mfcChannels.find(row=>row[0]===element.dataset.address);if(ch)modal(`MFC 地址 ${ch[0]}`,`<div class="stack"><div class="op-status"><strong>软件默认配置</strong><span>介质 ${esc(ch[1])} · 满量程 ${esc(ch[2])} L/min · COM4</span></div><div class="op-status"><strong>现场核查项</strong><span>设备铭牌、实际气体、通信地址、标定量程、管路和回读。</span></div><div class="callout warn">设备能力与使用上限分别记录；连接真机前仍需核对控制器地址、介质标定和实物映射。</div></div>`,'关闭',()=>{});break;}
         case 'refresh-device': toast(isConnected()?'演示快照已刷新；三类设备状态已更新。':'设备离线：请检查电源、线缆和串口配置。');render();break;
         case 'simulate-offline': setScenario('offline');break;
         case 'simulate-normal': setScenario('normal');break;
@@ -605,15 +1013,19 @@
     });
     document.addEventListener('input',event=>{
       const el=event.target;
+      if(el.dataset.gasLimit&&isAdmin()&&!limitLocked()){state.limitDraft[el.dataset.gasLimit]=el.value;const hint=$('#limit-validation');if(hint)hint.textContent=limitsProblem(state.limitDraft)||'输入有效；预览后确认应用。';}
+      if(el.hasAttribute('data-limit-reason')&&isAdmin()&&!limitLocked())state.limitReason=el.value;
+      if(el.dataset.manualGas&&normalControl()){const k=el.dataset.manualGas;state.run.manualDraft[k]=el.value;const bad=el.value===''||!Number.isFinite(Number(el.value))||Number(el.value)<0||Number(el.value)>gasLimit(k),message=bad?`请输入 0–${gasLimit(k)} L/min；当前设定未改变。`:'';el.setAttribute('aria-invalid',String(bad));const hint=$('#manual-error-'+k);if(hint)hint.textContent=message;}
       if(el.dataset.pfField) state.preflight[el.dataset.pfField]=el.value;
-      if(el.dataset.recipeField&&el.dataset.recipeField!=='id') state.draft[el.dataset.recipeField]=el.value;
+      if(el.dataset.recipeField&&el.dataset.recipeField!=='id') state.draft[el.dataset.recipeField]=el.type==='number'?Number(el.value):el.value;
       if(el.dataset.stepField) state.draft.steps[Number(el.dataset.stepIndex)][el.dataset.stepField]=el.value;
       if(el.id==='history-query') state.historySearch=el.value;
     });
     document.addEventListener('change',event=>{
       const el=event.target;
-      if(el.dataset.check){state.preflight.checks[el.dataset.check]=el.checked;render();}
-      else if(el.dataset.pfField==='recipeId'){state.preflight.recipeId=el.value;render();}
+      if(el.hasAttribute('data-inert-select')){const r=state.draft,old=r.inert,next=el.value;if(state.viewingVersion||r.kind==='标准候选'||!canOperateExperiment())return;el.value=old;modal('切换共用通道介质',`将使用 ${gasMeta[next].label} 替代 ${gasMeta[old].label}；所有阶段的惰性流量迁移至新介质，原介质归零。启动前须核对实际气源和 MFC 介质标定。`,'确认切换',()=>{r.steps.forEach(s=>{s[next]=s[old];s[old]=0;});r.inert=next;render();});}
+      else if(el.dataset.check){state.preflight.checks[el.dataset.check]=el.checked;render();}
+      else if(el.dataset.pfField==='recipeId'){state.preflight.recipeId=el.value;state.preflight.checks.gas=false;state.preflight.checks.interlock=false;render();}
       else if(el.id==='history-status')state.historyStatus=el.value;
       else if(el.dataset.setting)state.settings[el.dataset.setting]=el.value;
       else if(el.dataset.settingCheck)state.settings[el.dataset.settingCheck]=el.checked;
@@ -625,8 +1037,8 @@
     });
     $('#mobile-backdrop').addEventListener('click',()=>{state.mobileOpen=false;renderSidebar();});
     $('#modal-cancel').addEventListener('click',closeModal);
-    $('#modal-confirm').addEventListener('click',()=>{const callback=modalConfirm; if(callback) callback(); closeModal();});
-    $('#confirm-dialog').addEventListener('close',()=>{modalConfirm=null;});
+    $('#modal-confirm').addEventListener('click',()=>{const callback=modalConfirm; if(callback&&callback()===false)return; closeModal();});
+    $('#confirm-dialog').addEventListener('close',()=>{if(!$('#confirm-dialog').open)modalConfirm=null;});
     const initialHash=location.hash.replace('#','');if(pageNames[initialHash])state.page=initialHash;
     render();
   </script>

@@ -29,7 +29,7 @@ def main() -> int:
     )
 
     app = QApplication(sys.argv)
-    apply_theme(app)
+    apply_theme(app, mode="dark")
     win = MainWindow(settings=settings, db=db, client=client)
     win.show()
     return app.exec()

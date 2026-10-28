@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 from pathlib import Path
 
 import qtawesome as qta
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -10,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QStackedWidget,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -18,16 +21,27 @@ from PySide6.QtWidgets import (
 from rka_desktop import __version__
 from rka_desktop.comm.config import CommConfig
 from rka_desktop.comm.multi_device_gateway import MultiDeviceGateway
+from rka_desktop.controllers.experiment_controller import (
+    ControllerTransition,
+    ExperimentController,
+)
+from rka_desktop.controllers.history_export_controller import (
+    HistoryExportController,
+    HistoryTransition,
+)
+from rka_desktop.controllers.recipe_controller import RecipeController, RecipeTransition
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
-from rka_desktop.controllers.experiment_controller import ControllerTransition, ExperimentController
-from rka_desktop.controllers.history_export_controller import HistoryExportController, HistoryTransition
-from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeController
 from rka_desktop.db.database import DatabaseManager
 from rka_desktop.hardware.device_gateway import DeviceGateway
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
-from rka_desktop.repositories import AlarmRepository, AuditLogRepository, ExperimentRepository, RecipeRepository
 from rka_desktop.reporting.report_service import ReportService
+from rka_desktop.repositories import (
+    AlarmRepository,
+    AuditLogRepository,
+    ExperimentRepository,
+    RecipeRepository,
+)
 from rka_desktop.services.export_service import ExportService
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.analysis_page import AnalysisPage
@@ -35,13 +49,20 @@ from rka_desktop.ui.dialog_service import DialogService
 from rka_desktop.ui.history_page import HistoryPage
 from rka_desktop.ui.log_page import LogPage
 from rka_desktop.ui.log_service import LogService
+from rka_desktop.ui.main_window_presenter import MainWindowPresenter
 from rka_desktop.ui.monitor_page import MonitorPage
 from rka_desktop.ui.multi_device_page import MultiDevicePage
-from rka_desktop.ui.main_window_presenter import MainWindowPresenter
 from rka_desktop.ui.recipe_page import RecipePage
 from rka_desktop.ui.runtime_coordinator import RuntimeCoordinator
 from rka_desktop.ui.settings_page import SettingsPage
-from rka_desktop.ui.theme import ACCENT, make_primary
+from rka_desktop.ui.theme import ACCENT, apply_theme, make_primary
+from rka_desktop.ui.workspace_pages import (
+    HelpPage,
+    OverviewPage,
+    PreflightPage,
+    ReportsPage,
+    title,
+)
 
 
 class MainWindow(QMainWindow):
@@ -70,6 +91,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(f"{settings.app_name} - v{__version__}")
         self.resize(1380, 840)
+        self.theme_mode = "dark"
 
         self._build_ui()
         self._build_menu()
@@ -112,12 +134,12 @@ class MainWindow(QMainWindow):
         row.setSpacing(12)
 
         logo = QLabel()
-        logo.setPixmap(qta.icon("mdi.molecule", color="#4DA3FF").pixmap(30, 30))
+        logo.setPixmap(qta.icon("mdi.molecule", color=ACCENT).pixmap(30, 30))
         row.addWidget(logo)
 
         titles = QVBoxLayout()
         titles.setSpacing(0)
-        title = QLabel("RKA-3000 上位机")
+        title = QLabel("RKA-3000 · 实验控制工作台")
         title.setObjectName("appTitle")
         subtitle = QLabel("铁矿石氧化还原动力学试验系统")
         subtitle.setObjectName("appSubtitle")
@@ -126,33 +148,105 @@ class MainWindow(QMainWindow):
         row.addLayout(titles)
         row.addStretch()
 
+        self.lbl_runtime_state = QLabel("●  待机")
+        self.lbl_runtime_state.setObjectName("runtimeState")
+        row.addWidget(self.lbl_runtime_state)
+
+        self.btn_theme = QPushButton("☀  浅色")
+        self.btn_theme.setToolTip("切换深色 / 浅色界面")
+        self.btn_theme.clicked.connect(self._toggle_theme)
+        row.addWidget(self.btn_theme)
+
         version = QLabel(f"v{__version__}")
         version.setObjectName("appVersion")
         row.addWidget(version)
         return header
 
+    def _toggle_theme(self) -> None:
+        self.theme_mode = "light" if self.theme_mode == "dark" else "dark"
+        app = QApplication.instance()
+        if app is not None:
+            apply_theme(app, self.theme_mode)
+        self.btn_theme.setText("☾  深色" if self.theme_mode == "light" else "☀  浅色")
+
     def _build_ui(self) -> None:
         central = QWidget()
         central.setObjectName("centralRoot")
         self.setCentralWidget(central)
-        outer = QVBoxLayout(central)
+        outer = QHBoxLayout(central)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        outer.addWidget(self._build_header())
+
+        sidebar = QFrame()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(218)
+        side = QVBoxLayout(sidebar)
+        side.setContentsMargins(12, 18, 12, 18)
+        side.setSpacing(3)
+        brand = QLabel("R  RKA-3000")
+        brand.setObjectName("sideBrand")
+        side.addWidget(brand)
+        sub = QLabel("实验控制工作台")
+        sub.setObjectName("sideSub")
+        side.addWidget(sub)
+        side.addSpacing(22)
+        self.nav_buttons: dict[str, QPushButton] = {}
+        groups = (
+            ("工作台", (("overview", "实时总览", "mdi.view-dashboard-outline"),
+                       ("preflight", "实验准备", "mdi.clipboard-check-outline"),
+                       ("current", "当前实验", "mdi.monitor-dashboard"))),
+            ("实验管理", (("recipes", "实验配方", "mdi.flask-outline"),
+                         ("history", "历史实验", "mdi.history"),
+                         ("alarms", "报警事件", "mdi.bell-alert-outline"))),
+            ("系统与结果", (("devices", "设备诊断", "mdi.lan"),
+                           ("audit", "操作审计", "mdi.text-box-search-outline"),
+                           ("analysis", "数据分析", "mdi.chart-bell-curve-cumulative"),
+                           ("reports", "报告中心", "mdi.file-chart-outline"),
+                           ("settings", "系统设置", "mdi.cog-outline"),
+                           ("help", "使用帮助", "mdi.help-circle-outline"))),
+        )
+        for group_name, items in groups:
+            label = QLabel(group_name)
+            label.setObjectName("navGroup")
+            side.addWidget(label)
+            for key, caption, icon in items:
+                button = QPushButton(qta.icon(icon, color="#91a2b9"), f"  {caption}")
+                button.setObjectName("navItem")
+                button.setCheckable(True)
+                button.setProperty("pageKey", key)
+                button.clicked.connect(lambda checked=False, page=key: self.navigate(page))
+                side.addWidget(button)
+                self.nav_buttons[key] = button
+            side.addSpacing(10)
+        side.addStretch()
+        mode_label = QLabel("●  仿真模式" if self.settings.simulation_mode else "●  实机模式")
+        mode_label.setObjectName("sideMode")
+        side.addWidget(mode_label)
+        outer.addWidget(sidebar)
+
+        work_area = QWidget()
+        work = QVBoxLayout(work_area)
+        work.setContentsMargins(0, 0, 0, 0)
+        work.setSpacing(0)
+        work.addWidget(self._build_header())
+        outer.addWidget(work_area, 1)
 
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 14, 16, 12)
         layout.setSpacing(12)
-        outer.addWidget(content)
+        work.addWidget(content, 1)
 
-        toolbar = QHBoxLayout()
+        self.toolbar_widget = QFrame()
+        self.toolbar_widget.setObjectName("workspaceToolbar")
+        toolbar = QHBoxLayout(self.toolbar_widget)
+        toolbar.setContentsMargins(0, 0, 0, 0)
         toolbar.setSpacing(8)
         self.btn_connect = QPushButton(qta.icon("mdi.lan-connect", color="#334155"), " 连接设备")
         self.recipe_combo = QComboBox()
         self.recipe_combo.setMinimumWidth(280)
         self.btn_refresh_recipe = QPushButton(qta.icon("mdi.refresh", color="#334155"), "")
-        self.btn_start = make_primary(QPushButton(qta.icon("mdi.play", color="white"), " 开始实验"))
+        self.btn_start = make_primary(QPushButton(qta.icon("mdi.play", color="white"), " 实验准备"))
         self.btn_pause = QPushButton(qta.icon("mdi.pause", color="#334155"), " 暂停")
         self.btn_resume = QPushButton(qta.icon("mdi.play-outline", color="#334155"), " 恢复")
         self.btn_stop = QPushButton(qta.icon("mdi.stop", color="#334155"), " 停止")
@@ -174,7 +268,7 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.btn_export_csv)
         toolbar.addWidget(self.btn_export_excel)
         toolbar.addStretch()
-        layout.addLayout(toolbar)
+        layout.addWidget(self.toolbar_widget)
 
         self.tabs = QTabWidget()
         self.recipe_page = RecipePage()
@@ -184,11 +278,23 @@ class MainWindow(QMainWindow):
         )
         self.multi_gateway.connect()
         self.multi_device_page = MultiDevicePage(self.multi_gateway)
+        self.multi_device_page.set_diagnostics_only()
         self.analysis_page = AnalysisPage(self.experiment_repository)
         self.history_page = HistoryPage()
         self.alarm_page = AlarmPage()
         self.log_page = LogPage()
         self.settings_page = SettingsPage(self.settings)
+        for widget, heading, description in (
+            (self.recipe_page, "实验配方", "建立和维护温度、保温时间及气体流量步骤"),
+            (self.monitor_page, "当前实验", "实时测量、执行阶段、曲线和控制反馈"),
+            (self.multi_device_page, "设备诊断", "温控、质量流量计和天平状态"),
+            (self.analysis_page, "数据分析", "失重法还原度和关键动力学指标"),
+            (self.history_page, "历史实验", "记录查询、管理与原始数据导出"),
+            (self.alarm_page, "报警事件", "报警确认与联锁复位"),
+            (self.log_page, "操作审计", "实验与设备操作记录"),
+        ):
+            widget.layout().insertWidget(0, title(heading, description))
+        self.settings_page.layout().insertRow(0, title("系统设置", "当前运行环境及设备映射配置"))
 
         # 监控 hosts experiment monitoring with device status as a secondary view —
         # device communication is a supporting service, not a headline feature.
@@ -196,7 +302,7 @@ class MainWindow(QMainWindow):
         self.monitor_tabs.addTab(self.monitor_page, "实验监控")
         self.monitor_tabs.addTab(self.multi_device_page, "设备状态")
 
-        _ico = lambda name: qta.icon(name, color="#64748B", color_active=ACCENT)  # noqa: E731
+        _ico = lambda name: qta.icon(name, color="#64748B", color_active=ACCENT)
         self.tabs.addTab(self.recipe_page, _ico("mdi.flask-outline"), "配方")
         self.tabs.addTab(self.monitor_tabs, _ico("mdi.monitor-dashboard"), "监控")
         self.tabs.addTab(self.analysis_page, _ico("mdi.chart-bell-curve-cumulative"), "数据分析")
@@ -204,7 +310,19 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.alarm_page, _ico("mdi.bell-alert-outline"), "报警")
         self.tabs.addTab(self.log_page, _ico("mdi.text-box-search-outline"), "日志")
         self.tabs.addTab(self.settings_page, _ico("mdi.cog-outline"), "设置")
-        layout.addWidget(self.tabs)
+        self.tabs.tabBar().hide()
+        self.tabs.setDocumentMode(True)
+        self.overview_page = OverviewPage()
+        self.preflight_page = PreflightPage()
+        self.reports_page = ReportsPage()
+        self.help_page = HelpPage()
+        self.page_stack = QStackedWidget()
+        self.page_stack.addWidget(self.overview_page)
+        self.page_stack.addWidget(self.preflight_page)
+        self.page_stack.addWidget(self.tabs)
+        self.page_stack.addWidget(self.reports_page)
+        self.page_stack.addWidget(self.help_page)
+        layout.addWidget(self.page_stack, 1)
         self.multi_device_page.refresh()
         self.multi_device_page.start()
         self.analysis_page.refresh_experiments()
@@ -238,12 +356,13 @@ class MainWindow(QMainWindow):
             on_error=self._on_error,
         )
         self.logs = LogService(self.monitor_page, __name__)
+        self.navigate("overview")
 
     def _bind_events(self) -> None:
         self.btn_connect.clicked.connect(self.connect_device)
         self.btn_refresh_recipe.clicked.connect(self._refresh_recipe_combo)
         self.recipe_combo.currentIndexChanged.connect(self._on_recipe_selected)
-        self.btn_start.clicked.connect(self.start_experiment)
+        self.btn_start.clicked.connect(lambda: self.navigate("preflight"))
         self.btn_pause.clicked.connect(self.pause_experiment)
         self.btn_resume.clicked.connect(self.resume_experiment)
         self.btn_stop.clicked.connect(self.stop_experiment)
@@ -264,6 +383,63 @@ class MainWindow(QMainWindow):
         self.history_page.btn_rename.clicked.connect(self.rename_experiment)
         self.history_page.btn_delete.clicked.connect(self.delete_experiment)
         self.log_page.btn_refresh.clicked.connect(self._refresh_logs)
+        self.overview_page.btn_prepare.clicked.connect(lambda: self.navigate("preflight"))
+        self.overview_page.btn_current.clicked.connect(lambda: self.navigate("current"))
+        self.overview_page.btn_history.clicked.connect(lambda: self.navigate("history"))
+        self.preflight_page.btn_start.clicked.connect(self._start_from_preflight)
+        self.reports_page.btn_analysis.clicked.connect(lambda: self.navigate("analysis"))
+        self.reports_page.btn_history.clicked.connect(lambda: self.navigate("history"))
+        self.reports_page.btn_report.clicked.connect(self.export_analysis_report)
+
+    def navigate(self, page: str) -> None:
+        """Map the prototype's twelve destinations to real application pages."""
+        if page == "overview":
+            self.page_stack.setCurrentWidget(self.overview_page)
+        elif page == "preflight":
+            self.page_stack.setCurrentWidget(self.preflight_page)
+            self.preflight_page.recipe_label.setText(self.recipe_combo.currentText())
+        elif page == "reports":
+            self.page_stack.setCurrentWidget(self.reports_page)
+        elif page == "help":
+            self.page_stack.setCurrentWidget(self.help_page)
+        else:
+            tab_index = {"recipes": 0, "current": 1, "analysis": 2, "history": 3,
+                         "alarms": 4, "audit": 5, "settings": 6, "devices": 1}.get(page)
+            if tab_index is None:
+                raise ValueError(f"Unknown page: {page}")
+            self.tabs.setCurrentIndex(tab_index)
+            if page in ("current", "devices"):
+                self.monitor_tabs.setCurrentIndex(0 if page == "current" else 1)
+            self.page_stack.setCurrentWidget(self.tabs)
+        for key, button in self.nav_buttons.items():
+            button.setChecked(key == page)
+        self.toolbar_widget.setVisible(page in {"recipes", "preflight", "current", "history"})
+        self.current_page = page
+
+    def _start_from_preflight(self) -> None:
+        missing = self.preflight_page.missing_fields()
+        if missing:
+            self.dialogs.warning("准备未完成", "请填写或确认：" + "、".join(missing))
+            return
+        self.start_experiment()
+        if self.experiment_id is not None and self.runtime.is_running:
+            try:
+                self.experiment_repository.set_sample_params(
+                    self.experiment_id,
+                    self.preflight_page.mass.value(),
+                    self.preflight_page.tfe.value(),
+                    self.preflight_page.feo.value(),
+                )
+                name = self.preflight_page.sample_name.text().strip()
+                self.experiment_repository.rename_experiment(self.experiment_id, name)
+                self.audit_repository.log_action(
+                    self.preflight_page.operator.text().strip(), "PREFLIGHT_CONFIRMED",
+                    f"#{self.experiment_id} · {name}",
+                )
+                self._refresh_history()
+            except Exception as exc:  # noqa: BLE001
+                self.dialogs.warning("试样信息保存失败", str(exc))
+            self.navigate("current")
 
     def _build_menu(self) -> None:
         help_menu = self.menuBar().addMenu("帮助")
@@ -378,7 +554,7 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             self.dialogs.warning("缺少步骤", str(exc))
             return
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             self.dialogs.warning("无法启动", str(exc))
             return
 
@@ -391,7 +567,9 @@ class MainWindow(QMainWindow):
         self._apply_controller_transition(transition)
         self._refresh_history()
         self.runtime.start(transition.experiment_id)
-        self.tabs.setCurrentWidget(self.monitor_page)
+        self.overview_page.run_state.setText(f"运行中 · 实验 #{transition.experiment_id}")
+        self.lbl_runtime_state.setText("●  运行中")
+        self.navigate("current")
 
     def pause_experiment(self) -> None:
         transition = self.controller.pause_experiment()
@@ -468,7 +646,7 @@ class MainWindow(QMainWindow):
                     file_path=path,
                 )
                 self._apply_history_transition(transition)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 self.dialogs.warning("导出失败", str(exc))
                 self._append_log(f"导出CSV失败: {exc}")
             return
@@ -484,7 +662,7 @@ class MainWindow(QMainWindow):
                 file_path=path,
             )
             self._apply_history_transition(transition)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             self.dialogs.warning("导出失败", str(exc))
             self._append_log(f"导出Excel失败: {exc}")
 
@@ -505,6 +683,7 @@ class MainWindow(QMainWindow):
     def _on_snapshot(self, payload: tuple[DeviceSnapshot, Measurement]) -> None:
         snapshot, measurement = payload
 
+        self.overview_page.update_snapshot(snapshot)
         self.monitor_page.update_snapshot(snapshot)
         self.monitor_page.push_measurement(measurement)
         self.monitor_page.update_chart(snapshot)
@@ -550,6 +729,11 @@ class MainWindow(QMainWindow):
 
     def _apply_controller_transition(self, transition: ControllerTransition) -> None:
         self.presenter.apply_experiment_transition(transition)
+        if transition.final_status is not None:
+            self.overview_page.run_state.setText(
+                f"最近实验 · {transition.final_status}"
+            )
+            self.lbl_runtime_state.setText("●  待机")
         if transition.experiment_id is not None or transition.final_status is not None:
             self._refresh_history()
         if transition.user_message:

@@ -45,6 +45,21 @@ def test_main_window_smoke(tmp_path):
     # redesign: tabs carry icons, header/status bar present
     assert not window.tabs.tabIcon(2).isNull()
     assert "仿真模式" in window.statusBar().currentMessage()
+    assert len(window.nav_buttons) == 12
+    assert window.current_page == "overview"
+    window.navigate("devices")
+    assert window.page_stack.currentWidget() is window.tabs
+    assert window.monitor_tabs.currentWidget() is window.multi_device_page
+    assert not window.multi_device_page.btn_apply_flows.isEnabled()
+    window.navigate("preflight")
+    assert window.page_stack.currentWidget() is window.preflight_page
+    assert "现场确认" in window.preflight_page.missing_fields()
+    window.navigate("reports")
+    assert window.page_stack.currentWidget() is window.reports_page
+    window.btn_theme.click()
+    assert window.theme_mode == "light"
+    window.btn_theme.click()
+    assert window.theme_mode == "dark"
 
     window.close()
     app.quit()
@@ -56,6 +71,47 @@ class _FakeWorker:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+def test_preflight_records_sample_and_requires_operator_checks(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    settings = Settings(db_path=str(tmp_path / "preflight.db"), simulation_mode=True)
+    db = DatabaseManager(settings.db_file)
+    db.init_schema()
+    db.create_recipe("试验配方", [{
+        "step_no": 1, "target_temp_c": 900, "ramp_rate_cpm": 10,
+        "hold_seconds": 600, "n2_lpm": 4.0, "h2_lpm": 1.0,
+        "co_lpm": 0.5, "notes": "",
+    }])
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    window = MainWindow(settings, db, client)
+    warnings = []
+    window.dialogs.warning = lambda _title, message: warnings.append(message)
+    window.dialogs.confirm = lambda *_args: True
+    window.runtime.start = lambda _experiment_id: setattr(window.runtime, "worker", _FakeWorker())
+
+    window.preflight_page.btn_start.click()
+    assert window.experiment_id is None
+    assert "现场确认" in warnings[-1]
+
+    preflight = window.preflight_page
+    preflight.sample_name.setText("球团矿 A-19")
+    preflight.mass.setValue(54.280)
+    preflight.tfe.setValue(64.21)
+    preflight.feo.setValue(8.42)
+    preflight.operator.setText("实验员 A")
+    for check in preflight.checks:
+        check.setChecked(True)
+    preflight.btn_start.click()
+
+    detail = db.get_experiment_detail(window.experiment_id)
+    assert detail is not None
+    assert detail["name"] == "球团矿 A-19"
+    assert detail["initial_mass_g"] == 54.28
+    assert detail["tfe_pct"] == 64.21
+    assert window.current_page == "current"
+    window.close()
+    app.quit()
 
 
 def _build_running_window(tmp_path, db_name: str = "ui_runtime.db"):
@@ -202,7 +258,7 @@ def test_main_window_completion_syncs_stop_command(tmp_path):
 
 
 def test_main_window_marks_control_feedback_mismatch(tmp_path):
-    app, db, _client, window, exp_id, worker = _build_running_window(tmp_path, "ui_feedback_mismatch.db")
+    app, _db, _client, window, exp_id, worker = _build_running_window(tmp_path, "ui_feedback_mismatch.db")
     window.client.last_run_control_command = "start"
     window.client.last_run_control_word = 0x0001
 

@@ -41,6 +41,12 @@ class MultiDevicePage(QWidget):
         self._channels = gateway.channels
 
         layout = QVBoxLayout(self)
+        self.lbl_control_scope = QLabel(
+            "设备诊断仅显示采集状态。原型中的 7 气体 / 6 MFC 控制、上限策略和类型互锁"
+            "尚未完成真机映射与安全验证。"
+        )
+        self.lbl_control_scope.setWordWrap(True)
+        layout.addWidget(self.lbl_control_scope)
 
         # --- Temperature group ---
         temp_box = QGroupBox("温控仪 (TAIE · Modbus RTU)")
@@ -110,6 +116,15 @@ class MultiDevicePage(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(poll_interval_ms)
         self._timer.timeout.connect(self.refresh)
+
+    def set_diagnostics_only(self) -> None:
+        """Keep the diagnostics destination read-only until control mapping is verified."""
+        self.spin_temp.setEnabled(False)
+        self.btn_set_temp.setEnabled(False)
+        self.btn_apply_flows.setEnabled(False)
+        self.btn_tare.setEnabled(False)
+        for spin in self._sp_spins.values():
+            spin.setEnabled(False)
 
     # --- lifecycle ---
     def start(self) -> None:

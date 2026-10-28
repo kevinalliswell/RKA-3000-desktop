@@ -1,10 +1,4 @@
-"""Central design system: a professional theme layered on pyqtdarktheme.
-
-We use pyqtdarktheme as a consistent, well-tested foundation (handles every edge
-widget — scrollbars, menus, tooltips, spin buttons) and layer a focused set of
-brand overrides on top for identity: an accent color, primary action buttons,
-card-style group boxes, an accented tab strip, and comfortable spacing.
-"""
+"""Instrument-console theme for the RKA desktop application."""
 
 from __future__ import annotations
 
@@ -12,10 +6,10 @@ import qdarktheme
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QPushButton
 
-# Brand palette (Tailwind-inspired, calm and professional for instrument software)
-ACCENT = "#2563EB"        # blue-600
-ACCENT_HOVER = "#1D4ED8"  # blue-700
-ACCENT_PRESSED = "#1E40AF"  # blue-800
+# Instrument-console palette shared by navigation and charts.
+ACCENT = "#0369A1"
+ACCENT_HOVER = "#075985"
+ACCENT_PRESSED = "#0C4A6E"
 SURFACE = "#FFFFFF"
 WINDOW = "#EEF2F7"
 BORDER = "#E2E8F0"
@@ -25,91 +19,6 @@ HEADER_BG = "#0F2942"     # deep navy header
 SUCCESS = "#16A34A"
 DANGER = "#DC2626"
 
-_EXTRA_QSS = f"""
-/* ---- window & surfaces ---- */
-QWidget#centralRoot {{ background: {WINDOW}; }}
-
-/* ---- app header ---- */
-QFrame#appHeader {{
-    background: {HEADER_BG};
-    border: none;
-}}
-QFrame#appHeader QLabel {{ background: transparent; }}
-QLabel#appTitle {{ color: #FFFFFF; font-size: 16px; font-weight: 700; }}
-QLabel#appSubtitle {{ color: #9FB3C8; font-size: 12px; }}
-QLabel#appVersion {{
-    color: #DCE6F2; font-size: 12px; font-weight: 700;
-    background: rgba(255,255,255,0.10); border-radius: 10px; padding: 3px 10px;
-}}
-
-/* ---- tabs ---- */
-QTabWidget::pane {{ border: 1px solid {BORDER}; border-radius: 8px; top: -1px; background: {SURFACE}; }}
-QTabBar::tab {{
-    padding: 9px 20px; margin-right: 2px; color: {MUTED};
-    font-size: 13px; border: none; background: transparent;
-}}
-QTabBar::tab:hover {{ color: {TEXT}; }}
-QTabBar::tab:selected {{
-    color: {ACCENT}; font-weight: 700;
-    border-bottom: 2px solid {ACCENT};
-}}
-
-/* ---- group boxes as cards ---- */
-QGroupBox {{
-    border: 1px solid {BORDER}; border-radius: 10px;
-    margin-top: 16px; padding: 14px 12px 12px 12px; background: {SURFACE};
-}}
-QGroupBox::title {{
-    subcontrol-origin: margin; subcontrol-position: top left; left: 14px;
-    padding: 2px 6px; color: {TEXT}; font-weight: 700;
-}}
-
-/* ---- buttons ---- */
-QPushButton {{ border-radius: 7px; padding: 7px 16px; }}
-QPushButton#primary {{
-    background: {ACCENT}; color: #FFFFFF; font-weight: 600; border: none;
-}}
-QPushButton#primary:hover {{ background: {ACCENT_HOVER}; }}
-QPushButton#primary:pressed {{ background: {ACCENT_PRESSED}; }}
-QPushButton#primary:disabled {{ background: #93B4F0; color: #EAF1FF; }}
-QPushButton#danger {{ background: {DANGER}; color: #FFFFFF; font-weight: 600; border: none; }}
-QPushButton#danger:hover {{ background: #B91C1C; }}
-
-/* ---- inputs ---- */
-QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {{
-    border-radius: 7px; padding: 5px 9px; min-height: 20px;
-}}
-
-/* ---- tables ---- */
-QTableWidget {{ border: 1px solid {BORDER}; border-radius: 8px; gridline-color: #EDF1F6; }}
-QHeaderView::section {{
-    background: #F1F5F9; color: {MUTED}; padding: 7px 8px;
-    border: none; border-right: 1px solid {BORDER}; border-bottom: 1px solid {BORDER};
-    font-weight: 600;
-}}
-QTableWidget::item {{ padding: 4px 6px; }}
-
-/* ---- status bar ---- */
-QStatusBar {{ color: {MUTED}; }}
-QStatusBar QLabel {{ color: {MUTED}; }}
-
-/* ---- components: card ---- */
-QFrame#card {{
-    background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px;
-}}
-QLabel#cardTitle {{ color: {TEXT}; font-size: 14px; font-weight: 700; }}
-
-/* ---- components: metric tile ---- */
-QFrame#metricTile {{
-    background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px;
-}}
-QFrame#metricTile:hover {{ border: 1px solid #C7D2FE; }}
-QLabel#metricLabel {{ color: {MUTED}; font-size: 12px; background: transparent; }}
-QLabel#metricValue {{ color: {TEXT}; font-size: 23px; font-weight: 700; background: transparent; }}
-QLabel#metricUnit {{ color: {MUTED}; font-size: 13px; padding-bottom: 3px; background: transparent; }}
-QLabel#metricIcon {{ background: transparent; }}
-"""
-
 
 def apply_theme(app: QApplication, mode: str = "light") -> None:
     """Apply the base theme + brand overrides + a clean font to the application."""
@@ -118,7 +27,60 @@ def apply_theme(app: QApplication, mode: str = "light") -> None:
     except TypeError:
         # older/newer signature without custom_colors
         base = qdarktheme.load_stylesheet(mode)
-    app.setStyleSheet(base + _EXTRA_QSS)
+    dark = mode == "dark"
+    canvas = "#0b0f15" if dark else "#f2f5f9"
+    surface = "#151a24" if dark else "#ffffff"
+    sidebar = "#10141d" if dark else "#e9eef5"
+    ink = "#e8edf6" if dark else "#18202f"
+    muted = "#9aa8ba" if dark else "#617084"
+    line = "#2c3544" if dark else "#d9e1eb"
+    accent = "#38bdf8" if dark else ACCENT
+    qss = f"""
+    QWidget#centralRoot {{ background: {canvas}; }}
+    QFrame#sidebar {{ background: {sidebar}; border-right: 1px solid {line}; }}
+    QFrame#sidebar QLabel {{ background: transparent; }}
+    QLabel#sideBrand {{ color: {accent}; font-size: 19px; font-weight: 800; }}
+    QLabel#sideSub {{ color: {muted}; font-size: 11px; padding-left: 26px; }}
+    QLabel#navGroup {{ color: {muted}; font-size: 11px; font-weight: 700; padding: 9px 9px 4px; }}
+    QLabel#sideMode {{ color: {accent}; padding: 10px; }}
+    QPushButton#navItem {{ text-align: left; color: {muted}; border: 0; border-radius: 8px;
+                          padding: 8px 10px; background: transparent; font-size: 13px; }}
+    QPushButton#navItem:hover {{ background: {line}; color: {ink}; }}
+    QPushButton#navItem:checked {{ color: {accent}; background: {"#173044" if dark else "#dbeefa"}; font-weight: 700; }}
+    QFrame#appHeader {{ background: {surface}; border-bottom: 1px solid {line}; }}
+    QFrame#appHeader QLabel {{ background: transparent; }}
+    QLabel#appTitle {{ color: {ink}; font-size: 15px; font-weight: 700; }}
+    QLabel#appSubtitle, QLabel#appVersion {{ color: {muted}; font-size: 11px; }}
+    QLabel#runtimeState {{ color: {accent}; font-size: 12px; font-weight: 700; padding: 5px 10px; }}
+    QLabel#pageHeading {{ color: {ink}; font-size: 23px; font-weight: 750; }}
+    QLabel#pageDescription {{ color: {muted}; font-size: 12px; }}
+    QFrame#workspaceCard, QFrame#card, QFrame#metricTile {{ background: {surface}; border: 1px solid {line}; border-radius: 10px; }}
+    QFrame#workspaceCard QLabel, QFrame#card QLabel, QFrame#metricTile QLabel {{ background: transparent; }}
+    QLabel#cardHeading, QLabel#cardTitle {{ color: {ink}; font-size: 14px; font-weight: 700; }}
+    QLabel#overviewMetric {{ color: {ink}; font-size: 28px; font-weight: 750; }}
+    QLabel#runState {{ color: {accent}; font-size: 16px; font-weight: 700; }}
+    QLabel#metricLabel {{ color: {muted}; font-size: 12px; }}
+    QLabel#metricValue {{ color: {ink}; font-size: 23px; font-weight: 700; }}
+    QLabel#metricUnit {{ color: {muted}; font-size: 13px; }}
+    QGroupBox {{ border: 1px solid {line}; border-radius: 9px; margin-top: 16px;
+                 padding: 14px 12px 12px; background: {surface}; }}
+    QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 14px;
+                        padding: 2px 6px; color: {ink}; font-weight: 700; }}
+    QTabWidget::pane {{ border: 1px solid {line}; border-radius: 8px; background: {surface}; }}
+    QTabBar::tab {{ padding: 9px 18px; color: {muted}; border: 0; }}
+    QTabBar::tab:selected {{ color: {accent}; border-bottom: 2px solid {accent}; font-weight: 700; }}
+    QPushButton {{ border-radius: 7px; padding: 7px 13px; }}
+    QPushButton#primary {{ background: {ACCENT if not dark else '#0284c7'}; color: white; border: 0; font-weight: 700; }}
+    QPushButton#primary:hover {{ background: {ACCENT_HOVER if not dark else '#0369a1'}; }}
+    QPushButton#danger {{ background: {DANGER}; color: white; border: 0; font-weight: 700; }}
+    QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {{ border-radius: 7px; min-height: 22px; padding: 4px 8px; }}
+    QTableWidget {{ border: 1px solid {line}; border-radius: 8px; gridline-color: {line}; }}
+    QHeaderView::section {{ background: {sidebar}; color: {muted}; padding: 7px 8px;
+                           border: 0; border-right: 1px solid {line}; border-bottom: 1px solid {line}; font-weight: 600; }}
+    QTableWidget::item {{ padding: 4px 6px; }}
+    QStatusBar, QStatusBar QLabel {{ color: {muted}; }}
+    """
+    app.setStyleSheet(base + qss)
 
     font = QFont()
     # macOS: PingFang SC; Windows: Microsoft YaHei; fall back to the default sans.
