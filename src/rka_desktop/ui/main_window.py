@@ -327,6 +327,7 @@ class MainWindow(QMainWindow):
         self.multi_device_page.start()
         self.analysis_page.refresh_experiments()
         self._refresh_logs()
+        self._refresh_alarm_history()
 
         mode = "仿真模式" if self.settings.simulation_mode else "实机模式"
         self.statusBar().showMessage(f"就绪 · {mode} · 串口 {self.settings.serial_port}")
@@ -415,6 +416,8 @@ class MainWindow(QMainWindow):
         for key, button in self.nav_buttons.items():
             button.setChecked(key == page)
         self.toolbar_widget.setVisible(page in {"recipes", "preflight", "current", "history"})
+        if page == "alarms":
+            self._refresh_alarm_history()
         self.current_page = page
 
     def _start_from_preflight(self) -> None:
@@ -489,6 +492,9 @@ class MainWindow(QMainWindow):
 
     def _refresh_logs(self) -> None:
         self.log_page.set_logs(self.audit_repository.list_audit_logs(limit=200))
+
+    def _refresh_alarm_history(self) -> None:
+        self.alarm_page.set_alarm_history(self.alarm_repository.list_alarm_history(limit=200))
 
     def rename_experiment(self) -> None:
         exp_id = self.history_page.selected_experiment_id()
@@ -706,10 +712,19 @@ class MainWindow(QMainWindow):
     def _refresh_history(self) -> None:
         transition = self.history_controller.load_history(self.history_page.selected_experiment_id())
         self._apply_history_transition(transition)
+        self._refresh_history_detail()
 
     def _on_history_selected(self) -> None:
         transition = self.history_controller.select_experiment(self.history_page.selected_experiment_id())
         self._apply_history_transition(transition)
+        self._refresh_history_detail()
+
+    def _refresh_history_detail(self) -> None:
+        experiment_id = self.history_page.selected_experiment_id()
+        measurements = self.experiment_repository.fetch_measurements(experiment_id) if experiment_id else []
+        alarms = self.alarm_repository.list_alarm_history(experiment_id) if experiment_id else []
+        self.history_page.set_measurements(measurements)
+        self.history_page.set_alarm_history(alarms)
 
     def _save_new_recipe(self) -> None:
         name = self.recipe_page.recipe_name_input.text().strip()
@@ -730,6 +745,8 @@ class MainWindow(QMainWindow):
 
     def _apply_controller_transition(self, transition: ControllerTransition) -> None:
         self.presenter.apply_experiment_transition(transition)
+        if any("报警" in entry or "联锁" in entry for entry in transition.logs):
+            self._refresh_alarm_history()
         if transition.final_status is not None:
             self.overview_page.run_state.setText(
                 f"最近实验 · {transition.final_status}"

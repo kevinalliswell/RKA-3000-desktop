@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -21,21 +22,33 @@ class LogPage(QWidget):
         super().__init__()
         layout = QVBoxLayout(self)
         self.btn_refresh = QPushButton("刷新日志")
-        self.table = QTableWidget(0, len(_HEADERS))
-        self.table.setHorizontalHeaderLabels(_HEADERS)
-        self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.sections = QTabWidget()
+        self.tables: dict[str, QTableWidget] = {}
+        for key, label in (("all", "全部事件"), ("control", "控制操作"), ("safety", "报警与安全")):
+            table = QTableWidget(0, len(_HEADERS))
+            table.setHorizontalHeaderLabels(_HEADERS)
+            table.verticalHeader().setVisible(False)
+            table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.sections.addTab(table, label)
+            self.tables[key] = table
+        self.table = self.tables["all"]
         layout.addWidget(self.btn_refresh)
-        layout.addWidget(self.table)
+        layout.addWidget(self.sections)
 
     def set_logs(self, logs: list[dict[str, Any]]) -> None:
-        self.table.setRowCount(len(logs))
-        for row, entry in enumerate(logs):
-            values = (
-                entry.get("created_at", ""),
-                entry.get("actor", ""),
-                entry.get("action", ""),
-                entry.get("detail", ""),
-            )
-            for col, value in enumerate(values):
-                self.table.setItem(row, col, QTableWidgetItem(str(value)))
+        safety_words = ("ALARM", "INTERLOCK", "STOP", "FAULT", "EMERGENCY", "SAFETY")
+        safety_logs = [entry for entry in logs if any(
+            word in str(entry.get("action", "")).upper() for word in safety_words
+        )]
+        categories = {"all": logs, "safety": safety_logs,
+                      "control": [entry for entry in logs if entry not in safety_logs]}
+        for key, entries in categories.items():
+            table = self.tables[key]
+            table.setRowCount(len(entries))
+            for row, entry in enumerate(entries):
+                values = (
+                    entry.get("created_at", ""), entry.get("actor", ""),
+                    entry.get("action", ""), entry.get("detail", ""),
+                )
+                for col, value in enumerate(values):
+                    table.setItem(row, col, QTableWidgetItem(str(value)))

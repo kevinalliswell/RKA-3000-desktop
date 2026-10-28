@@ -41,6 +41,9 @@ def test_main_window_smoke(tmp_path):
     assert window.btn_pause.isEnabled() is False
     assert window.btn_resume.isEnabled() is False
     assert window.history_page.table.columnCount() == 6
+    assert window.history_page.sections.count() == 3
+    assert window.alarm_page.sections.count() == 2
+    assert window.log_page.sections.count() == 3
     assert window.monitor_page.lbl_control_feedback.text() == "控制反馈: --"
     assert window.monitor_page.sections.count() == 5
     assert window.monitor_page.gas_table.rowCount() == 7
@@ -115,6 +118,30 @@ def test_preflight_records_sample_and_requires_operator_checks(tmp_path):
     assert detail["initial_mass_g"] == 54.28
     assert detail["tfe_pct"] == 64.21
     assert window.current_page == "current"
+    window.close()
+    app.quit()
+
+
+def test_history_subpages_show_selected_record_data(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    settings = Settings(db_path=str(tmp_path / "history_sections.db"), simulation_mode=True)
+    db = DatabaseManager(settings.db_file)
+    db.init_schema()
+    experiment_id = db.create_experiment("样品 A")
+    db.insert_measurement(Measurement(
+        experiment_id=experiment_id,
+        sampled_at=datetime(2026, 1, 1, 12, 0, 0),
+        temperature_c=900, weight_g=54.2, pressure_mpa=0.1,
+        n2_lpm=4, h2_lpm=1, co_lpm=0.5,
+    ))
+    db.create_alarm(experiment_id, "TEST", "WARN", "测试报警")
+    client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
+    window = MainWindow(settings, db, client)
+    window.history_page.table.selectRow(0)
+    assert window.history_page.measurement_table.rowCount() == 1
+    assert window.history_page.measurement_table.item(0, 2).text() == "54.2"
+    assert window.history_page.alarm_table.rowCount() == 1
+    assert window.alarm_page.history_table.rowCount() == 1
     window.close()
     app.quit()
 

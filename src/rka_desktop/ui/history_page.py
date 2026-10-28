@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -16,6 +17,9 @@ class HistoryPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
+        self.sections = QTabWidget()
+        summary_page = QWidget()
+        summary_layout = QVBoxLayout(summary_page)
 
         toolbar = QHBoxLayout()
         self.btn_refresh = QPushButton("刷新历史")
@@ -33,9 +37,48 @@ class HistoryPage(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
 
-        layout.addLayout(toolbar)
-        layout.addWidget(self.summary_label)
-        layout.addWidget(self.table)
+        summary_layout.addLayout(toolbar)
+        summary_layout.addWidget(self.summary_label)
+        summary_layout.addWidget(self.table)
+
+        self.measurement_table = QTableWidget(0, 7)
+        self.measurement_table.setHorizontalHeaderLabels(
+            ("采样时间", "温度 ℃", "质量 g", "压力 MPa", "N₂ L/min", "H₂ L/min", "CO L/min")
+        )
+        self.measurement_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.measurement_table.verticalHeader().hide()
+        self.alarm_table = QTableWidget(0, 5)
+        self.alarm_table.setHorizontalHeaderLabels(("时间", "编码", "级别", "消息", "确认状态"))
+        self.alarm_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.alarm_table.verticalHeader().hide()
+        self.sections.addTab(summary_page, "实验列表")
+        self.sections.addTab(self.measurement_table, "原始数据")
+        self.sections.addTab(self.alarm_table, "报警记录")
+        layout.addWidget(self.sections)
+
+    def set_measurements(self, measurements: list[dict[str, object]]) -> None:
+        self.measurement_table.setRowCount(len(measurements))
+        for row, measurement in enumerate(measurements):
+            values = (
+                measurement.get("sampled_at"), measurement.get("temperature_c"),
+                measurement.get("weight_g"), measurement.get("pressure_mpa"),
+                measurement.get("n2_lpm"), measurement.get("h2_lpm"),
+                measurement.get("co_lpm"),
+            )
+            for col, value in enumerate(values):
+                self.measurement_table.setItem(
+                    row, col, QTableWidgetItem(str(value if value is not None and value != "" else "--"))
+                )
+
+    def set_alarm_history(self, alarms: list[dict[str, object]]) -> None:
+        self.alarm_table.setRowCount(len(alarms))
+        for row, alarm in enumerate(alarms):
+            values = (
+                alarm.get("created_at"), alarm.get("code"), alarm.get("level"),
+                alarm.get("message"), "已确认" if alarm.get("acknowledged_at") else "待确认",
+            )
+            for col, value in enumerate(values):
+                self.alarm_table.setItem(row, col, QTableWidgetItem(str(value or "--")))
 
     def set_experiments(self, experiments: list[dict[str, object]], selected_experiment_id: int | None = None) -> None:
         self.table.blockSignals(True)
