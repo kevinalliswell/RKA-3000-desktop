@@ -398,6 +398,7 @@ class MainWindow(QMainWindow):
         elif page == "preflight":
             self.page_stack.setCurrentWidget(self.preflight_page)
             self.preflight_page.recipe_label.setText(self.recipe_combo.currentText())
+            self.preflight_page._refresh_step()
         elif page == "reports":
             self.page_stack.setCurrentWidget(self.reports_page)
         elif page == "help":

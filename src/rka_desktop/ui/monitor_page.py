@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -17,13 +18,19 @@ from PySide6.QtWidgets import (
 
 from rka_desktop.models.entities import DeviceSnapshot, Measurement
 from rka_desktop.ui.components import Card, MetricTile
-from rka_desktop.ui.theme import ACCENT, accent_pen, style_axis, style_chart, style_chart_view
+from rka_desktop.ui.theme import (
+    ACCENT,
+    accent_pen,
+    style_axis,
+    style_chart,
+    style_chart_view,
+)
 
 try:
     from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
 
     CHARTS_AVAILABLE = True
-except Exception:  # pragma: no cover
+except Exception:  # noqa: BLE001  # pragma: no cover
     CHARTS_AVAILABLE = False
 
 
@@ -35,6 +42,36 @@ class MonitorPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
+        self.sections = QTabWidget()
+
+        self.gas_page = QWidget()
+        gas_layout = QVBoxLayout(self.gas_page)
+        gas_note = QLabel(
+            "供气状态只读。当前控制链路仅采集 N₂、H₂、CO；Ar、CO₂、CH₄、O₂ "
+            "及 6 通道映射尚待真机验证。"
+        )
+        gas_note.setWordWrap(True)
+        gas_layout.addWidget(gas_note)
+        self.gas_table = QTableWidget(7, 3)
+        self.gas_table.setHorizontalHeaderLabels(("气体", "实测流量 L/min", "控制能力"))
+        self.gas_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.gas_table.verticalHeader().hide()
+        for row, gas in enumerate(("N₂", "H₂", "CO", "Ar", "CO₂", "CH₄", "O₂")):
+            self.gas_table.setItem(row, 0, QTableWidgetItem(gas))
+            self.gas_table.setItem(row, 1, QTableWidgetItem("--"))
+            self.gas_table.setItem(
+                row, 2, QTableWidgetItem("已接入采集" if row < 3 else "未完成真机映射")
+            )
+        gas_layout.addWidget(self.gas_table)
+
+        self.process_page = QWidget()
+        process_layout = QVBoxLayout(self.process_page)
+        self.trends_page = QWidget()
+        trends_layout = QVBoxLayout(self.trends_page)
+        self.events_page = QWidget()
+        events_layout = QVBoxLayout(self.events_page)
+        self.raw_page = QWidget()
+        raw_layout = QVBoxLayout(self.raw_page)
 
         # --- real-time data as modular KPI tiles ---
         data_card = Card("实时数据")
@@ -50,7 +87,7 @@ class MonitorPage(QWidget):
                      self.tile_n2, self.tile_h2, self.tile_co):
             tiles.addWidget(tile)
         data_card.add_layout(tiles)
-        layout.addWidget(data_card)
+        process_layout.addWidget(data_card)
 
         # --- run status block (text status rows) ---
         status_card = Card("运行状态")
@@ -72,7 +109,8 @@ class MonitorPage(QWidget):
         status_grid.addWidget(self.lbl_execution, 3, 0, 1, 2)
         status_grid.addWidget(self.lbl_setpoints, 4, 0, 1, 2)
         status_card.add_layout(status_grid)
-        layout.addWidget(status_card)
+        process_layout.addWidget(status_card)
+        process_layout.addStretch()
 
         if CHARTS_AVAILABLE:
             self.temp_series = QLineSeries()
@@ -111,22 +149,32 @@ class MonitorPage(QWidget):
             chart_view = QChartView(chart)
             chart_view.setMinimumHeight(260)
             style_chart_view(chart_view)
-            layout.addWidget(chart_view)
+            trends_layout.addWidget(chart_view)
         else:
             self.temp_series = None
             self.weight_series = None
             self.axis_x = None
             self.axis_y = None
-            layout.addWidget(QLabel("当前运行环境缺少 QtCharts，实时曲线不可用。"))
+            trends_layout.addWidget(QLabel("当前运行环境缺少 QtCharts，实时曲线不可用。"))
 
         self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(["时间", "温度℃", "重量g", "压力MPa", "N2", "H2", "CO"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(self.table)
+        raw_layout.addWidget(self.table)
 
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
-        layout.addWidget(self.log_view)
+        events_layout.addWidget(self.log_view)
+
+        for page, label in (
+            (self.gas_page, "供气状态"),
+            (self.process_page, "过程总览"),
+            (self.trends_page, "实时趋势"),
+            (self.events_page, "阶段与操作"),
+            (self.raw_page, "原始采样"),
+        ):
+            self.sections.addTab(page, label)
+        layout.addWidget(self.sections, 1)
 
     def reset_runtime(self) -> None:
         self._sample_index = 0
@@ -155,6 +203,8 @@ class MonitorPage(QWidget):
         self.tile_n2.set_value(f"{snapshot.n2_lpm:.2f}")
         self.tile_h2.set_value(f"{snapshot.h2_lpm:.2f}")
         self.tile_co.set_value(f"{snapshot.co_lpm:.2f}")
+        for row, flow in enumerate((snapshot.n2_lpm, snapshot.h2_lpm, snapshot.co_lpm)):
+            self.gas_table.item(row, 1).setText(f"{flow:.2f}")
 
     def update_alarm_text(self, text: str, style: str) -> None:
         self.lbl_alarm.setText(text)

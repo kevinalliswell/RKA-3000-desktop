@@ -42,6 +42,9 @@ def test_main_window_smoke(tmp_path):
     assert window.btn_resume.isEnabled() is False
     assert window.history_page.table.columnCount() == 6
     assert window.monitor_page.lbl_control_feedback.text() == "控制反馈: --"
+    assert window.monitor_page.sections.count() == 5
+    assert window.monitor_page.gas_table.rowCount() == 7
+    assert window.monitor_page.gas_table.item(6, 2).text() == "未完成真机映射"
     # redesign: tabs carry icons, header/status bar present
     assert not window.tabs.tabIcon(2).isNull()
     assert "仿真模式" in window.statusBar().currentMessage()
@@ -53,6 +56,7 @@ def test_main_window_smoke(tmp_path):
     assert not window.multi_device_page.btn_apply_flows.isEnabled()
     window.navigate("preflight")
     assert window.page_stack.currentWidget() is window.preflight_page
+    assert window.preflight_page.steps.count() == 3
     assert "现场确认" in window.preflight_page.missing_fields()
     window.navigate("reports")
     assert window.page_stack.currentWidget() is window.reports_page
@@ -90,6 +94,7 @@ def test_preflight_records_sample_and_requires_operator_checks(tmp_path):
     window.dialogs.confirm = lambda *_args: True
     window.runtime.start = lambda _experiment_id: setattr(window.runtime, "worker", _FakeWorker())
 
+    window.preflight_page.steps.setCurrentIndex(2)
     window.preflight_page.btn_start.click()
     assert window.experiment_id is None
     assert "现场确认" in warnings[-1]

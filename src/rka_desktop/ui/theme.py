@@ -74,7 +74,7 @@ def apply_theme(app: QApplication, mode: str = "light") -> None:
     QPushButton#primary:hover {{ background: {ACCENT_HOVER if not dark else '#0369a1'}; }}
     QPushButton#danger {{ background: {DANGER}; color: white; border: 0; font-weight: 700; }}
     QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {{ border-radius: 7px; min-height: 22px; padding: 4px 8px; }}
-    QTableWidget {{ border: 1px solid {line}; border-radius: 8px; gridline-color: {line}; }}
+    QTableWidget {{ background: {surface}; color: {ink}; border: 1px solid {line}; border-radius: 8px; gridline-color: {line}; }}
     QHeaderView::section {{ background: {sidebar}; color: {muted}; padding: 7px 8px;
                            border: 0; border-right: 1px solid {line}; border-bottom: 1px solid {line}; font-weight: 600; }}
     QTableWidget::item {{ padding: 4px 6px; }}

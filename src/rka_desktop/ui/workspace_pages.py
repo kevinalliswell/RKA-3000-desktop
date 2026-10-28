@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -117,13 +118,16 @@ class PreflightPage(QWidget):
         layout.setSpacing(16)
         layout.addWidget(title("实验准备", "选择已保存配方、登记试样并记录现场检查"))
 
+        self.steps = QTabWidget()
+        layout.addWidget(self.steps)
+
         sample, body = card("1 · 试样与配方")
         form = QFormLayout()
         self.recipe_label = QLabel("请从顶部工具栏选择配方")
         self.sample_name = QLineEdit()
         self.sample_name.setPlaceholderText("例如：球团矿 A-19")
         self.mass = QDoubleSpinBox()
-        self.mass.setRange(0, 100000)
+        self.mass.setRange(0, 300)
         self.mass.setDecimals(3)
         self.mass.setSuffix(" g")
         self.tfe = QDoubleSpinBox()
@@ -141,7 +145,11 @@ class PreflightPage(QWidget):
                               ("FeO", self.feo), ("操作员", self.operator)):
             form.addRow(label, widget)
         body.addLayout(form)
-        layout.addWidget(sample)
+        sample_step = QWidget()
+        sample_layout = QVBoxLayout(sample_step)
+        sample_layout.addWidget(sample)
+        sample_layout.addStretch()
+        self.steps.addTab(sample_step, "01 样品与配方")
 
         check_card, check_body = card("2 · 启动前现场确认")
         self.checks = []
@@ -155,17 +163,58 @@ class PreflightPage(QWidget):
         note.setObjectName("pageDescription")
         note.setWordWrap(True)
         check_body.addWidget(note)
-        layout.addWidget(check_card)
+        check_step = QWidget()
+        check_layout = QVBoxLayout(check_step)
+        check_layout.addWidget(check_card)
+        check_layout.addStretch()
+        self.steps.addTab(check_step, "02 设备与现场")
+
+        summary_step = QWidget()
+        summary_layout = QVBoxLayout(summary_step)
+        summary_card, summary_body = card("3 · 复核与启动")
+        self.summary = QLabel()
+        self.summary.setWordWrap(True)
+        self.summary.setMinimumHeight(92)
+        self.summary.setAlignment(Qt.AlignmentFlag.AlignTop)
+        summary_body.addWidget(self.summary)
+        summary_layout.addWidget(summary_card)
+        summary_layout.addStretch()
+        self.steps.addTab(summary_step, "03 复核与启动")
+
+        actions = QHBoxLayout()
+        self.btn_previous = QPushButton("上一步")
+        self.btn_next = QPushButton("下一步")
         self.btn_start = QPushButton("确认并启动实验")
         self.btn_start.setObjectName("primary")
-        layout.addWidget(self.btn_start, alignment=Qt.AlignmentFlag.AlignLeft)
+        actions.addWidget(self.btn_previous)
+        actions.addWidget(self.btn_next)
+        actions.addStretch()
+        actions.addWidget(self.btn_start)
+        layout.addLayout(actions)
         layout.addStretch()
+        self.btn_previous.clicked.connect(lambda: self.steps.setCurrentIndex(self.steps.currentIndex() - 1))
+        self.btn_next.clicked.connect(lambda: self.steps.setCurrentIndex(self.steps.currentIndex() + 1))
+        self.steps.currentChanged.connect(self._refresh_step)
+        self._refresh_step()
+
+    def _refresh_step(self) -> None:
+        index = self.steps.currentIndex()
+        self.btn_previous.setEnabled(index > 0)
+        self.btn_next.setEnabled(index < 2)
+        self.btn_start.setVisible(index == 2)
+        if index == 2:
+            checked = sum(check.isChecked() for check in self.checks)
+            self.summary.setText(
+                f"配方：{self.recipe_label.text()}\n"
+                f"试样：{self.sample_name.text().strip() or '未填写'} · {self.mass.value():.3f} g\n"
+                f"操作员：{self.operator.text().strip() or '未填写'}\n"
+                f"现场确认：{checked} / {len(self.checks)} 项"
+            )
 
     def missing_fields(self) -> list[str]:
         missing = []
         if not self.sample_name.text().strip(): missing.append("试样名称")
         if self.mass.value() <= 0: missing.append("初始质量")
-        if self.tfe.value() <= 0: missing.append("TFe")
         if not self.operator.text().strip(): missing.append("操作员")
         if not all(check.isChecked() for check in self.checks): missing.append("现场确认")
         return missing
