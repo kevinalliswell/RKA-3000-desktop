@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -42,12 +43,14 @@ class HistoryPage(QWidget):
         summary_layout.addWidget(self.table)
 
         self.measurement_table = QTableWidget(0, 7)
+        self.measurement_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.measurement_table.setHorizontalHeaderLabels(
             ("采样时间", "温度 ℃", "质量 g", "压力 MPa", "N₂ L/min", "H₂ L/min", "CO L/min")
         )
         self.measurement_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.measurement_table.verticalHeader().hide()
         self.alarm_table = QTableWidget(0, 5)
+        self.alarm_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.alarm_table.setHorizontalHeaderLabels(("时间", "编码", "级别", "消息", "确认状态"))
         self.alarm_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.alarm_table.verticalHeader().hide()

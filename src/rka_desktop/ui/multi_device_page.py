@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -47,6 +48,11 @@ class MultiDevicePage(QWidget):
         )
         self.lbl_control_scope.setWordWrap(True)
         layout.addWidget(self.lbl_control_scope)
+        self.sections = QTabWidget()
+        overview_page = QWidget()
+        overview_layout = QVBoxLayout(overview_page)
+        channels_page = QWidget()
+        channels_layout = QVBoxLayout(channels_page)
 
         # --- Temperature group ---
         temp_box = QGroupBox("温控仪 (TAIE · Modbus RTU)")
@@ -65,7 +71,7 @@ class MultiDevicePage(QWidget):
         temp_row.addWidget(QLabel("目标:"))
         temp_row.addWidget(self.spin_temp)
         temp_row.addWidget(self.btn_set_temp)
-        layout.addWidget(temp_box)
+        overview_layout.addWidget(temp_box)
 
         # --- MFC group ---
         mfc_box = QGroupBox("质量流量计 (Azbil MFC × 6 · CPL RS-485)")
@@ -89,7 +95,7 @@ class MultiDevicePage(QWidget):
         mfc_layout.addWidget(self.mfc_table)
         self.btn_apply_flows = QPushButton("下发全部流量设定")
         mfc_layout.addWidget(self.btn_apply_flows)
-        layout.addWidget(mfc_box)
+        channels_layout.addWidget(mfc_box)
 
         # --- Balance + status ---
         bottom = QGridLayout()
@@ -107,7 +113,35 @@ class MultiDevicePage(QWidget):
         self.lbl_status = QLabel("全部设备正常")
         status_row.addWidget(self.lbl_status)
         bottom.addWidget(status_box, 0, 1)
-        layout.addLayout(bottom)
+        overview_layout.addLayout(bottom)
+        overview_layout.addStretch()
+
+        topology_page = QWidget()
+        topology_layout = QVBoxLayout(topology_page)
+        topology_note = QLabel(
+            "本机设备链路：温控仪（Modbus RTU）· MFC 总线（CPL RS-485）· "
+            "电子天平（串口 ASCII）。当前通道表为仓库配置，"
+            "与更新版原型的 N₂/Ar 共用通道定义尚未完成真机一致性核对。"
+        )
+        topology_note.setWordWrap(True)
+        topology_layout.addWidget(topology_note)
+        topology_layout.addStretch()
+
+        diagnostics_page = QWidget()
+        diagnostics_layout = QVBoxLayout(diagnostics_page)
+        self.diagnostics_label = QLabel("等待设备快照")
+        self.diagnostics_label.setWordWrap(True)
+        diagnostics_layout.addWidget(self.diagnostics_label)
+        self.btn_refresh_diagnostics = QPushButton("重新读取快照")
+        diagnostics_layout.addWidget(self.btn_refresh_diagnostics)
+        diagnostics_layout.addStretch()
+        self.btn_refresh_diagnostics.clicked.connect(self.refresh)
+
+        self.sections.addTab(overview_page, "设备概览")
+        self.sections.addTab(topology_page, "连接拓扑")
+        self.sections.addTab(channels_page, "MFC 通道与量程")
+        self.sections.addTab(diagnostics_page, "通信诊断")
+        layout.addWidget(self.sections)
 
         self.btn_set_temp.clicked.connect(self._apply_temperature)
         self.btn_apply_flows.clicked.connect(self._apply_flows)
@@ -160,9 +194,11 @@ class MultiDevicePage(QWidget):
             names = ", ".join(snapshot.degraded_devices)
             self.lbl_status.setText(f"⚠ 设备降级: {names}（保持上次有效值）")
             self.lbl_status.setStyleSheet("color: #c0392b; font-weight: bold;")
+            self.diagnostics_label.setText(f"设备降级：{names}。请核对电源、线缆和端口配置。")
         else:
             self.lbl_status.setText("全部设备正常")
             self.lbl_status.setStyleSheet("color: #27ae60;")
+            self.diagnostics_label.setText("最近快照读取成功；设备状态正常。")
 
     # --- helpers ---
     def _set_cell(self, row: int, col: int, text: str) -> None:

@@ -4,8 +4,14 @@ from collections.abc import Callable
 
 from PySide6.QtWidgets import QComboBox, QPushButton
 
-from rka_desktop.controllers.experiment_controller import ControllerTransition, RuntimeViewState
-from rka_desktop.controllers.history_export_controller import HistoryTransition, HistoryViewState
+from rka_desktop.controllers.experiment_controller import (
+    ControllerTransition,
+    RuntimeViewState,
+)
+from rka_desktop.controllers.history_export_controller import (
+    HistoryTransition,
+    HistoryViewState,
+)
 from rka_desktop.controllers.recipe_controller import RecipeTransition, RecipeViewState
 from rka_desktop.ui.alarm_page import AlarmPage
 from rka_desktop.ui.history_page import HistoryPage
@@ -123,6 +129,7 @@ class MainWindowPresenter:
             self.btn_stop.setEnabled(view_state.stop_enabled)
 
     def _apply_recipe_view_state(self, view_state: RecipeViewState) -> None:
+        self.recipe_page.set_options(view_state.options)
         current_id = self.recipe_combo.currentData()
         self.recipe_combo.blockSignals(True)
         self.recipe_combo.clear()

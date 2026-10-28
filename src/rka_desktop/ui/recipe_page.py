@@ -3,12 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -18,6 +21,25 @@ class RecipePage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
+        self.sections = QTabWidget()
+        list_page = QWidget()
+        list_layout = QVBoxLayout(list_page)
+        list_actions = QHBoxLayout()
+        self.btn_new_recipe = QPushButton("新建配方")
+        self.btn_edit_selected = QPushButton("编辑所选配方")
+        list_actions.addWidget(self.btn_new_recipe)
+        list_actions.addWidget(self.btn_edit_selected)
+        list_actions.addStretch()
+        list_layout.addLayout(list_actions)
+        self.list_table = QTableWidget(0, 2)
+        self.list_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.list_table.setHorizontalHeaderLabels(("编号", "配方名称"))
+        self.list_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.list_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        list_layout.addWidget(self.list_table)
+
+        editor_page = QWidget()
+        editor_layout = QVBoxLayout(editor_page)
 
         header = QHBoxLayout()
         self.recipe_name_input = QLineEdit()
@@ -31,20 +53,44 @@ class RecipePage(QWidget):
         header.addWidget(self.recipe_name_input)
         header.addWidget(self.btn_recipe_add)
         header.addWidget(self.btn_recipe_remove)
-        layout.addLayout(header)
+        editor_layout.addLayout(header)
 
         self.recipe_table = QTableWidget(0, 8)
         self.recipe_table.setHorizontalHeaderLabels(
             ["步骤", "目标温度℃", "升温速率℃/min", "保温秒", "N2", "H2", "CO", "备注"]
         )
         self.recipe_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(self.recipe_table)
+        editor_layout.addWidget(self.recipe_table)
 
         footer = QHBoxLayout()
         footer.addWidget(self.btn_recipe_save)
         footer.addWidget(self.btn_recipe_update)
         footer.addStretch()
-        layout.addLayout(footer)
+        editor_layout.addLayout(footer)
+
+        version_page = QWidget()
+        version_layout = QVBoxLayout(version_page)
+        version_note = QLabel(
+            "当前数据库会更新现有配方，尚未保存独立版本快照或审核记录。"
+            "正式版本管理需补齐数据模型和审核流程。"
+        )
+        version_note.setWordWrap(True)
+        version_layout.addWidget(version_note)
+        version_layout.addStretch()
+        self.sections.addTab(list_page, "配方列表")
+        self.sections.addTab(editor_page, "阶段编辑")
+        self.sections.addTab(version_page, "版本与审核")
+        layout.addWidget(self.sections)
+
+    def set_options(self, options: list[Any]) -> None:
+        self.list_table.setRowCount(len(options))
+        for row, option in enumerate(options):
+            self.list_table.setItem(row, 0, QTableWidgetItem(str(option.recipe_id)))
+            self.list_table.setItem(row, 1, QTableWidgetItem(option.label))
+
+    def selected_list_recipe_id(self) -> int | None:
+        item = self.list_table.item(self.list_table.currentRow(), 0)
+        return int(item.text()) if item is not None else None
 
     def load_recipe(self, name: str, steps: list[dict[str, Any]]) -> None:
         self.recipe_name_input.setText(name)

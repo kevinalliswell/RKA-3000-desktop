@@ -294,7 +294,7 @@ class MainWindow(QMainWindow):
             (self.log_page, "操作审计", "实验与设备操作记录"),
         ):
             widget.layout().insertWidget(0, title(heading, description))
-        self.settings_page.layout().insertRow(0, title("系统设置", "当前运行环境及设备映射配置"))
+        self.settings_page.layout().insertWidget(0, title("系统设置", "当前运行环境及设备映射配置"))
 
         # 监控 hosts experiment monitoring with device status as a secondary view —
         # device communication is a supporting service, not a headline feature.
@@ -374,6 +374,11 @@ class MainWindow(QMainWindow):
         self.recipe_page.btn_recipe_remove.clicked.connect(self.recipe_page.remove_current_row)
         self.recipe_page.btn_recipe_save.clicked.connect(self._save_new_recipe)
         self.recipe_page.btn_recipe_update.clicked.connect(self._update_current_recipe)
+        self.recipe_page.btn_new_recipe.clicked.connect(self._new_recipe)
+        self.recipe_page.btn_edit_selected.clicked.connect(self._edit_selected_recipe)
+        self.recipe_page.list_table.cellDoubleClicked.connect(
+            lambda _row, _column: self._edit_selected_recipe()
+        )
         self.history_page.btn_refresh.clicked.connect(self._refresh_history)
         self.history_page.table.itemSelectionChanged.connect(self._on_history_selected)
 
@@ -401,6 +406,7 @@ class MainWindow(QMainWindow):
             self.preflight_page.recipe_label.setText(self.recipe_combo.currentText())
             self.preflight_page._refresh_step()
         elif page == "reports":
+            self.reports_page.set_experiments(self.experiment_repository.list_experiments(limit=200))
             self.page_stack.setCurrentWidget(self.reports_page)
         elif page == "help":
             self.page_stack.setCurrentWidget(self.help_page)
@@ -730,6 +736,21 @@ class MainWindow(QMainWindow):
         name = self.recipe_page.recipe_name_input.text().strip()
         transition = self.recipe_controller.save_recipe_input(name, self.recipe_page.collect_step_inputs())
         self._apply_recipe_transition(transition)
+
+    def _new_recipe(self) -> None:
+        self.recipe_combo.setCurrentIndex(0)
+        self.recipe_page.sections.setCurrentIndex(1)
+        self.recipe_page.recipe_name_input.setFocus()
+
+    def _edit_selected_recipe(self) -> None:
+        recipe_id = self.recipe_page.selected_list_recipe_id()
+        if recipe_id is None:
+            self.dialogs.info("提示", "请先在配方列表选择一条记录")
+            return
+        index = self.recipe_combo.findData(recipe_id)
+        if index >= 0:
+            self.recipe_combo.setCurrentIndex(index)
+            self.recipe_page.sections.setCurrentIndex(1)
 
     def _update_current_recipe(self) -> None:
         name = self.recipe_page.recipe_name_input.text().strip()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHeaderView,
     QLabel,
     QPushButton,
@@ -37,6 +38,7 @@ class AlarmPage(QWidget):
         active_layout.addWidget(self.btn_reset_interlock)
         active_layout.addWidget(self.pending_table)
         self.history_table = QTableWidget(0, 6)
+        self.history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.history_table.setHorizontalHeaderLabels(
             ("创建时间", "实验 ID", "编码", "级别", "消息", "确认时间")
         )

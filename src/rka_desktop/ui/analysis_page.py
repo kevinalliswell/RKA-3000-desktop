@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -36,7 +37,7 @@ try:
     from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
 
     CHARTS_AVAILABLE = True
-except Exception:  # pragma: no cover
+except Exception:  # noqa: BLE001  # pragma: no cover
     CHARTS_AVAILABLE = False
 
 
@@ -68,6 +69,9 @@ class AnalysisPage(QWidget):
         self._last_result: ReductionResult | None = None
 
         layout = QVBoxLayout(self)
+        self.sections = QTabWidget()
+        work_page = QWidget()
+        work_layout = QVBoxLayout(work_page)
 
         # --- selector + sample params ---
         controls = QGroupBox("试样参数（失重法）")
@@ -111,7 +115,7 @@ class AnalysisPage(QWidget):
         action_col.addWidget(self.btn_report)
         action_col.addStretch()
         form.addLayout(action_col, 1, 2, 1, 2)
-        layout.addWidget(controls)
+        work_layout.addWidget(controls)
 
         # --- charts ---
         if CHARTS_AVAILABLE:
@@ -159,7 +163,7 @@ class AnalysisPage(QWidget):
                 view.setMinimumHeight(300)
                 style_chart_view(view)
                 charts_row.addWidget(view)
-            layout.addLayout(charts_row)
+            work_layout.addLayout(charts_row)
 
         # --- indices (modular KPI tiles) ---
         indices = Card("关键指标")
@@ -172,10 +176,24 @@ class AnalysisPage(QWidget):
         for tile in (self.tile_final, self.tile_t40, self.tile_t60, self.tile_rate40):
             tiles_row.addWidget(tile)
         indices.add_layout(tiles_row)
-        layout.addWidget(indices)
+        work_layout.addWidget(indices)
 
         self.lbl_status = QLabel("")
-        layout.addWidget(self.lbl_status)
+        work_layout.addWidget(self.lbl_status)
+
+        method_page = QWidget()
+        method_layout = QVBoxLayout(method_page)
+        method_note = QLabel(
+            "还原度及速率结果依赖 m₀、TFe、FeO、起始时点和称重序列。"
+            "计算前应检查缺失样本、报警区间、提前终止及配方偏离。"
+            "正式方法符合性、算法版本与人工算例仍需实验负责人验证。"
+        )
+        method_note.setWordWrap(True)
+        method_layout.addWidget(method_note)
+        method_layout.addStretch()
+        self.sections.addTab(work_page, "指标工作台")
+        self.sections.addTab(method_page, "计算依据与限制")
+        layout.addWidget(self.sections)
 
         self.btn_refresh.clicked.connect(self.refresh_experiments)
         self.experiment_combo.currentIndexChanged.connect(self._load_params_for_selection)

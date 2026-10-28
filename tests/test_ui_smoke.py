@@ -36,6 +36,12 @@ def test_main_window_smoke(tmp_path):
     assert window.monitor_tabs.tabText(1) == "设备状态"
     assert window.multi_device_page.mfc_table.rowCount() == 6
     assert window.recipe_page.recipe_table.columnCount() == 8
+    assert window.recipe_page.sections.count() == 3
+    assert window.settings_page.sections.count() == 5
+    assert window.multi_device_page.sections.count() == 4
+    assert window.analysis_page.sections.count() == 2
+    assert window.reports_page.sections.count() == 3
+    assert window.settings_page.gas_limit_table.item(6, 2).text() == "待映射"
     assert window.alarm_page.btn_ack_alarm.isEnabled() is False
     assert window.alarm_page.btn_reset_interlock.isEnabled() is False
     assert window.btn_pause.isEnabled() is False
@@ -92,6 +98,11 @@ def test_preflight_records_sample_and_requires_operator_checks(tmp_path):
     }])
     client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=True)
     window = MainWindow(settings, db, client)
+    assert window.recipe_page.list_table.rowCount() == 1
+    window.recipe_page.list_table.selectRow(0)
+    window.recipe_page.btn_edit_selected.click()
+    assert window.recipe_combo.currentData() == 1
+    assert window.recipe_page.sections.currentIndex() == 1
     warnings = []
     window.dialogs.warning = lambda _title, message: warnings.append(message)
     window.dialogs.confirm = lambda *_args: True
@@ -142,6 +153,8 @@ def test_history_subpages_show_selected_record_data(tmp_path):
     assert window.history_page.measurement_table.item(0, 2).text() == "54.2"
     assert window.history_page.alarm_table.rowCount() == 1
     assert window.alarm_page.history_table.rowCount() == 1
+    window.navigate("reports")
+    assert window.reports_page.experiment_table.rowCount() == 1
     window.close()
     app.quit()
 

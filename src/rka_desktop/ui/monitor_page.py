@@ -4,6 +4,7 @@ from collections import deque
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -53,6 +54,7 @@ class MonitorPage(QWidget):
         gas_note.setWordWrap(True)
         gas_layout.addWidget(gas_note)
         self.gas_table = QTableWidget(7, 3)
+        self.gas_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.gas_table.setHorizontalHeaderLabels(("气体", "实测流量 L/min", "控制能力"))
         self.gas_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.gas_table.verticalHeader().hide()

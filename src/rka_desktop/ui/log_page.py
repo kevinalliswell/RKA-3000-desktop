@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHeaderView,
     QPushButton,
     QTableWidget,
@@ -26,6 +27,7 @@ class LogPage(QWidget):
         self.tables: dict[str, QTableWidget] = {}
         for key, label in (("all", "全部事件"), ("control", "控制操作"), ("safety", "报警与安全")):
             table = QTableWidget(0, len(_HEADERS))
+            table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             table.setHorizontalHeaderLabels(_HEADERS)
             table.verticalHeader().setVisible(False)
             table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)

@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -227,23 +231,70 @@ class ReportsPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(18)
         layout.addWidget(title("报告中心", "从历史实验选择数据，完成分析后生成报告"))
+        self.sections = QTabWidget()
+        list_page = QWidget()
+        list_layout = QVBoxLayout(list_page)
+        self.experiment_table = QTableWidget(0, 4)
+        self.experiment_table.setHorizontalHeaderLabels(("实验 ID", "样品 / 实验名称", "状态", "报告状态"))
+        self.experiment_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.experiment_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        list_layout.addWidget(self.experiment_table)
         frame, body = card("实验结果导出")
-        body.addWidget(QLabel("报告使用数据分析页当前选择的实验及已计算结果。"))
+        body.addWidget(QLabel("Excel 报告使用数据分析页当前选择且已计算的实验结果。"))
         row = QHBoxLayout()
         self.btn_analysis = QPushButton("前往数据分析")
-        self.btn_report = QPushButton("生成 Excel 报告")
+        self.btn_report = QPushButton("导出分析页当前结果")
         self.btn_report.setObjectName("primary")
         row.addWidget(self.btn_analysis)
         row.addWidget(self.btn_report)
         row.addStretch()
         body.addLayout(row)
-        layout.addWidget(frame)
+        list_layout.addWidget(frame)
         frame, body = card("原始数据")
         body.addWidget(QLabel("在历史实验中选择记录后，可导出 CSV 或 Excel 测量数据。"))
         self.btn_history = QPushButton("前往历史实验")
         body.addWidget(self.btn_history, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(frame)
-        layout.addStretch()
+        list_layout.addWidget(frame)
+
+        preview_page = QWidget()
+        preview_layout = QVBoxLayout(preview_page)
+        preview, preview_body = card("报告结构预览")
+        preview_text = QLabel(
+            "实验身份、样品参数、配方与阶段记录\n\n"
+            "原始采样、曲线与质量标记\n\n"
+            "还原度及动力学指标、方法依据与异常说明\n\n"
+            "报警、操作审计与复核信息"
+        )
+        preview_body.addWidget(preview_text)
+        preview_layout.addWidget(preview)
+        preview_layout.addStretch()
+
+        fields_page = QWidget()
+        fields_layout = QVBoxLayout(fields_page)
+        fields, fields_body = card("字段与审签")
+        details = QLabel(
+            "当前 Excel 导出包含实验摘要、测量数据和还原度结果。"
+            "正式报告的计算规则版本、设备身份、异常处理和审核签署"
+            "尚待业务与方法验证。"
+        )
+        details.setWordWrap(True)
+        fields_body.addWidget(details)
+        fields_layout.addWidget(fields)
+        fields_layout.addStretch()
+        self.sections.addTab(list_page, "报告列表")
+        self.sections.addTab(preview_page, "报告预览")
+        self.sections.addTab(fields_page, "字段与审签")
+        layout.addWidget(self.sections)
+
+    def set_experiments(self, experiments: list[dict[str, object]]) -> None:
+        self.experiment_table.setRowCount(len(experiments))
+        for row, experiment in enumerate(experiments):
+            values = (
+                experiment.get("id"), experiment.get("name"), experiment.get("status"),
+                "待生成 / 待复核",
+            )
+            for col, value in enumerate(values):
+                self.experiment_table.setItem(row, col, QTableWidgetItem(str(value or "--")))
 
 
 class HelpPage(QWidget):
