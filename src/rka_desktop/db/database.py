@@ -222,16 +222,18 @@ class DatabaseManager:
             rows = conn.execute(sql, (experiment_id,)).fetchall()
             return [dict(row) for row in rows]
 
-    def list_experiments(self, limit: int = 100) -> list[dict[str, Any]]:
+    def list_experiments(self, limit: int | None = 100) -> list[dict[str, Any]]:
         sql = """
         SELECT e.id, e.name, e.status, e.recipe_id, e.started_at, e.finished_at, r.name AS recipe_name
         FROM experiments e
         LEFT JOIN recipes r ON r.id = e.recipe_id
         ORDER BY e.id DESC
-        LIMIT ?
+        {limit_clause}
         """
+        final_sql = sql.format(limit_clause="" if limit is None else "LIMIT ?")
+        params: tuple[int, ...] = () if limit is None else (limit,)
         with self._lock, self._connect() as conn:
-            rows = conn.execute(sql, (limit,)).fetchall()
+            rows = conn.execute(final_sql, params).fetchall()
             return [dict(row) for row in rows]
 
     def get_experiment_detail(self, experiment_id: int) -> dict[str, Any] | None:
@@ -375,21 +377,24 @@ class DatabaseManager:
             rows = conn.execute(sql, (experiment_id,)).fetchall()
             return [dict(row) for row in rows]
 
-    def list_alarm_history(self, experiment_id: int | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def list_alarm_history(self, experiment_id: int | None = None, limit: int | None = 100) -> list[dict[str, Any]]:
         sql = """
         SELECT id, experiment_id, code, level, message, created_at, acknowledged_at, acknowledged_by
         FROM alarms
         {where_clause}
         ORDER BY id DESC
-        LIMIT ?
+        {limit_clause}
         """
         params: tuple[Any, ...]
         if experiment_id is None:
-            params = (limit,)
-            final_sql = sql.format(where_clause="")
+            params = () if limit is None else (limit,)
+            final_sql = sql.format(where_clause="", limit_clause="" if limit is None else "LIMIT ?")
         else:
-            params = (experiment_id, limit)
-            final_sql = sql.format(where_clause="WHERE experiment_id = ?")
+            params = (experiment_id,) if limit is None else (experiment_id, limit)
+            final_sql = sql.format(
+                where_clause="WHERE experiment_id = ?",
+                limit_clause="" if limit is None else "LIMIT ?",
+            )
 
         with self._lock, self._connect() as conn:
             rows = conn.execute(final_sql, params).fetchall()

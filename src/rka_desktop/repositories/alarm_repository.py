@@ -18,5 +18,5 @@ class AlarmRepository:
     def list_unacknowledged_alarms(self, experiment_id: int) -> list[dict[str, Any]]:
         return self._db.list_unacknowledged_alarms(experiment_id)
 
-    def list_alarm_history(self, experiment_id: int | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def list_alarm_history(self, experiment_id: int | None = None, limit: int | None = 100) -> list[dict[str, Any]]:
         return self._db.list_alarm_history(experiment_id=experiment_id, limit=limit)

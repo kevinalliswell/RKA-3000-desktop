@@ -238,13 +238,24 @@ class ReportsPage(QWidget):
         self.experiment_table.setHorizontalHeaderLabels(("实验 ID", "样品 / 实验名称", "状态", "报告状态"))
         self.experiment_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.experiment_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.experiment_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.experiment_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         list_layout.addWidget(self.experiment_table)
-        frame, body = card("实验结果导出")
-        body.addWidget(QLabel("Excel 报告使用数据分析页当前选择且已计算的实验结果。"))
+        frame, body = card("生成实验记录报告")
+        explanation = QLabel(
+            "先从上方选择实验。HTML/PDF 报告包含实验信息、全部原始采样和报警，"
+            "标注待复核状态；还原度 Excel 报告需先在数据分析页计算。"
+        )
+        explanation.setWordWrap(True)
+        body.addWidget(explanation)
         row = QHBoxLayout()
+        self.btn_generate_html = QPushButton("生成 HTML 报告")
+        self.btn_generate_html.setObjectName("primary")
+        self.btn_generate_pdf = QPushButton("生成 PDF 报告")
         self.btn_analysis = QPushButton("前往数据分析")
-        self.btn_report = QPushButton("导出分析页当前结果")
-        self.btn_report.setObjectName("primary")
+        self.btn_report = QPushButton("导出 Excel 分析报告")
+        row.addWidget(self.btn_generate_html)
+        row.addWidget(self.btn_generate_pdf)
         row.addWidget(self.btn_analysis)
         row.addWidget(self.btn_report)
         row.addStretch()
@@ -259,13 +270,10 @@ class ReportsPage(QWidget):
         preview_page = QWidget()
         preview_layout = QVBoxLayout(preview_page)
         preview, preview_body = card("报告结构预览")
-        preview_text = QLabel(
-            "实验身份、样品参数、配方与阶段记录\n\n"
-            "原始采样、曲线与质量标记\n\n"
-            "还原度及动力学指标、方法依据与异常说明\n\n"
-            "报警、操作审计与复核信息"
-        )
-        preview_body.addWidget(preview_text)
+        self.preview_text = QLabel("请先在报告列表选择一条实验记录。")
+        self.preview_text.setTextFormat(Qt.TextFormat.PlainText)
+        self.preview_text.setWordWrap(True)
+        preview_body.addWidget(self.preview_text)
         preview_layout.addWidget(preview)
         preview_layout.addStretch()
 
@@ -273,9 +281,9 @@ class ReportsPage(QWidget):
         fields_layout = QVBoxLayout(fields_page)
         fields, fields_body = card("字段与审签")
         details = QLabel(
-            "当前 Excel 导出包含实验摘要、测量数据和还原度结果。"
-            "正式报告的计算规则版本、设备身份、异常处理和审核签署"
-            "尚待业务与方法验证。"
+            "HTML/PDF 技术记录包含实验身份、试样参数、原始采样和报警。"
+            "Excel 分析报告包含还原度数据与曲线。启动时配方快照、设备身份、"
+            "数据质量判据、计算规则版本和审核签署尚待业务与方法验证。"
         )
         details.setWordWrap(True)
         fields_body.addWidget(details)
@@ -287,14 +295,44 @@ class ReportsPage(QWidget):
         layout.addWidget(self.sections)
 
     def set_experiments(self, experiments: list[dict[str, object]]) -> None:
+        selected_id = self.selected_experiment_id()
+        self.experiment_table.blockSignals(True)
         self.experiment_table.setRowCount(len(experiments))
+        selected_row = 0 if experiments else -1
         for row, experiment in enumerate(experiments):
             values = (
                 experiment.get("id"), experiment.get("name"), experiment.get("status"),
-                "待生成 / 待复核",
+                "可生成技术记录",
             )
             for col, value in enumerate(values):
                 self.experiment_table.setItem(row, col, QTableWidgetItem(str(value or "--")))
+            if experiment.get("id") == selected_id:
+                selected_row = row
+        if selected_row >= 0:
+            self.experiment_table.selectRow(selected_row)
+        self.experiment_table.blockSignals(False)
+
+    def selected_experiment_id(self) -> int | None:
+        item = self.experiment_table.item(self.experiment_table.currentRow(), 0)
+        return int(item.text()) if item is not None else None
+
+    def set_preview(self, detail: dict[str, object] | None, sample_count: int, alarm_count: int) -> None:
+        if detail is None:
+            self.preview_text.setText("请先在报告列表选择一条实验记录。")
+            self.btn_generate_html.setEnabled(False)
+            self.btn_generate_pdf.setEnabled(False)
+            return
+        self.btn_generate_html.setEnabled(True)
+        self.btn_generate_pdf.setEnabled(True)
+        status = str(detail.get("status") or "未知")
+        caveat = "实验尚未正常完成，报告将标记数据可能不完整。" if status != "FINISHED" else "结果仍需人工复核。"
+        self.preview_text.setText(
+            f"实验 #{detail.get('id')} · {detail.get('name') or '未命名'}\n"
+            f"状态：{status} · 采样：{sample_count} 条 · 报警：{alarm_count} 条\n"
+            f"初始质量：{detail.get('initial_mass_g') or '未登记'} g · "
+            f"TFe：{detail.get('tfe_pct') or '未登记'} % · FeO：{detail.get('feo_pct') if detail.get('feo_pct') is not None else '未登记'} %\n\n"
+            f"{caveat} 生成的 HTML/PDF 为技术记录，不包含正式方法符合性结论或审核签署。"
+        )
 
 
 class HelpPage(QWidget):
@@ -308,7 +346,7 @@ class HelpPage(QWidget):
             ("01 · 准备", "在实验配方页创建并保存步骤；在实验准备页登记试样、检查现场条件。"),
             ("02 · 运行", "连接设备并启动实验；当前实验页查看实时测量、阶段、报警和设备反馈。"),
             ("03 · 处置", "报警事件页确认报警及复位联锁。异常处置应遵循现场操作规程。"),
-            ("04 · 结果", "历史实验中选择记录；数据分析页录入化学参数、计算还原度；报告中心导出。"),
+            ("04 · 结果", "历史实验中核对采样与报警；报告中心生成 HTML/PDF 技术记录。还原度 Excel 报告需先在数据分析页计算。"),
             ("设备能力说明", "当前控制后端支持 N₂、H₂、CO。原型中的 Ar、CO₂、CH₄、O₂ 与气体策略尚未完成真机映射与联锁验证。"),
         ):
             frame, body = card(heading)

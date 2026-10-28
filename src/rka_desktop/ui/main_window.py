@@ -396,6 +396,12 @@ class MainWindow(QMainWindow):
         self.reports_page.btn_analysis.clicked.connect(lambda: self.navigate("analysis"))
         self.reports_page.btn_history.clicked.connect(lambda: self.navigate("history"))
         self.reports_page.btn_report.clicked.connect(self.export_analysis_report)
+        self.reports_page.btn_generate_html.clicked.connect(lambda: self.generate_record_report("html"))
+        self.reports_page.btn_generate_pdf.clicked.connect(lambda: self.generate_record_report("pdf"))
+        self.reports_page.experiment_table.itemSelectionChanged.connect(self._on_report_selected)
+        self.reports_page.experiment_table.cellDoubleClicked.connect(
+            lambda _row, _column: self.reports_page.sections.setCurrentIndex(1)
+        )
 
     def navigate(self, page: str) -> None:
         """Map the prototype's twelve destinations to real application pages."""
@@ -406,7 +412,8 @@ class MainWindow(QMainWindow):
             self.preflight_page.recipe_label.setText(self.recipe_combo.currentText())
             self.preflight_page._refresh_step()
         elif page == "reports":
-            self.reports_page.set_experiments(self.experiment_repository.list_experiments(limit=200))
+            self.reports_page.set_experiments(self.experiment_repository.list_experiments(limit=None))
+            self._on_report_selected()
             self.page_stack.setCurrentWidget(self.reports_page)
         elif page == "help":
             self.page_stack.setCurrentWidget(self.help_page)
@@ -477,7 +484,7 @@ class MainWindow(QMainWindow):
     def export_analysis_report(self) -> None:
         result = self.analysis_page.result
         exp_id = self.analysis_page.selected_experiment_id()
-        if result is None or exp_id is None:
+        if result is None or exp_id is None or self.analysis_page.result_experiment_id != exp_id:
             self.dialogs.info("提示", "请先在数据分析页选择实验并计算还原度")
             return
         detail = self.experiment_repository.get_experiment_detail(exp_id) or {"id": exp_id}
@@ -495,6 +502,57 @@ class MainWindow(QMainWindow):
             self._refresh_logs()
         except Exception as exc:  # noqa: BLE001
             self.dialogs.warning("生成失败", str(exc))
+
+    def _on_report_selected(self) -> None:
+        experiment_id = self.reports_page.selected_experiment_id()
+        if experiment_id is None:
+            self.reports_page.set_preview(None, 0, 0)
+            return
+        detail = self.experiment_repository.get_experiment_detail(experiment_id)
+        summary = self.experiment_repository.get_experiment_summary(experiment_id) or {}
+        alarms = self.alarm_repository.list_alarm_history(experiment_id=experiment_id, limit=None)
+        self.reports_page.set_preview(detail, int(summary.get("sample_count") or 0), len(alarms))
+
+    def generate_record_report(self, fmt: str) -> None:
+        """Export a selected experiment's technical record; no method approval is implied."""
+        experiment_id = self.reports_page.selected_experiment_id()
+        if experiment_id is None:
+            self.dialogs.info("提示", "请先在报告列表选择实验")
+            return
+        detail = self.experiment_repository.get_experiment_detail(experiment_id)
+        if detail is None:
+            self.dialogs.warning("无法生成", "所选实验已不存在，请刷新报告列表")
+            return
+        default_dir = Path("exports")
+        default_dir.mkdir(parents=True, exist_ok=True)
+        if fmt == "html":
+            path = self.dialogs.select_save_path(
+                "生成 HTML 实验记录", default_dir / f"experiment_{experiment_id}_record.html",
+                "HTML Files (*.html)",
+            )
+        elif fmt == "pdf":
+            path = self.dialogs.select_save_path(
+                "生成 PDF 实验记录", default_dir / f"experiment_{experiment_id}_record.pdf",
+                "PDF Files (*.pdf)",
+            )
+        else:
+            raise ValueError(f"Unsupported report format: {fmt}")
+        if path is None:
+            return
+        try:
+            measurements = self.experiment_repository.fetch_measurements(experiment_id)
+            alarms = self.alarm_repository.list_alarm_history(experiment_id=experiment_id, limit=None)
+            if fmt == "html":
+                self.report_service.generate_html_record(detail, measurements, alarms, Path(path))
+            else:
+                self.report_service.generate_pdf_record(detail, measurements, alarms, Path(path))
+            self.audit_repository.log_action(
+                "operator", "REPORT_RECORD_EXPORT", f"#{experiment_id} · {fmt.upper()} · {path}",
+            )
+            self._refresh_logs()
+            self.dialogs.info("报告已生成", f"技术实验记录已保存到\n{path}\n请在正式使用前复核数据与方法限制。")
+        except Exception as exc:  # noqa: BLE001
+            self.dialogs.warning("报告生成失败", str(exc))
 
     def _refresh_logs(self) -> None:
         self.log_page.set_logs(self.audit_repository.list_audit_logs(limit=200))

@@ -67,6 +67,7 @@ class AnalysisPage(QWidget):
         super().__init__()
         self._repo = experiment_repository
         self._last_result: ReductionResult | None = None
+        self._last_result_experiment_id: int | None = None
 
         layout = QVBoxLayout(self)
         self.sections = QTabWidget()
@@ -197,6 +198,9 @@ class AnalysisPage(QWidget):
 
         self.btn_refresh.clicked.connect(self.refresh_experiments)
         self.experiment_combo.currentIndexChanged.connect(self._load_params_for_selection)
+        self.spin_m0.valueChanged.connect(self._invalidate_result)
+        self.spin_tfe.valueChanged.connect(self._invalidate_result)
+        self.spin_feo.valueChanged.connect(self._invalidate_result)
         self.btn_save.clicked.connect(self._save_params)
         self.btn_compute.clicked.connect(self.compute)
 
@@ -226,7 +230,17 @@ class AnalysisPage(QWidget):
     def result(self) -> ReductionResult | None:
         return self._last_result
 
+    @property
+    def result_experiment_id(self) -> int | None:
+        return self._last_result_experiment_id
+
+    def _invalidate_result(self) -> None:
+        self._last_result = None
+        self._last_result_experiment_id = None
+        self.btn_report.setEnabled(False)
+
     def _load_params_for_selection(self) -> None:
+        self._invalidate_result()
         exp_id = self._selected_experiment_id()
         if exp_id is None:
             return
@@ -266,6 +280,7 @@ class AnalysisPage(QWidget):
             return None
 
         self._last_result = result
+        self._last_result_experiment_id = exp_id
         self._render(result)
         self.btn_report.setEnabled(True)
         self.lbl_status.setText(f"已计算实验 #{exp_id}，共 {len(result.points)} 个采样点")

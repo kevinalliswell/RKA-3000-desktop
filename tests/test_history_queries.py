@@ -54,3 +54,24 @@ def test_history_queries_return_expected_records(tmp_path):
     assert summary["sample_count"] == 1
     assert alarms[0]["code"] == "ALM-1001"
     assert logs[0]["action"] == "EXP_START"
+
+
+def test_report_can_load_all_alarms_beyond_history_page_limit(tmp_path):
+    db = DatabaseManager(tmp_path / "alarms.db")
+    db.init_schema()
+    exp_id = db.create_experiment("many alarms")
+    for index in range(105):
+        db.create_alarm(exp_id, code=f"A-{index}", level="WARN", message="check")
+
+    assert len(db.list_alarm_history(exp_id)) == 100
+    assert len(db.list_alarm_history(exp_id, limit=None)) == 105
+
+
+def test_report_can_select_experiments_beyond_history_page_limit(tmp_path):
+    db = DatabaseManager(tmp_path / "experiments.db")
+    db.init_schema()
+    for index in range(105):
+        db.create_experiment(f"experiment-{index}")
+
+    assert len(db.list_experiments()) == 100
+    assert len(db.list_experiments(limit=None)) == 105

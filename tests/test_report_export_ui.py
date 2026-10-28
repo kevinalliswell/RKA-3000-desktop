@@ -71,5 +71,34 @@ def test_export_analysis_report_writes_file(tmp_path, monkeypatch):
     assert out.exists()
     wb = load_workbook(out)
     assert "报告" in wb.sheetnames
+    page.spin_tfe.setValue(61.0)
+    assert page.result is None
+    assert page.btn_report.isEnabled() is False
+    win.close()
+    app.quit()
+
+
+def test_report_center_generates_selected_record_html_and_pdf(tmp_path, monkeypatch):
+    app, db, win, exp_id = _window(tmp_path)
+    win.navigate("reports")
+    assert win.reports_page.selected_experiment_id() == exp_id
+    assert "采样：3 条" in win.reports_page.preview_text.text()
+    monkeypatch.setattr(win.dialogs, "info", lambda *a, **k: None)
+    monkeypatch.setattr(win.dialogs, "warning", lambda *a, **k: pytest.fail(str(a)))
+
+    for fmt in ("html", "pdf"):
+        output = tmp_path / f"record.{fmt}"
+        monkeypatch.setattr(win.dialogs, "select_save_path", lambda *a, selected=output, **k: selected)
+        win.generate_record_report(fmt)
+        assert output.exists()
+        if fmt == "html":
+            content = output.read_text(encoding="utf-8")
+            assert "redox" in content
+            assert "50.000" in content
+        else:
+            assert output.read_bytes().startswith(b"%PDF")
+
+    actions = [row["action"] for row in db.list_audit_logs()]
+    assert actions.count("REPORT_RECORD_EXPORT") == 2
     win.close()
     app.quit()

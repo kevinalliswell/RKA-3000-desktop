@@ -39,7 +39,7 @@ class ExperimentRepository:
     def get_latest_experiment_id(self) -> int | None:
         return self._db.get_latest_experiment_id()
 
-    def list_experiments(self, limit: int = 100) -> list[dict[str, Any]]:
+    def list_experiments(self, limit: int | None = 100) -> list[dict[str, Any]]:
         return self._db.list_experiments(limit=limit)
 
     def get_experiment_detail(self, experiment_id: int) -> dict[str, Any] | None:
