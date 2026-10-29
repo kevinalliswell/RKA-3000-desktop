@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     modbus_unit_id: int = 1
     mapping_profile: str = "contract_v1"
     simulation_mode: bool = True
+    device_profile_path: str = ""
     poll_interval_ms: int = 500
     acquisition_batch_size: int = 10
     step_heatup_grace_seconds: int = 120

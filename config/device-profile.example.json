@@ -1,0 +1,32 @@
+{
+  "temperature": {
+    "port": "REPLACE_TEMP_PORT",
+    "slave_id": 7,
+    "baudrate": 19200,
+    "parity": "N",
+    "stopbits": 1,
+    "timeout_s": 1.0
+  },
+  "mfc": {
+    "port": "REPLACE_MFC_PORT",
+    "baudrate": 19200,
+    "format": "8E1",
+    "timeout_s": 1.0,
+    "channels": [
+      {"address": 1, "gas": "UNVERIFIED_1", "full_scale_lpm": 1.0},
+      {"address": 2, "gas": "UNVERIFIED_2", "full_scale_lpm": 1.0},
+      {"address": 3, "gas": "UNVERIFIED_3", "full_scale_lpm": 1.0},
+      {"address": 4, "gas": "UNVERIFIED_4", "full_scale_lpm": 1.0},
+      {"address": 5, "gas": "UNVERIFIED_5", "full_scale_lpm": 1.0},
+      {"address": 6, "gas": "UNVERIFIED_6", "full_scale_lpm": 1.0}
+    ]
+  },
+  "balance": {
+    "port": "REPLACE_BALANCE_PORT",
+    "protocol": "gs_cpa",
+    "baudrate": 1200,
+    "parity": "N",
+    "stopbits": 1,
+    "timeout_s": 1.0
+  }
+}
