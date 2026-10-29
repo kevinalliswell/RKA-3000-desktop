@@ -46,6 +46,7 @@ python -m rka_desktop.main
 
 - 仿真优先的多设备通讯层（6× Azbil MFC + TAIE 温控 + 电子天平），由 `MultiDeviceGateway` 提供只读诊断快照；实验主链路目前仍使用旧单设备 Modbus 客户端
 - 三设备只读诊断可加载独立的 JSON 现场配置（参考 [`config/device-profile.example.json`](config/device-profile.example.json)）；连接后立即扫描，并按配置周期（默认 30 秒）后台复查各设备通讯状态。协议、现场核验和写入边界见[三设备通讯协议基线](docs/三设备通讯协议基线.md)。保持 `SIMULATION_MODE=true` 时，实验主链路继续仿真；真实温度设定、MFC 流量设定及天平去皮仍禁用。
+- 三设备诊断的串口连接与读取在独立线程执行；旧单设备 Modbus 实验主链路的周期采集也使用工作线程，但连接及控制下发仍可能在 UI 线程同步执行，尚未完成真机非阻塞改造。
 - 应用主窗口（设备状态、实时采样、最近数据）
 - 配方编辑器（多步骤、新建、更新、选择执行）
 - 实时曲线（温度/重量）

@@ -43,13 +43,20 @@ class _DiagnosticScan(QThread):
     def run(self) -> None:
         try:
             self._gateway.connect()
-            self.scanned.emit(self._gateway.read_multi_snapshot())
+            if self.isInterruptionRequested():
+                return
+            snapshot = self._gateway.read_multi_snapshot()
+            if not self.isInterruptionRequested():
+                self.scanned.emit(snapshot)
         except Exception as exc:  # noqa: BLE001 - transport failure is reported in the UI
-            self.failed.emit(str(exc))
+            if not self.isInterruptionRequested():
+                self.failed.emit(str(exc))
 
 
 class MultiDevicePage(QWidget):
     """Read-only diagnostics with a background, low-frequency real-device scan."""
+
+    scan_stopped = Signal()
 
     def __init__(
         self, gateway: MultiDeviceGateway | None, poll_interval_ms: int = 500,
@@ -66,6 +73,7 @@ class MultiDevicePage(QWidget):
         self._last_snapshot: MultiDeviceSnapshot | None = None
         self._worker: _DiagnosticScan | None = None
         self._monitoring = False
+        self._close_after_scan = False
 
         layout = QVBoxLayout(self)
         self.lbl_control_scope = QLabel(
@@ -203,12 +211,16 @@ class MultiDevicePage(QWidget):
         if self._gateway is not None and self._gateway.is_connected and self._worker is None:
             self._timer.start()
 
-    def stop(self) -> None:
+    def stop(self) -> bool:
         self._monitoring = False
         self._timer.stop()
         self._age_timer.stop()
         if self._worker is not None and self._worker.isRunning():
-            self._worker.wait()
+            self._close_after_scan = True
+            self._worker.requestInterruption()
+            self.lbl_status.setText("正在等待通讯检查结束后关闭…")
+            return False
+        return True
 
     # --- control handlers ---
     def _apply_temperature(self) -> None:
@@ -281,6 +293,10 @@ class MultiDevicePage(QWidget):
             self._worker.deleteLater()
             self._worker = None
         self.btn_refresh_diagnostics.setEnabled(True)
+        if self._close_after_scan:
+            self._close_after_scan = False
+            self.scan_stopped.emit()
+            return
         if self._monitoring:
             self._timer.start()
 

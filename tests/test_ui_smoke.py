@@ -2,15 +2,17 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from datetime import datetime, timedelta
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import Event
 
 from PySide6.QtWidgets import QApplication
 
 from rka_desktop.core.config import Settings
 from rka_desktop.core.modbus_client import ModbusRtuClient
 from rka_desktop.db.database import DatabaseManager
-from rka_desktop.models.entities import DeviceSnapshot, Measurement
+from rka_desktop.models.entities import DeviceSnapshot, Measurement, MultiDeviceSnapshot
 from rka_desktop.services.experiment_engine import ExperimentEngine
 from rka_desktop.services.recipe_runtime_service import build_recipe_runtime
 from rka_desktop.ui.main_window import MainWindow
@@ -110,6 +112,53 @@ def test_read_only_device_profile_does_not_open_serial_or_change_simulated_main_
     assert client.simulation_mode is True
     assert "只读诊断未连接" in window.multi_device_page.lbl_status.text()
     window.close()
+    app.quit()
+
+
+def test_window_close_is_deferred_while_diagnostic_scan_runs(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    profile = Path(__file__).resolve().parents[1] / "config/device-profile.example.json"
+    settings = Settings(
+        db_path=str(tmp_path / "close-diagnostic.db"), simulation_mode=True,
+        device_profile_path=str(profile),
+    )
+    db = DatabaseManager(settings.db_file)
+    db.init_schema()
+    client = ModbusRtuClient(serial_port="unused", baudrate=9600, unit_id=1, simulation_mode=True)
+    window = MainWindow(settings=settings, db=db, client=client)
+    gateway = window.multi_gateway
+    assert gateway is not None
+    gateway.connect = lambda: True
+    entered = Event()
+    release = Event()
+
+    def _read():
+        entered.set()
+        release.wait(2)
+        now = datetime.now(timezone.utc)
+        return MultiDeviceSnapshot(
+            temperatures_c=(20.0,), mfc_flows_lpm={i: 0.0 for i in range(1, 7)},
+            mfc_setpoints_lpm={i: 0.0 for i in range(1, 7)}, weight_g=1.0,
+            degraded_devices=(),
+            last_success_at={"temp": now, "balance": now, **{f"mfc:{i}": now for i in range(1, 7)}},
+            errors={},
+        )
+
+    gateway.read_multi_snapshot = _read
+    window.show()
+    window.multi_device_page.connect_and_refresh()
+    try:
+        assert entered.wait(1)
+        start = time.monotonic()
+        assert window.close() is False
+        assert time.monotonic() - start < 0.1
+    finally:
+        release.set()
+        deadline = time.monotonic() + 2
+        while window.isVisible() and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
+    assert not window.isVisible()
     app.quit()
 
 

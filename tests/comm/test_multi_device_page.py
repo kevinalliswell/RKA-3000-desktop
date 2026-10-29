@@ -1,6 +1,7 @@
 import time
 from dataclasses import replace
 from datetime import timedelta
+from threading import Event, get_ident
 
 import pytest
 
@@ -84,9 +85,12 @@ def test_background_scan_starts_periodic_health_checks_without_blocking_ui():
     gw = MultiDeviceGateway.from_config(CommConfig())
     original_read = gw._temp.read_pv
     reads = []
+    worker_threads = []
+    ui_thread = get_ident()
 
     def _counted_read():
         reads.append(1)
+        worker_threads.append(get_ident())
         return original_read()
 
     gw._temp.read_pv = _counted_read
@@ -110,6 +114,7 @@ def test_background_scan_starts_periodic_health_checks_without_blocking_ui():
         app.processEvents()
         time.sleep(0.005)
     assert len(reads) >= 2
+    assert all(thread_id != ui_thread for thread_id in worker_threads)
     page.stop()
     gw.close()
 
@@ -139,3 +144,36 @@ def test_unstable_balance_reading_is_distinct_from_disconnection():
     page.refresh()
     assert page.lbl_balance_link.text() == "通讯: 读数待稳定"
     assert "balance" in page.lbl_status.text()
+
+
+def test_stop_does_not_wait_for_a_blocked_serial_scan_on_ui_thread():
+    app = _app()
+    gateway = MultiDeviceGateway.from_config(CommConfig())
+    page = MultiDevicePage(gateway, real_device=True)
+    entered = Event()
+    release = Event()
+    original_read = gateway.read_multi_snapshot
+
+    def _blocked_read():
+        entered.set()
+        release.wait(2)
+        return original_read()
+
+    gateway.read_multi_snapshot = _blocked_read
+    stopped = []
+    page.scan_stopped.connect(lambda: stopped.append(True))
+    page.connect_and_refresh()
+    try:
+        assert entered.wait(1)
+        start = time.monotonic()
+        assert page.stop() is False
+        assert time.monotonic() - start < 0.1
+    finally:
+        release.set()
+        deadline = time.monotonic() + 2
+        while page._worker is not None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
+    assert stopped == [True]
+    assert page.stop() is True
+    gateway.close()

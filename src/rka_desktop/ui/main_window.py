@@ -751,6 +751,12 @@ class MainWindow(QMainWindow):
             self._append_log(f"导出Excel失败: {exc}")
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        if not self.multi_device_page.stop():
+            event.ignore()
+            if not getattr(self, "_close_pending", False):
+                self._close_pending = True
+                self.multi_device_page.scan_stopped.connect(self.close)
+            return
         try:
             if self.controller.has_active_experiment:
                 transition = self.controller.stop_experiment()
@@ -759,7 +765,6 @@ class MainWindow(QMainWindow):
             elif self.runtime.is_running:
                 self.runtime.stop()
             self.gateway.close()
-            self.multi_device_page.stop()
             if self.multi_gateway is not None:
                 self.multi_gateway.close()
         finally:
