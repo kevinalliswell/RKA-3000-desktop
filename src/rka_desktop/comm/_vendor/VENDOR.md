@@ -1,7 +1,28 @@
 # Vendored protocol drivers
 
-These are pinned, trimmed copies of upstream protocol libraries. Do not edit them
-in place — re-sync from upstream and re-apply trimming instead.
+These are pinned, trimmed copies of upstream protocol libraries. Keep all local
+corrections listed below and re-assess them on each upstream sync.
+
+## RKA-local protocol corrections
+
+The pinned copies now carry the following small, test-backed corrections. When re-syncing,
+re-apply or drop each correction explicitly after comparing upstream behavior:
+
+- `azbil_mfc/protocol.py`: strict CPL terminator, header, checksum-field and register-word
+  validation plus outbound range checks.
+- `azbil_mfc/bus.py`: reject replies from another address or with the wrong register count;
+  never automatically retry a write.
+- `azbil_mfc/client.py`: a forced live scale refresh cannot silently fall back to stale
+  cached metadata.
+- `taie_temp/modbus_rtu.py`: assemble fragmented serial reads, bound byte counts, verify
+  the requested register count and write echo.
+- `balance_serial/protocols/{gs_cpa,longteng}.py`: accept only documented full weight
+  frames; Longteng `ST` frames are marked stable.
+- `balance_serial/client.py`: tare confirmation requires a stable zero reading, not merely
+  an ACK or an unstable zero.
+
+The RKA-owned adapters additionally require live MFC scale metadata and keep all real
+write methods disabled during the read-only diagnostic phase.
 
 | Package | Upstream | Commit | License | Vendored modules | Omitted |
 |---------|----------|--------|---------|------------------|---------|

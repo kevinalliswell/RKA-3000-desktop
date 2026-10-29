@@ -98,7 +98,7 @@ class BalanceClient:
             if message.kind != "reading":
                 continue
 
-            if stable_only and message.stable is False:
+            if stable_only and message.stable is not True:
                 continue
 
             if message.weight is not None and abs(message.weight) <= zero_tolerance:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,7 +15,7 @@ class MfcChannelConfig:
     def __post_init__(self) -> None:
         if not 1 <= self.address <= 127 or not self.gas.strip():
             raise ValueError("MFC address must be 1..127 and gas must be non-empty")
-        if self.full_scale_lpm <= 0:
+        if not math.isfinite(self.full_scale_lpm) or self.full_scale_lpm <= 0:
             raise ValueError(
                 f"full_scale_lpm must be > 0 for MFC address {self.address}, got {self.full_scale_lpm}"
             )
@@ -72,7 +73,7 @@ class CommConfig:
             if value <= 0:
                 raise ValueError("serial baudrate must be positive")
         for value in (self.temp_timeout_s, self.mfc_timeout_s, self.balance_timeout_s):
-            if value <= 0 or value > 10:
+            if not math.isfinite(value) or value <= 0 or value > 10:
                 raise ValueError("serial timeout must be in (0, 10] seconds")
         for parity, stopbits in ((self.temp_parity, self.temp_stopbits), (self.balance_parity, self.balance_stopbits)):
             if parity not in {"N", "E", "O"} or stopbits not in {1, 2}:

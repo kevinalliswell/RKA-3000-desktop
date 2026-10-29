@@ -9,7 +9,7 @@ _PATTERN_ACK = re.compile(r"^A\d{2}\s*$")
 _PATTERN_ERROR = re.compile(r"^E\d{2}\s*$")
 _PATTERN_UNSTABLE = re.compile(r"\bG\s+U\b")
 _PATTERN_STABLE = re.compile(r"\bG\s+S\b")
-_PATTERN_WEIGHT = re.compile(r"[+\-]?\s*(?:\d+[./]?\d*|\d*\.\d+)")
+_PATTERN_WEIGHT = re.compile(r"^[+\-]?\d+(?:\.\d+)?\s+G\s+[SU]$")
 
 
 class GSCpaProtocol(BalanceProtocol):
@@ -37,11 +37,11 @@ class GSCpaProtocol(BalanceProtocol):
         if _PATTERN_ERROR.match(line):
             return BalanceMessage(protocol=self.name, raw=line, kind="error", code=line)
 
-        match = _PATTERN_WEIGHT.search(line)
+        match = _PATTERN_WEIGHT.fullmatch(line)
         if not match:
             return BalanceMessage(protocol=self.name, raw=line, kind="unknown")
 
-        weight = float(match.group().replace(" ", "").replace("/", ""))
+        weight = float(line.split()[0])
         stable: bool | None
         if _PATTERN_UNSTABLE.search(line):
             stable = False

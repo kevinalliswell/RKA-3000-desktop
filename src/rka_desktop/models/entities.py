@@ -30,8 +30,10 @@ class DeviceSnapshot:
 
 @dataclass(frozen=True)
 class MultiDeviceSnapshot:
-    temperatures_c: tuple[float, ...]
+    temperatures_c: tuple[float | None, ...]
     mfc_flows_lpm: dict[int, float]
     mfc_setpoints_lpm: dict[int, float]
-    weight_g: float
+    weight_g: float | None
     degraded_devices: tuple[str, ...]
+    last_success_at: dict[str, datetime]
+    errors: dict[str, str]

@@ -44,7 +44,8 @@ python -m rka_desktop.main
 
 ### 实现要点
 
-- 仿真优先的多设备通讯层（6× Azbil MFC + TAIE 温控 + 电子天平），经 `MultiDeviceGateway` 以 `SnapshotSource` 接入现有采集链路
+- 仿真优先的多设备通讯层（6× Azbil MFC + TAIE 温控 + 电子天平），由 `MultiDeviceGateway` 提供只读诊断快照；实验主链路目前仍使用旧单设备 Modbus 客户端
+- 三设备只读诊断可加载独立的 JSON 现场配置（参考 [`config/device-profile.example.json`](config/device-profile.example.json)）；协议、现场核验和写入边界见[三设备通讯协议基线](docs/三设备通讯协议基线.md)。保持 `SIMULATION_MODE=true` 时，实验主链路继续仿真；真实温度设定、MFC 流量设定及天平去皮仍禁用。
 - 应用主窗口（设备状态、实时采样、最近数据）
 - 配方编辑器（多步骤、新建、更新、选择执行）
 - 实时曲线（温度/重量）
@@ -106,6 +107,7 @@ python -m rka_desktop.main
 - `docs/安装部署手册_v1.0.md`：环境安装与首次启动说明
 - `docs/环境依赖与串口配置_v1.0.md`：依赖与串口配置说明
 - `docs/联调SOP_v1.0.md`：现场联调标准流程
+- `docs/三设备通讯协议基线.md`：TAIE Modbus RTU、Azbil CPL、天平 ASCII 协议与只读联调清单
 - `docs/实验流程图.md`：从准备、运行、处置到历史、分析及报告的流程图与报告边界
 - `docs/打包发布说明_v1.0.md`：PyInstaller 打包与发布流程
 - `docs/发布说明模板_v1.0.md`：版本发布说明模板

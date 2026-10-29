@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from collections.abc import Sequence
+from datetime import datetime, timezone
 
 from rka_desktop.comm.config import CommConfig, MfcChannelConfig
 from rka_desktop.comm.exceptions import DeviceCommError
@@ -16,9 +17,8 @@ _LEGACY_GASES = ("N2", "H2", "CO")
 class MultiDeviceGateway:
     """Aggregates temperature + 6 MFCs + balance and exposes a legacy SnapshotSource.
 
-    Last-good values default to 0.0 before the first successful read, so a 0.0 reading
-    on a cold or fully-degraded poll is ambiguous; callers should consult
-    ``MultiDeviceSnapshot.degraded_devices`` to distinguish a real zero from a fallback.
+    Before the first valid read, values remain absent. Later failures retain the last
+    valid value with per-device stale status, error reason and last-success time.
     """
 
     def __init__(
@@ -32,14 +32,18 @@ class MultiDeviceGateway:
         self._mfc = mfc
         self._balance = balance
         self._channels = tuple(channels)
-        self._last_temp = 0.0
-        self._last_flows = {c.address: 0.0 for c in self._channels}
-        self._last_sps = {c.address: 0.0 for c in self._channels}
-        self._last_weight = 0.0
+        self._last_temp: float | None = None
+        self._last_flows: dict[int, float] = {}
+        self._last_sps: dict[int, float] = {}
+        self._last_weight: float | None = None
+        self._last_success_at: dict[str, datetime] = {}
+        self._connected = False
+        self._connected_devices: set[str] = set()
+        self._connection_errors: dict[str, str] = {}
         self._gas_addr = self._resolve_gas_addresses()
 
     @classmethod
-    def from_config(cls, cfg: CommConfig) -> "MultiDeviceGateway":
+    def from_config(cls, cfg: CommConfig) -> MultiDeviceGateway:
         if cfg.simulation_mode:
             from rka_desktop.comm.adapters.sim_adapters import (
                 SimBalanceAdapter,
@@ -60,6 +64,10 @@ class MultiDeviceGateway:
             balance = BalanceAdapter.from_config(cfg)
         return cls(temperature, mfc, balance, cfg.mfc_channels)
 
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
+
     def _resolve_gas_addresses(self) -> dict[str, int | None]:
         result: dict[str, int | None] = {gas: None for gas in _LEGACY_GASES}
         for channel in self._channels:
@@ -72,21 +80,32 @@ class MultiDeviceGateway:
         return result
 
     def connect(self) -> bool:
-        try:
-            self._temp.connect()
-            self._mfc.connect()
-            self._balance.connect()
-        except Exception:  # noqa: BLE001 - best-effort teardown then re-raise
-            self.close()
-            raise
-        return True
+        for name, device in (("temp", self._temp), ("mfc", self._mfc), ("balance", self._balance)):
+            if name in self._connected_devices:
+                continue
+            try:
+                device.connect()
+            except Exception as exc:  # noqa: BLE001 - allow other devices to connect
+                self._connection_errors[name] = str(exc)
+                try:
+                    device.close()
+                except Exception as close_exc:  # noqa: BLE001
+                    logger.warning("%s close after failed connect: %s", name, close_exc)
+            else:
+                self._connected_devices.add(name)
+                self._connection_errors.pop(name, None)
+        self._connected = True
+        return not self._connection_errors
 
     def close(self) -> None:
+        self._connected = False
+        self._connected_devices.clear()
+        self._connection_errors.clear()
         for device in (self._temp, self._mfc, self._balance):
             try:
                 device.close()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001 - close all ports despite one failure
+                logger.warning("device close failed: %s", exc)
 
     @property
     def channels(self) -> tuple[MfcChannelConfig, ...]:
@@ -103,31 +122,73 @@ class MultiDeviceGateway:
 
     def read_multi_snapshot(self) -> MultiDeviceSnapshot:
         degraded: list[str] = []
+        errors: dict[str, str] = {}
 
-        try:
-            self._last_temp = self._temp.read_pv()
-        except DeviceCommError:
-            degraded.append("temp")
+        def fail(name: str, reason: str) -> None:
+            if name not in degraded:
+                degraded.append(name)
+            errors.setdefault(name, reason)
 
-        try:
-            self._last_flows.update(self._mfc.read_all_pv())
-            self._last_sps.update(self._mfc.read_all_sp())
-        except DeviceCommError:
-            degraded.append("mfc")
+        if "temp" not in self._connected_devices:
+            fail("temp", self._connection_errors.get("temp", "temperature not connected"))
+        else:
+            try:
+                self._last_temp = self._temp.read_pv()
+                self._last_success_at["temp"] = datetime.now(timezone.utc)
+            except DeviceCommError as exc:
+                fail("temp", str(exc))
 
-        try:
-            weight = self._balance.read_weight()
-            if weight is not None:
-                self._last_weight = weight
-        except DeviceCommError:
-            degraded.append("balance")
+        if "mfc" not in self._connected_devices:
+            flows = {}
+            for channel in self._channels:
+                fail(f"mfc:{channel.address}", self._connection_errors.get("mfc", "MFC bus not connected"))
+            setpoints = {}
+            channel_errors = {}
+        else:
+            try:
+                flows = self._mfc.read_all_pv()
+                self._last_flows.update(flows)
+                now = datetime.now(timezone.utc)
+                for address in flows:
+                    self._last_success_at[f"mfc:{address}"] = now
+            except DeviceCommError as exc:
+                flows = {}
+                for channel in self._channels:
+                    fail(f"mfc:{channel.address}", str(exc))
+            try:
+                setpoints = self._mfc.read_all_sp()
+                self._last_sps.update(setpoints)
+            except DeviceCommError as exc:
+                setpoints = {}
+                for channel in self._channels:
+                    fail(f"mfc:{channel.address}", str(exc))
+            channel_errors = getattr(self._mfc, "last_errors", {})
+        for channel in self._channels:
+            address = channel.address
+            if address not in flows or address not in setpoints or address in channel_errors:
+                fail(f"mfc:{address}", channel_errors.get(address, "no fresh PV/SP response"))
+
+        if "balance" not in self._connected_devices:
+            fail("balance", self._connection_errors.get("balance", "balance not connected"))
+        else:
+            try:
+                weight = self._balance.read_weight()
+                if weight is not None:
+                    self._last_weight = weight
+                    self._last_success_at["balance"] = datetime.now(timezone.utc)
+                else:
+                    fail("balance", "no stable weight reading")
+            except DeviceCommError as exc:
+                fail("balance", str(exc))
 
         return MultiDeviceSnapshot(
-            temperatures_c=(round(self._last_temp, 3),),
+            temperatures_c=(round(self._last_temp, 3) if self._last_temp is not None else None,),
             mfc_flows_lpm=dict(self._last_flows),
             mfc_setpoints_lpm=dict(self._last_sps),
-            weight_g=round(self._last_weight, 3),
+            weight_g=round(self._last_weight, 3) if self._last_weight is not None else None,
             degraded_devices=tuple(degraded),
+            last_success_at=dict(self._last_success_at),
+            errors=errors,
         )
 
     def read_snapshot(self) -> DeviceSnapshot:
@@ -140,7 +201,7 @@ class MultiDeviceGateway:
             return multi.mfc_flows_lpm.get(address, 0.0)
 
         return DeviceSnapshot(
-            temperature_c=multi.temperatures_c[0],
+            temperature_c=multi.temperatures_c[0] or 0.0,
             weight_g=multi.weight_g or 0.0,
             pressure_mpa=0.0,
             n2_lpm=flow("N2"),

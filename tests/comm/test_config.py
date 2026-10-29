@@ -53,3 +53,13 @@ def test_real_profile_requires_explicit_unique_ports_and_addresses(tmp_path):
 def test_real_comm_cannot_use_simulation_defaults():
     with pytest.raises(ValueError, match="explicit device profile"):
         CommConfig(simulation_mode=False)
+
+
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_scale_and_timeout_are_rejected(bad_value):
+    from rka_desktop.comm.config import MfcChannelConfig
+
+    with pytest.raises(ValueError, match="full_scale_lpm"):
+        MfcChannelConfig(1, "N2", bad_value)
+    with pytest.raises(ValueError, match="timeout"):
+        CommConfig(temp_timeout_s=bad_value)

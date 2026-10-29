@@ -4,6 +4,8 @@
 
 本 profile 基于 [硬件规格书_v1.0.md](/Users/kevin/CodeWorkSpace/Python%20Projects/RKA/docs/硬件规格书_v1.0.md) 中 `4.3 建议寄存器映射` 和 `5. I/O 与联锁要求` 整理，用于当前主线的正式映射接入。
 
+> 此 profile 属于旧单设备 Modbus/PLC 主链路，不是独立 TAIE、Azbil CPL 或电子天平的原生映射；参见[三设备通讯协议基线](三设备通讯协议基线.md)。
+
 当前目标：
 
 - 为 `ModbusRtuClient` 提供可切换的寄存器映射 profile

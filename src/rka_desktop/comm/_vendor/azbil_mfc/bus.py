@@ -162,25 +162,26 @@ class RS485Bus:
         logger.debug("接收: %s", response.hex(" "))
         return response
 
-    def _exchange(self, frame: bytes) -> tuple[int, str, Optional[List[int]]]:
+    def _exchange(self, frame: bytes, *, retries: int | None = None) -> tuple[int, str, Optional[List[int]]]:
         last_exc: Exception | None = None
+        max_retries = self.command_retries if retries is None else retries
 
         with self._lock:
-            for attempt in range(self.command_retries + 1):
+            for attempt in range(max_retries + 1):
                 try:
                     response = self._send_and_receive_unlocked(frame)
                     return parse_response(response)
                 except (CPLTimeoutError, CPLFrameError) as exc:
                     last_exc = exc
 
-                if attempt >= self.command_retries:
+                if attempt >= max_retries:
                     assert last_exc is not None
                     raise last_exc
 
                 logger.debug(
                     "RS-485 通信失败，准备重试 (%d/%d): %s",
                     attempt + 1,
-                    self.command_retries + 1,
+                    max_retries + 1,
                     last_exc,
                 )
                 self._reset_buffers_unlocked()
@@ -199,8 +200,10 @@ class RS485Bus:
         word_count: int = 1,
     ) -> List[int]:
         frame = build_read_frame(address, reg_address, word_count)
-        _, _, values = self._exchange(frame)
-        return values or []
+        response_address, _, values = self._exchange(frame)
+        if response_address != address or values is None or len(values) != word_count:
+            raise CPLFrameError(f"unexpected MFC read response from {response_address}: {values}")
+        return values
 
     def write_registers(
         self,
@@ -209,7 +212,9 @@ class RS485Bus:
         values: List[int],
     ) -> None:
         frame = build_write_frame(address, reg_address, values)
-        self._exchange(frame)
+        response_address, _, response_values = self._exchange(frame, retries=0)
+        if response_address != address or response_values:
+            raise CPLFrameError(f"unexpected MFC write response from {response_address}")
         self.pause_background_io(self.background_cooldown)
 
     def scan_devices(

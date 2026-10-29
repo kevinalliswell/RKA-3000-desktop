@@ -29,17 +29,18 @@ _MFC_HEADERS = ("地址", "气体", "满量程(L/min)", "设定(L/min)", "实测
 
 
 class MultiDevicePage(QWidget):
-    """Live monitor + control for the multi-device comm layer.
+    """Diagnostic monitor. Real-device reads are manual and writes stay disabled."""
 
-    Backed by a ``MultiDeviceGateway`` (simulation or real). Polls
-    ``read_multi_snapshot`` on a timer and lets the operator drive the temperature
-    setpoint, the six MFC flow setpoints, and the balance tare.
-    """
-
-    def __init__(self, gateway: MultiDeviceGateway, poll_interval_ms: int = 500) -> None:
+    def __init__(
+        self, gateway: MultiDeviceGateway | None, poll_interval_ms: int = 500,
+        unavailable_reason: str = "未配置真实设备只读诊断；请设置 DEVICE_PROFILE_PATH。",
+        manual_only: bool = False,
+    ) -> None:
         super().__init__()
         self._gateway = gateway
-        self._channels = gateway.channels
+        self._channels = gateway.channels if gateway is not None else ()
+        self._unavailable_reason = unavailable_reason
+        self._manual_only = manual_only
 
         layout = QVBoxLayout(self)
         self.lbl_control_scope = QLabel(
@@ -120,7 +121,7 @@ class MultiDevicePage(QWidget):
         topology_layout = QVBoxLayout(topology_page)
         topology_note = QLabel(
             "本机设备链路：温控仪（Modbus RTU）· MFC 总线（CPL RS-485）· "
-            "电子天平（串口 ASCII）。当前通道表为仓库配置，"
+            "电子天平（串口 ASCII）。当前通道表来自所选配置，"
             "与更新版原型的 N₂/Ar 共用通道定义尚未完成真机一致性核对。"
         )
         topology_note.setWordWrap(True)
@@ -135,7 +136,7 @@ class MultiDevicePage(QWidget):
         self.btn_refresh_diagnostics = QPushButton("重新读取快照")
         diagnostics_layout.addWidget(self.btn_refresh_diagnostics)
         diagnostics_layout.addStretch()
-        self.btn_refresh_diagnostics.clicked.connect(self.refresh)
+        self.btn_refresh_diagnostics.clicked.connect(self.connect_and_refresh)
 
         self.sections.addTab(overview_page, "设备概览")
         self.sections.addTab(topology_page, "连接拓扑")
@@ -162,7 +163,8 @@ class MultiDevicePage(QWidget):
 
     # --- lifecycle ---
     def start(self) -> None:
-        self._timer.start()
+        if self._gateway is not None and self._gateway.is_connected and not self._manual_only:
+            self._timer.start()
 
     def stop(self) -> None:
         self._timer.stop()
@@ -182,23 +184,59 @@ class MultiDevicePage(QWidget):
 
     # --- polling / rendering ---
     def refresh(self) -> None:
+        if self._gateway is None:
+            self.lbl_status.setText(self._unavailable_reason)
+            self.diagnostics_label.setText(self._unavailable_reason)
+            return
+        if not self._gateway.is_connected:
+            self.lbl_status.setText("只读诊断未连接")
+            self.diagnostics_label.setText("点击“重新读取快照”后连接现场设备；不会发送写入指令。")
+            return
         self.update_from_snapshot(self._gateway.read_multi_snapshot())
 
+    def connect_and_refresh(self) -> None:
+        if self._gateway is None:
+            self.refresh()
+            return
+        try:
+            if self._manual_only or not self._gateway.is_connected:
+                self._gateway.connect()
+            self.refresh()
+            self.start()
+        except Exception as exc:  # noqa: BLE001 - report connection faults on diagnostics page
+            self._timer.stop()
+            self.lbl_status.setText("⚠ 只读诊断连接失败")
+            self.diagnostics_label.setText(str(exc))
+
     def update_from_snapshot(self, snapshot: MultiDeviceSnapshot) -> None:
-        self.lbl_temp_pv.setText(f"实测 PV: {snapshot.temperatures_c[0]:.2f} ℃")
-        self.lbl_weight.setText(f"重量: {snapshot.weight_g:.3f} g")
+        temp = snapshot.temperatures_c[0]
+        self.lbl_temp_pv.setText(
+            f"实测 PV: {temp:.2f} ℃{'（旧值）' if 'temp' in snapshot.degraded_devices else ''}"
+            if temp is not None else "实测 PV: -- ℃"
+        )
+        self.lbl_weight.setText(
+            f"重量: {snapshot.weight_g:.3f} g{'（旧值）' if 'balance' in snapshot.degraded_devices else ''}"
+            if snapshot.weight_g is not None else "重量: -- g"
+        )
         for row, channel in enumerate(self._channels):
-            flow = snapshot.mfc_flows_lpm.get(channel.address, 0.0)
-            self._set_cell(row, _COL_FLOW, f"{flow:.3f}")
+            flow = snapshot.mfc_flows_lpm.get(channel.address)
+            suffix = " (旧值)" if f"mfc:{channel.address}" in snapshot.degraded_devices else ""
+            self._set_cell(row, _COL_FLOW, f"{flow:.3f}{suffix}" if flow is not None else "--")
         if snapshot.degraded_devices:
             names = ", ".join(snapshot.degraded_devices)
-            self.lbl_status.setText(f"⚠ 设备降级: {names}（保持上次有效值）")
+            self.lbl_status.setText(f"⚠ 设备降级: {names}")
             self.lbl_status.setStyleSheet("color: #c0392b; font-weight: bold;")
-            self.diagnostics_label.setText(f"设备降级：{names}。请核对电源、线缆和端口配置。")
         else:
             self.lbl_status.setText("全部设备正常")
             self.lbl_status.setStyleSheet("color: #27ae60;")
-            self.diagnostics_label.setText("最近快照读取成功；设备状态正常。")
+        device_names = ("temp", *(f"mfc:{channel.address}" for channel in self._channels), "balance")
+        details = "\n".join(
+            f"{name}：最近有效值 "
+            f"{snapshot.last_success_at[name].astimezone().strftime('%H:%M:%S') if name in snapshot.last_success_at else '从未收到'}"
+            f"；{snapshot.errors.get(name, '正常') if name in snapshot.degraded_devices else '正常'}"
+            for name in device_names
+        )
+        self.diagnostics_label.setText(details)
 
     # --- helpers ---
     def _set_cell(self, row: int, col: int, text: str) -> None:

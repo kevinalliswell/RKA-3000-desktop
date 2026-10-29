@@ -167,12 +167,16 @@ class TaieModbusRtuClient:
             self._serial.close()
 
     def _read_exact(self, size: int) -> bytes:
-        chunk = self.serial_port.read(size)
-        if len(chunk) != size:
-            raise ModbusTimeoutError(
-                f"Timed out while reading {size} bytes, got {len(chunk)} bytes"
-            )
-        return chunk
+        deadline = time.monotonic() + self.settings.timeout
+        chunks = bytearray()
+        while len(chunks) < size and time.monotonic() < deadline:
+            chunk = self.serial_port.read(size - len(chunks))
+            if not chunk:
+                break
+            chunks.extend(chunk)
+        if len(chunks) != size:
+            raise ModbusTimeoutError(f"Timed out while reading {size} bytes, got {len(chunks)} bytes")
+        return bytes(chunks)
 
     def _transceive_once(self, request_frame: bytes, expected_function_code: int) -> bytes:
         port = self.serial_port
@@ -209,6 +213,8 @@ class TaieModbusRtuClient:
 
         if expected_function_code == 0x03:
             byte_count = self._read_exact(1)
+            if not 0 < byte_count[0] <= 2 * MODBUS_MAX_REGISTERS_PER_REQUEST or byte_count[0] % 2:
+                raise ModbusProtocolError(f"Invalid register byte count: {byte_count[0]}")
             data_and_crc = self._read_exact(byte_count[0] + 2)
             frame = head + byte_count + data_and_crc
         elif expected_function_code in (0x06, 0x10):
@@ -219,6 +225,8 @@ class TaieModbusRtuClient:
             )
 
         validate_crc(frame)
+        if expected_function_code in (0x06, 0x10) and frame[2:6] != request_frame[2:6]:
+            raise ModbusProtocolError("Write response does not echo requested address and value/count")
         self._last_transaction_completed_at = time.monotonic()
         return frame
 
@@ -260,6 +268,8 @@ class TaieModbusRtuClient:
         )
         frame = self._transceive(append_crc(payload), expected_function_code=0x03)
         byte_count = frame[2]
+        if byte_count != quantity * 2:
+            raise ModbusProtocolError(f"Expected {quantity * 2} data bytes, got {byte_count}")
         data = frame[3 : 3 + byte_count]
         return tuple(
             int.from_bytes(data[index : index + 2], byteorder="big")

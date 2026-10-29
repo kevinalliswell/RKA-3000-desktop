@@ -5,7 +5,7 @@ import re
 from ..models import BalanceMessage
 from .base import BalanceProtocol
 
-_PATTERN_WEIGHT = re.compile(r"[+-]?\s*\d+\.\d+")
+_PATTERN_WEIGHT = re.compile(r"^ST,\s*([+-]?\d+\.\d+)$")
 
 
 class LongtengProtocol(BalanceProtocol):
@@ -19,16 +19,16 @@ class LongtengProtocol(BalanceProtocol):
         if not line:
             return None
 
-        match = _PATTERN_WEIGHT.search(line)
+        match = _PATTERN_WEIGHT.fullmatch(line)
         if not match:
             return BalanceMessage(protocol=self.name, raw=line, kind="unknown")
 
-        weight = float(match.group().replace(" ", ""))
+        weight = float(match.group(1))
         return BalanceMessage(
             protocol=self.name,
             raw=line,
             kind="reading",
             weight=weight,
-            stable=None,
+            stable=True,
             unit="g",
         )

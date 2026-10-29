@@ -3,6 +3,7 @@ import pytest
 pytest.importorskip("PySide6")
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
@@ -74,6 +75,39 @@ def test_main_window_smoke(tmp_path):
     window.btn_theme.click()
     assert window.theme_mode == "dark"
 
+    window.close()
+    app.quit()
+
+
+def test_real_mode_without_device_profile_starts_with_diagnostics_unavailable(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    settings = Settings(db_path=str(tmp_path / "unconfigured.db"), simulation_mode=False)
+    db = DatabaseManager(settings.db_file)
+    db.init_schema()
+    client = ModbusRtuClient(serial_port="unused", baudrate=9600, unit_id=1, simulation_mode=False)
+    window = MainWindow(settings=settings, db=db, client=client)
+    assert window.multi_gateway is None
+    assert "DEVICE_PROFILE_PATH" in window.multi_device_page.lbl_status.text()
+    assert not window.multi_device_page.btn_set_temp.isEnabled()
+    window.close()
+    app.quit()
+
+
+def test_read_only_device_profile_does_not_open_serial_or_change_simulated_main_link(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    profile = Path(__file__).resolve().parents[1] / "config/device-profile.example.json"
+    settings = Settings(
+        db_path=str(tmp_path / "diagnostic.db"), simulation_mode=True,
+        device_profile_path=str(profile),
+    )
+    db = DatabaseManager(settings.db_file)
+    db.init_schema()
+    client = ModbusRtuClient(serial_port="unused", baudrate=9600, unit_id=1, simulation_mode=True)
+    window = MainWindow(settings=settings, db=db, client=client)
+    assert window.multi_gateway is not None
+    assert not window.multi_gateway.is_connected
+    assert client.simulation_mode is True
+    assert "只读诊断未连接" in window.multi_device_page.lbl_status.text()
     window.close()
     app.quit()
 

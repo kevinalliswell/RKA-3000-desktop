@@ -29,7 +29,7 @@ def test_page_renders_six_mfc_rows():
 
 
 def test_controls_drive_live_readings():
-    gw, page = _build_page()
+    _gw, page = _build_page()
     # Operator sets a temperature target and an N2 flow, then applies.
     page.spin_temp.setValue(900.0)
     page._apply_temperature()
@@ -57,3 +57,19 @@ def test_degraded_status_is_surfaced():
     page.refresh()
     assert "降级" in page.lbl_status.text()
     assert "balance" in page.lbl_status.text()
+
+
+def test_diagnostics_show_fresh_time_and_stale_value_after_failure():
+    gw, page = _build_page()
+    page.refresh()
+    assert "最近有效值" in page.diagnostics_label.text()
+    assert "mfc:1" in page.diagnostics_label.text()
+    from rka_desktop.comm.exceptions import DeviceCommError
+
+    def _boom() -> float:
+        raise DeviceCommError("balance unplugged")
+
+    gw._balance.read_weight = _boom  # type: ignore[assignment]
+    page.refresh()
+    assert "（旧值）" in page.lbl_weight.text()
+    assert "balance unplugged" in page.diagnostics_label.text()

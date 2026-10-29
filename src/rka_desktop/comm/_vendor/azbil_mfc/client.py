@@ -258,7 +258,9 @@ class MQVBusManager:
         try:
             scale = read_flow_scale(self.bus, address)
         except Exception as exc:
-            logger.debug("设备 %d 量程读取失败，沿用缓存/配置: %s", address, exc)
+            logger.debug("设备 %d 量程读取失败: %s", address, exc)
+            if refresh:
+                return None
         else:
             with self._flow_scale_lock:
                 self._flow_scales[address] = scale
