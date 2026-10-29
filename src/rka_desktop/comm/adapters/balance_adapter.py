@@ -49,9 +49,11 @@ class BalanceAdapter:
         except Exception as exc:
             raise DeviceCommError(f"balance read failed: {exc}") from exc
         if message is None:
-            return None
+            raise DeviceCommError("balance no response")
         if message.kind == "error":
             raise DeviceCommError(f"balance returned error {message.code or message.raw}")
+        if message.kind == "unknown":
+            raise DeviceCommError(f"balance invalid frame {message.raw}")
         if message.kind != "reading" or message.stable is not True:
             return None
         return message.weight

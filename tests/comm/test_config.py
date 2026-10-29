@@ -25,6 +25,7 @@ def test_commconfig_defaults_to_simulation():
 
 def test_real_profile_requires_explicit_unique_ports_and_addresses(tmp_path):
     profile = {
+        "health_interval_s": 45,
         "temperature": {"port": "TEMP", "slave_id": 7, "baudrate": 19200,
                         "parity": "N", "stopbits": 1, "timeout_s": 1.0},
         "mfc": {"port": "MFC", "baudrate": 19200, "format": "8E1", "timeout_s": 1.0,
@@ -38,6 +39,7 @@ def test_real_profile_requires_explicit_unique_ports_and_addresses(tmp_path):
     cfg = CommConfig.from_profile(path)
     assert cfg.profile_loaded and not cfg.simulation_mode
     assert cfg.temp_slave_id == 7
+    assert cfg.health_interval_s == 45
 
     profile["mfc"]["port"] = "TEMP"
     path.write_text(json.dumps(profile), encoding="utf-8")
@@ -53,6 +55,12 @@ def test_real_profile_requires_explicit_unique_ports_and_addresses(tmp_path):
 def test_real_comm_cannot_use_simulation_defaults():
     with pytest.raises(ValueError, match="explicit device profile"):
         CommConfig(simulation_mode=False)
+
+
+@pytest.mark.parametrize("interval", [0, 4, 301, 30.5, True])
+def test_health_interval_is_bounded(interval):
+    with pytest.raises(ValueError, match="health_interval_s"):
+        CommConfig(health_interval_s=interval)
 
 
 @pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf")])

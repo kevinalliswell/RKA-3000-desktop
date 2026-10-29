@@ -36,6 +36,7 @@ def default_mfc_channels() -> tuple[MfcChannelConfig, ...]:
 @dataclass(frozen=True)
 class CommConfig:
     simulation_mode: bool = True
+    health_interval_s: int = 30
     # TAIE temperature controller (Modbus RTU)
     temp_port: str = "/dev/tty.usbserial-temp"
     temp_slave_id: int = 1
@@ -59,6 +60,8 @@ class CommConfig:
     profile_loaded: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.health_interval_s) is not int or not 5 <= self.health_interval_s <= 300:
+            raise ValueError("health_interval_s must be an integer from 5 to 300")
         if not self.simulation_mode and not self.profile_loaded:
             raise ValueError("real-device diagnostics require an explicit device profile")
         if len(self.mfc_channels) != 6 or len({c.address for c in self.mfc_channels}) != 6:
@@ -91,6 +94,7 @@ class CommConfig:
         channels = tuple(MfcChannelConfig(**channel) for channel in mfc["channels"])
         return cls(
             simulation_mode=False, profile_loaded=True,
+            health_interval_s=data.get("health_interval_s", 30),
             temp_port=temp["port"], temp_slave_id=temp["slave_id"],
             temp_baudrate=temp["baudrate"], temp_parity=temp["parity"],
             temp_stopbits=temp["stopbits"], temp_timeout_s=temp["timeout_s"],

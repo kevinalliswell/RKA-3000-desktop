@@ -274,12 +274,13 @@ class MainWindow(QMainWindow):
         self.recipe_page = RecipePage()
         self.monitor_page = MonitorPage()
         self.multi_gateway: MultiDeviceGateway | None = None
+        health_interval_ms = 30_000
         diagnostic_error = "未配置真实设备只读诊断；请设置 DEVICE_PROFILE_PATH。"
         if self.settings.device_profile_path:
             try:
-                self.multi_gateway = MultiDeviceGateway.from_config(
-                    CommConfig.from_profile(self.settings.device_profile_path)
-                )
+                comm_config = CommConfig.from_profile(self.settings.device_profile_path)
+                self.multi_gateway = MultiDeviceGateway.from_config(comm_config)
+                health_interval_ms = comm_config.health_interval_s * 1000
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 diagnostic_error = f"设备配置无效：{exc}"
         elif self.settings.simulation_mode:
@@ -287,7 +288,8 @@ class MainWindow(QMainWindow):
             self.multi_gateway.connect()
         self.multi_device_page = MultiDevicePage(
             self.multi_gateway, unavailable_reason=diagnostic_error,
-            manual_only=bool(self.settings.device_profile_path),
+            real_device=bool(self.settings.device_profile_path),
+            health_interval_ms=health_interval_ms,
         )
         self.multi_device_page.set_diagnostics_only()
         self.analysis_page = AnalysisPage(self.experiment_repository)

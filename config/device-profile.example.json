@@ -1,4 +1,5 @@
 {
+  "health_interval_s": 30,
   "temperature": {
     "port": "REPLACE_TEMP_PORT",
     "slave_id": 7,

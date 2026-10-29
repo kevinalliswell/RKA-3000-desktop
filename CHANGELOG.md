@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- 真实设备只读诊断在首次连接后后台扫描，并以可配置的低频周期复查通讯状态；逐设备显示在线、离线、读数待稳定或状态过期，并尝试重连读取失败的端口。
+
 ### Changed
 - 三设备只读诊断改用明确的现场配置与逐设备故障状态；MFC 流量按实机量程元数据换算，首次读取失败不再显示为有效零值。
 - 加固 CPL、TAIE Modbus RTU 与天平 ASCII 报文校验；真实设备的温度、流量与去皮写入默认拒绝。

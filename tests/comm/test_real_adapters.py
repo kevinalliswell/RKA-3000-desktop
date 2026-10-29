@@ -243,6 +243,17 @@ def test_balance_rejects_unstable_frames_and_real_tare_is_disabled():
     raise AssertionError("real tare must be disabled")
 
 
+def test_balance_no_response_is_a_link_failure():
+    fake = _FakeBalanceClient()
+    fake.read_message = lambda: None
+    try:
+        BalanceAdapter(fake).read_weight()
+    except DeviceCommError as exc:
+        assert "no response" in str(exc)
+    else:
+        raise AssertionError("missing balance frame must be a link failure")
+
+
 def test_balance_adapter_wraps_driver_errors():
     adapter = BalanceAdapter(_FakeBalanceClient(raises=True))
     try:

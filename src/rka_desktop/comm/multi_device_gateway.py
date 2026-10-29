@@ -107,6 +107,14 @@ class MultiDeviceGateway:
             except Exception as exc:  # noqa: BLE001 - close all ports despite one failure
                 logger.warning("device close failed: %s", exc)
 
+    def _mark_disconnected(self, name: str, device, reason: str) -> None:
+        self._connected_devices.discard(name)
+        self._connection_errors[name] = reason
+        try:
+            device.close()
+        except Exception as exc:  # noqa: BLE001 - preserve the read failure
+            logger.warning("%s close after read failure: %s", name, exc)
+
     @property
     def channels(self) -> tuple[MfcChannelConfig, ...]:
         return self._channels
@@ -137,6 +145,7 @@ class MultiDeviceGateway:
                 self._last_success_at["temp"] = datetime.now(timezone.utc)
             except DeviceCommError as exc:
                 fail("temp", str(exc))
+                self._mark_disconnected("temp", self._temp, str(exc))
 
         if "mfc" not in self._connected_devices:
             flows = {}
@@ -163,6 +172,8 @@ class MultiDeviceGateway:
                 for channel in self._channels:
                     fail(f"mfc:{channel.address}", str(exc))
             channel_errors = getattr(self._mfc, "last_errors", {})
+            if not flows and not setpoints:
+                self._mark_disconnected("mfc", self._mfc, "no MFC channels responded")
         for channel in self._channels:
             address = channel.address
             if address not in flows or address not in setpoints or address in channel_errors:
@@ -180,6 +191,7 @@ class MultiDeviceGateway:
                     fail("balance", "no stable weight reading")
             except DeviceCommError as exc:
                 fail("balance", str(exc))
+                self._mark_disconnected("balance", self._balance, str(exc))
 
         return MultiDeviceSnapshot(
             temperatures_c=(round(self._last_temp, 3) if self._last_temp is not None else None,),

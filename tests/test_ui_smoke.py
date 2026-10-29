@@ -106,6 +106,7 @@ def test_read_only_device_profile_does_not_open_serial_or_change_simulated_main_
     window = MainWindow(settings=settings, db=db, client=client)
     assert window.multi_gateway is not None
     assert not window.multi_gateway.is_connected
+    assert window.multi_device_page._timer.interval() == 30_000
     assert client.simulation_mode is True
     assert "只读诊断未连接" in window.multi_device_page.lbl_status.text()
     window.close()

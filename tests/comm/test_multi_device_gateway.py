@@ -174,6 +174,29 @@ def test_degraded_balance_keeps_last_weight():
     assert second.weight_g == 42.0
 
 
+def test_read_failure_reconnects_on_next_health_scan():
+    channels = default_mfc_channels()
+    balance = _ToggleBalance()
+    connects = []
+    original_connect = balance.connect
+
+    def _connect():
+        connects.append(1)
+        original_connect()
+
+    balance.connect = _connect
+    gw = MultiDeviceGateway(SimTemperatureAdapter(), SimMfcBusAdapter(channels), balance, channels)
+    gw.connect()
+    gw.read_multi_snapshot()
+    balance.fail = True
+    assert "balance" in gw.read_multi_snapshot().degraded_devices
+    assert "balance" not in gw._connected_devices
+    balance.fail = False
+    assert gw.connect() is True
+    assert len(connects) == 2
+    assert "balance" not in gw.read_multi_snapshot().degraded_devices
+
+
 def test_connect_failure_is_isolated_and_retryable():
     channels = default_mfc_channels()
     closed = {"temp": False}
