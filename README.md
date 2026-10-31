@@ -1,6 +1,21 @@
-# RKA Desktop Scaffold
+# RKA-3000 Desktop
 
-基于 Python3.10+、PySide6、SQLite3、RS-485/Modbus RTU 的桌面端项目脚手架。
+铁矿石氧化还原实验桌面程序。现行完整实验流程使用 Python 3.10+ / PySide6 / SQLite；新版桌面界面正在迁移至 Tauri 2 + Svelte 5，Python 继续承担业务与设备通讯。
+
+## 新版桌面界面（仿真只读预览）
+
+`frontend/` 已建立独立桌面窗口和 12 个主导航。实时总览、配方列表与阶段详情、历史列表与摘要、设备概览连接 Python 仿真桥接及现有数据库；导航、主题、筛选、刷新和趋势可交互。其他页面已呈现目标结构或迁移状态。**新版尚不能启动实验、生成报告或判断现场设备在线，也不会执行真实设备写入。**完整功能仍使用下文的 PySide6 程序。详细选型、范围与验收步骤见[桌面前端迁移方案](docs/桌面前端迁移方案.md)。
+
+开发启动（需要 Node.js、Rust 和已安装本项目依赖的 `.venv`）：
+
+```bash
+cd frontend
+npm ci
+npm run check
+npm run tauri dev
+```
+
+macOS 发行预览另需在 `.venv` 安装 PyInstaller，然后运行 `bash scripts/packaging/build_tauri.sh`；Windows 上运行 `scripts/packaging/build_tauri_windows.ps1`。发行构建会打包仿真 Python 子进程，数据库位于系统应用数据目录。macOS `.app` 已在本机验证独立启动和数据刷新（约 22.7 MiB）；Windows 安装包尚待在 Windows 环境验证。
 
 ## UI 交互原型
 
