@@ -12,6 +12,7 @@
   let inert = $derived(ws.selectedRecipe?.id === recipeId && ws.selectedRecipe.stages?.some(s => s.flows.ar > 0) ? 'Ar' : 'N₂')
   $effect(() => { name; sampleName; mass; recipeId; checks.gas; checks.exhaust; checks.balance; checks.operator; result = null })
   async function validate() {
+    if (!name.trim()) { ws.error = '请填写实验名称'; step = 0; return }
     try { result = await ws.request('sim_preflight', { recipe_id: recipeId, sample: { name: sampleName, initial_mass_g: Number(mass) }, checks }); step = 2 } catch { /* shown */ }
   }
   async function start() {

@@ -527,6 +527,7 @@ class SimulationWorkflow:
             alarm_rows = [dict(row) for row in db.execute("SELECT code,severity,message,appeared_at,acknowledged_at,cleared_at FROM sim_alarms WHERE run_id=? ORDER BY id", (run_id,))]
             audit_rows = [dict(row) for row in db.execute("SELECT actor,action,detail,created_at FROM sim_audit WHERE run_id=? ORDER BY id", (run_id,))]
         rows = [("实验编号", run["id"]), ("名称", run["name"]), ("状态", run["state"]),
+                ("报告状态", "已归档" if run["state"] == "ARCHIVED" else "待复核 / 未归档"),
                 ("样品", run["sample"].get("name", "")), ("初始称重 / g", run["sample"].get("initial_mass_g", "")),
                 ("配方", f"{run['recipe_snapshot']['name']} v{run['recipe_snapshot']['version']}"),
                 ("开始时间", run["started_at"]), ("结束时间", run["finished_at"] or "—"),

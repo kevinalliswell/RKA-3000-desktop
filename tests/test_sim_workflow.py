@@ -48,10 +48,11 @@ def test_normal_cycle_review_and_report(workflow: SimulationWorkflow):
         workflow.action(run["id"], "review", note="数据完整")
     workflow.set_settings(role="reviewer")
     workflow.action(run["id"], "review", note="数据完整")
+    assert "待复核 / 未归档" in workflow.report_html(run["id"])
     workflow.action(run["id"], "archive")
     assert workflow.current() is None
     report = workflow.report_html(run["id"])
-    assert "数据完整" in report and "仿真技术记录" in report and "v1" in report
+    assert "数据完整" in report and "仿真技术记录" in report and "v1" in report and "已归档" in report
 
 
 def test_fault_pause_emergency_and_restart(tmp_path: Path):
