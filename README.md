@@ -1,10 +1,14 @@
 # RKA-3000 Desktop
 
-铁矿石氧化还原实验桌面程序。现行完整实验流程使用 Python 3.10+ / PySide6 / SQLite；新版桌面界面正在迁移至 Tauri 2 + Svelte 5，Python 继续承担业务与设备通讯。
+铁矿石氧化还原实验桌面程序。现行完整实验入口使用 Python 3.10+ / PySide6 / SQLite；新版 Tauri 2 + Svelte 5/TypeScript 窗口已实现独立的七气体仿真实验闭环，Python 负责状态、采样、分析和报告。真实设备写入仍禁用。
 
-## 新版桌面界面（仿真只读预览）
+## 新版桌面界面（仿真闭环）
 
-`frontend/` 已建立独立桌面窗口和 12 个主导航。实时总览、配方列表与阶段详情、历史列表与摘要、设备概览连接 Python 仿真桥接及现有数据库；导航、主题、筛选、刷新和趋势可交互。其他页面已呈现目标结构或迁移状态。**新版尚不能启动实验、生成报告或判断现场设备在线，也不会执行真实设备写入。**完整功能仍使用下文的 PySide6 程序。详细选型、范围与验收步骤见[桌面前端迁移方案](docs/桌面前端迁移方案.md)。
+`frontend/` 包含 12 个独立页面及关键子页：总览、实验准备、当前实验、配方、历史、报警、设备诊断、审计、分析、报告、设置与帮助。默认深色、可切浅色。配方保存为版本；实验启动时固化快照。仿真工作线程依次完成惰性置换、反应、吹扫冷却、人工复核和归档。暂停、离线、报警、紧急处置与重启恢复都由 Python 状态机校验并记录审计。七气体映射六台 MFC，气体互锁与使用上限在后端生效。
+
+报告中心可预览并保存 Python 生成的 HTML 技术记录；独立报告窗口通过 Tauri 调用系统打印对话框保存 PDF。历史采样分页及抽稀加载，分析只计算有效仿真采样，并标注方法限制。设置页可显式导入旧 SQLite 数据：先备份当前库，再只读复制旧配方、实验、原始采样、报警与审计；相同文件重复导入不会复制两次。旧版数据单独展示，不自动转成七气体配方。详细状态与接口见[新版桌面仿真流程与接口](docs/新版桌面仿真流程与接口.md)。
+
+**设备诊断的真实状态仍为未知**：本版没有现场配置，不连接串口，也不执行真实写入。仿真状态不能作为真机在线或联锁验收证据。原 PySide6 程序继续作为现有完整实验入口，直到新版通过业务回归和现场验收。选型与迁移范围见[桌面前端迁移方案](docs/桌面前端迁移方案.md)。
 
 开发启动（需要 Node.js、Rust 和已安装本项目依赖的 `.venv`）：
 
@@ -15,7 +19,7 @@ npm run check
 npm run tauri dev
 ```
 
-macOS 发行预览另需在 `.venv` 安装 PyInstaller，然后运行 `bash scripts/packaging/build_tauri.sh`；Windows 上运行 `scripts/packaging/build_tauri_windows.ps1`。发行构建会打包仿真 Python 子进程，数据库位于系统应用数据目录。macOS `.app` 已在本机验证独立启动和数据刷新（约 22.7 MiB）；Windows 安装包尚待在 Windows 环境验证。
+macOS 发行构建另需在 `.venv` 安装 PyInstaller，然后运行 `bash scripts/packaging/build_tauri.sh`；Windows 上运行 `scripts/packaging/build_tauri_windows.ps1`。发行构建会打包仿真 Python 子进程，数据库位于系统应用数据目录。新版 macOS `.app` 已在本机构建并验证仿真实验和系统打印（约 23.22 MiB）；Windows 安装包由 `tauri-windows-smoke` GitHub Actions 工作流构建并上传。
 
 ## UI 交互原型
 

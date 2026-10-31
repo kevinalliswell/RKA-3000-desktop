@@ -5,8 +5,40 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{Manager, State};
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
+#[tauri::command]
+fn write_report_html(path: String, html: String) -> Result<(), String> {
+    if !path.to_lowercase().ends_with(".html") || !html.starts_with("<!doctype html>") {
+        return Err("仅支持保存 HTML 技术记录".to_string());
+    }
+    std::fs::write(path, html).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn open_report_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("report") {
+        window.reload().map_err(|error| error.to_string())?;
+        window.set_focus().map_err(|error| error.to_string())?;
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(&app, "report", WebviewUrl::App("report.html".into()))
+        .title("RKA-3000 技术记录")
+        .inner_size(900.0, 760.0)
+        .build()
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn print_report_window(app: tauri::AppHandle) -> Result<(), String> {
+    app.get_webview_window("report")
+        .ok_or("报告窗口未打开")?
+        .print()
+        .map_err(|error| error.to_string())
+}
 
 struct BridgeRequest {
     id: u64,
@@ -27,6 +59,11 @@ async fn bridge_call(
     params: Option<Value>,
 ) -> Result<Value, String> {
     let (reply, answer) = mpsc::channel();
+    let timeout = match method.as_str() {
+        "sim_import_legacy" => Duration::from_secs(300),
+        "sim_report" | "sim_analysis" => Duration::from_secs(30),
+        _ => Duration::from_secs(5),
+    };
     state.requests.try_send(BridgeRequest {
         id: NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed),
         method,
@@ -38,7 +75,7 @@ async fn bridge_call(
     })?;
     let child = Arc::clone(&state.child);
     tauri::async_runtime::spawn_blocking(move || {
-        match answer.recv_timeout(Duration::from_secs(5)) {
+        match answer.recv_timeout(timeout) {
             Ok(result) => result,
             Err(_) => {
                 if let Ok(mut process) = child.lock() {
@@ -131,12 +168,13 @@ fn spawn_backend(app: &tauri::App) -> Result<BridgeState, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let bridge = spawn_backend(app).map_err(std::io::Error::other)?;
             app.manage(bridge);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![bridge_call])
+        .invoke_handler(tauri::generate_handler![bridge_call, write_report_html, open_report_window, print_report_window])
         .build(tauri::generate_context!())
         .expect("error while building RKA-3000 desktop application")
         .run(|app, event| {

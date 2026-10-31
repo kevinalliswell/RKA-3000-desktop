@@ -22,6 +22,8 @@
   },
   "dependencies": {
     "@lucide/svelte": "^1.65.0",
-    "@tauri-apps/api": "^2.12.4"
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "uplot": "^1.6.32"
   }
 }

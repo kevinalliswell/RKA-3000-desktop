@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Tauri 2 + Svelte 5 桌面工作台的 12 个页面及关键子页，支持深浅主题、七气体版本化配方、可持久化仿真实验、报警审计、有效采样分析与 HTML/PDF 技术记录。
+- 独立 `sim_*` SQLite 数据模型和旧库显式复制导入；历史采样按需分页与抽稀，Windows Tauri 安装包构建工作流。
 - 真实设备只读诊断在首次连接后后台扫描，并以可配置的低频周期复查通讯状态；逐设备显示在线、离线、读数待稳定或状态过期，并尝试重连读取失败的端口。
 
 ### Changed
