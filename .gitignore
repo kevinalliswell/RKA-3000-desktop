@@ -24,9 +24,9 @@ dist/
 output/
 
 # Local runtime artifacts (pre-migration layout and local runs)
-logs/
-exports/
-data/*.db
+/logs/
+/exports/
+/data/*.db
 *.log
 *.log.*
 .env
