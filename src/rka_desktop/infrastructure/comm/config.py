@@ -43,3 +43,5 @@ class CommConfig:
     balance_port: str = "/dev/tty.usbserial-bal"
     balance_protocol: str = "gs_cpa"
     balance_baudrate: int = 9600
+    # Seconds per TAIE program time unit (60 for "min", 1 for "s"); the simulator runs the curve with it.
+    temp_segment_seconds: float = 60.0

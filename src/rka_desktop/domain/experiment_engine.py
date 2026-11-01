@@ -52,6 +52,10 @@ class ExperimentEngine:
         return len(self.steps)
 
     @property
+    def target_reached_at(self) -> datetime | None:
+        return self._target_reached_at
+
+    @property
     def current_step(self) -> RecipeStepRuntime | None:
         if not self.steps or self.current_step_index >= len(self.steps):
             return None
@@ -180,7 +184,8 @@ class ExperimentEngine:
             setpoints = (
                 f"目标温度 {step.target_temp_c:.1f}℃ | "
                 f"升温速率 {step.ramp_rate_cpm:.1f}℃/min | "
-                f"N2/H2/CO {step.n2_lpm:.1f}/{step.h2_lpm:.1f}/{step.co_lpm:.1f}"
+                "气体 "
+                + " / ".join(f"{gas} {value:.2f}" for gas, value in step.flows().items() if value > 0)
             )
 
         return EngineUpdate(

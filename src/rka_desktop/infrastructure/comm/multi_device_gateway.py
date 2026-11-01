@@ -47,9 +47,10 @@ class MultiDeviceGateway:
                 SimTemperatureAdapter,
             )
 
-            temperature: TemperaturePort = SimTemperatureAdapter()
-            mfc: MfcBusPort = SimMfcBusAdapter(cfg.mfc_channels)
-            balance: BalancePort = SimBalanceAdapter()
+            temperature: TemperaturePort = SimTemperatureAdapter(segment_seconds=cfg.temp_segment_seconds)
+            sim_mfc = SimMfcBusAdapter(cfg.mfc_channels)
+            mfc: MfcBusPort = sim_mfc
+            balance: BalancePort = SimBalanceAdapter(initial_g=50.0, flow_source=sim_mfc.flows_by_gas)
         else:
             from rka_desktop.infrastructure.comm.adapters.azbil_mfc_adapter import AzbilMfcAdapter
             from rka_desktop.infrastructure.comm.adapters.balance_adapter import BalanceAdapter

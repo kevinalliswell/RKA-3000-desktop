@@ -1,7 +1,8 @@
 """CSV / Excel exports of experiment data using the standard library and openpyxl.
 
-Column names and order match the pre-migration pandas exports so downstream spreadsheets
-keep working: ``sampled_at, temperature_c, weight_g, pressure_mpa, n2_lpm, h2_lpm, co_lpm``.
+Column names and order start with the pre-migration pandas exports so downstream spreadsheets
+keep working (``sampled_at, temperature_c, weight_g, pressure_mpa, n2_lpm, h2_lpm, co_lpm``);
+0.9 appends the other gases and the run phase at the end.
 """
 
 from __future__ import annotations
@@ -13,7 +14,9 @@ from typing import Any
 
 from openpyxl import Workbook
 
-MEASUREMENT_COLUMNS = ("sampled_at", "temperature_c", "weight_g", "pressure_mpa", "n2_lpm", "h2_lpm", "co_lpm")
+MEASUREMENT_COLUMNS = ("sampled_at", "temperature_c", "weight_g", "pressure_mpa", "n2_lpm", "h2_lpm", "co_lpm",
+                       "ar_lpm", "co2_lpm", "ch4_lpm", "o2_lpm", "phase")
+AUDIT_COLUMNS = ("created_at", "actor", "action", "detail", "reason", "result", "category", "experiment_id")
 SUMMARY_COLUMNS = (
     "experiment_id", "sample_count", "first_sampled_at", "last_sampled_at",
     "min_temperature_c", "max_temperature_c", "min_weight_g", "max_weight_g",
@@ -74,5 +77,19 @@ def write_summary_csv(summary: dict[str, Any] | None, path: Path) -> Path:
             out = csv.writer(stream)
             out.writerow(SUMMARY_COLUMNS)
             out.writerow([summary.get(column) for column in SUMMARY_COLUMNS])
+
+    return _write_atomic(path, writer)
+
+
+def write_audit_csv(rows: list[dict[str, Any]], path: Path) -> Path:
+    if not rows:
+        raise NothingToExport("没有可导出的操作记录")
+
+    def writer(target: Path) -> None:
+        with target.open("w", encoding="utf-8-sig", newline="") as stream:
+            out = csv.writer(stream)
+            out.writerow(AUDIT_COLUMNS)
+            for row in rows:
+                out.writerow([row.get(column) for column in AUDIT_COLUMNS])
 
     return _write_atomic(path, writer)

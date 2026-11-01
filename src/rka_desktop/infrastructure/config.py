@@ -72,7 +72,10 @@ class AppConfig:
     acquisition_batch_size: int = 10
     step_heatup_grace_seconds: int = 120
     step_total_grace_seconds: int = 180
+    # Stale readback longer than this records a warning alarm (the run continues; see domain/safety.py).
     degraded_fault_seconds: int = 30
+    # Safe disposal ends once the purge time is reached and the furnace is below this temperature.
+    purge_exit_temperature_c: int = 200
     # PLC Modbus RTU (device_backend == plc_modbus)
     plc_serial_port: str = ""
     plc_baudrate: int = 9600
@@ -105,7 +108,8 @@ class AppConfig:
         for name in ("poll_interval_ms", "acquisition_batch_size", "step_heatup_grace_seconds",
                      "step_total_grace_seconds", "degraded_fault_seconds", "plc_baudrate", "plc_unit_id",
                      "temp_slave_id", "temp_baudrate", "mfc_baudrate", "balance_baudrate",
-                     "audit_log_limit", "log_max_bytes", "log_backup_count", "temp_program_group"):
+                     "audit_log_limit", "log_max_bytes", "log_backup_count", "temp_program_group",
+                     "purge_exit_temperature_c"):
             value = getattr(self, name)
             if type(value) is not int:
                 raise ConfigError(f"{name} 必须是整数")
@@ -117,6 +121,8 @@ class AppConfig:
             raise ConfigError("超时宽限须在 0 到 86400 秒之间")
         if not 5 <= self.degraded_fault_seconds <= 3600:
             raise ConfigError("degraded_fault_seconds 须在 5 到 3600 秒之间")
+        if not 50 <= self.purge_exit_temperature_c <= 600:
+            raise ConfigError("purge_exit_temperature_c 须在 50 到 600 ℃ 之间")
         if not 0 <= self.temp_program_group <= 2:
             raise ConfigError("temp_program_group 须在 0 到 2 之间")
         if self.temp_segment_time_unit not in {"min", "s"}:

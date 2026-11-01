@@ -15,6 +15,7 @@ from typing import Any
 
 from rka_desktop.application.ports import GatewayCapabilities, RunControlFeedback
 from rka_desktop.domain.entities import DeviceSnapshot, MultiDeviceSnapshot
+from rka_desktop.domain.gases import GAS_BY_KEY, label, normalise_gas_key
 from rka_desktop.domain.recipe import RecipeStep
 from rka_desktop.infrastructure.comm.config import CommConfig, MfcChannelConfig
 from rka_desktop.infrastructure.comm.exceptions import DeviceCommError
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 TAIE_PROGRAM_SEGMENTS = 8
 TAIE_MAX_TIME_RAW = 9999
+# The PLC register map (contract_v1) carries N2/H2/CO only; ranges from the hardware specification.
+PLC_GAS_LIMITS = {"N2": 20.0, "H2": 5.0, "CO": 5.0}
 
 
 class TemperatureProgramError(RuntimeError):
@@ -53,10 +56,21 @@ class PlcModbusGateway:
         self._client.close()
 
     def read_snapshot(self) -> DeviceSnapshot:
-        return self._client.read_snapshot()
+        snapshot = self._client.read_snapshot()
+        snapshot.flows_lpm = {"N2": snapshot.n2_lpm, "H2": snapshot.h2_lpm, "CO": snapshot.co_lpm}
+        return snapshot
 
     def degraded_devices(self) -> tuple[str, ...]:
         return ()
+
+    def gas_device_limits(self) -> dict[str, float]:
+        return dict(PLC_GAS_LIMITS)
+
+    def max_program_steps(self) -> int | None:
+        return None
+
+    def read_gas_setpoints(self) -> dict[str, float] | None:
+        return None
 
     def _write_all(self) -> dict[str, float]:
         return self._client.apply_setpoints(
@@ -64,10 +78,15 @@ class PlcModbusGateway:
             n2_lpm=self._last_gas["n2_lpm"], h2_lpm=self._last_gas["h2_lpm"], co_lpm=self._last_gas["co_lpm"],
         )
 
-    def apply_gas_setpoints(self, *, n2_lpm: float, h2_lpm: float, co_lpm: float) -> dict[str, float]:
+    def apply_gas_setpoints(self, flows: dict[str, float]) -> dict[str, float]:
+        unsupported = [gas for gas, value in flows.items() if gas not in PLC_GAS_LIMITS and value > 0]
+        if unsupported:
+            raise DeviceCommError(f"PLC 寄存器表没有 {'/'.join(label(g) for g in unsupported)} 通道")
         # The PLC map writes temperature and gas in one block; keep the last temperature values.
-        self._last_gas = {"n2_lpm": float(n2_lpm), "h2_lpm": float(h2_lpm), "co_lpm": float(co_lpm)}
-        return self._write_all()
+        self._last_gas = {"n2_lpm": float(flows.get("N2", 0.0)), "h2_lpm": float(flows.get("H2", 0.0)),
+                          "co_lpm": float(flows.get("CO", 0.0))}
+        self._write_all()
+        return {"N2": self._last_gas["n2_lpm"], "H2": self._last_gas["h2_lpm"], "CO": self._last_gas["co_lpm"]}
 
     def apply_temperature_setpoint(self, *, temperature_c: float, ramp_rate_cpm: float) -> None:
         self._last_temp = {"temperature_c": float(temperature_c), "ramp_rate_cpm": float(ramp_rate_cpm)}
@@ -138,7 +157,7 @@ def build_taie_segments(steps: list[RecipeStep], *, time_unit: str = "min") -> l
 class MultiDeviceExperimentGateway:
     capabilities = GatewayCapabilities(
         temperature_program=True, temperature_setpoint=True, run_control_word=False,
-        alarm_words=False, multi_device_status=True, balance_tare=True,
+        alarm_words=False, multi_device_status=True, balance_tare=True, gas_setpoint_readback=True,
     )
 
     def __init__(self, gateway: MultiDeviceGateway, *, program_group: int = 0, time_unit: str = "min",
@@ -150,10 +169,12 @@ class MultiDeviceExperimentGateway:
         self._description = description or {}
         self._last_degraded: tuple[str, ...] = ()
         self._gas_addresses: dict[str, int] = {}
+        self._full_scale: dict[str, float] = {}
         for channel in gateway.channels:
-            gas = channel.gas.upper()
-            if gas in ("N2", "H2", "CO") and gas not in self._gas_addresses:
+            gas = normalise_gas_key(channel.gas)
+            if gas is not None and gas not in self._gas_addresses:
                 self._gas_addresses[gas] = channel.address
+                self._full_scale[gas] = float(channel.full_scale_lpm)
 
     @property
     def gateway(self) -> MultiDeviceGateway:
@@ -165,34 +186,46 @@ class MultiDeviceExperimentGateway:
     def close(self) -> None:
         self._gateway.close()
 
+    def _by_gas(self, values: dict[int, float]) -> dict[str, float]:
+        return {gas: values.get(address, 0.0) for gas, address in self._gas_addresses.items()}
+
     def read_snapshot(self) -> DeviceSnapshot:
         multi = self._gateway.read_multi_snapshot()
         self._last_degraded = multi.degraded_devices
-
-        def flow(gas: str) -> float:
-            address = self._gas_addresses.get(gas)
-            return multi.mfc_flows_lpm.get(address, 0.0) if address is not None else 0.0
-
+        flows = self._by_gas(multi.mfc_flows_lpm)
         return DeviceSnapshot(
             temperature_c=multi.temperatures_c[0], weight_g=multi.weight_g, pressure_mpa=0.0,
-            n2_lpm=flow("N2"), h2_lpm=flow("H2"), co_lpm=flow("CO"), alarm_word=0,
+            n2_lpm=flows.get("N2", 0.0), h2_lpm=flows.get("H2", 0.0), co_lpm=flows.get("CO", 0.0), alarm_word=0,
+            flows_lpm=flows, setpoints_lpm=self._by_gas(multi.mfc_setpoints_lpm),
         )
 
     def degraded_devices(self) -> tuple[str, ...]:
         return self._last_degraded
 
-    def apply_gas_setpoints(self, *, n2_lpm: float, h2_lpm: float, co_lpm: float) -> dict[str, float]:
-        requested = {"N2": float(n2_lpm), "H2": float(h2_lpm), "CO": float(co_lpm)}
+    def gas_device_limits(self) -> dict[str, float]:
+        return dict(self._full_scale)
+
+    def max_program_steps(self) -> int | None:
+        return TAIE_PROGRAM_SEGMENTS // 2
+
+    def apply_gas_setpoints(self, flows: dict[str, float]) -> dict[str, float]:
+        for gas, lpm in flows.items():
+            if gas not in self._gas_addresses and lpm > 0:
+                name = GAS_BY_KEY[gas].label if gas in GAS_BY_KEY else gas
+                raise DeviceCommError(f"没有配置 {name} 的 MFC 通道，无法下发 {lpm:g} L/min")
         applied: dict[str, float] = {}
-        for gas, lpm in requested.items():
-            address = self._gas_addresses.get(gas)
-            if address is None:
-                if lpm > 0:
-                    raise DeviceCommError(f"没有配置 {gas} 的 MFC 通道，无法下发 {lpm:g} L/min")
-                continue
+        for gas, address in self._gas_addresses.items():
+            lpm = float(flows.get(gas, 0.0))
             self._gateway.set_mfc_flow(address, lpm)
-            applied[f"{gas.lower()}_lpm"] = lpm
+            applied[gas] = lpm
         return applied
+
+    def read_gas_setpoints(self) -> dict[str, float] | None:
+        multi = self._gateway.read_multi_snapshot()
+        self._last_degraded = multi.degraded_devices
+        if "mfc" in multi.degraded_devices:
+            return None
+        return self._by_gas(multi.mfc_setpoints_lpm)
 
     def apply_temperature_setpoint(self, *, temperature_c: float, ramp_rate_cpm: float) -> None:
         self._gateway.set_temperature_sv(temperature_c)
@@ -239,7 +272,8 @@ class MultiDeviceExperimentGateway:
     def describe(self) -> dict[str, Any]:
         channels = [
             {"address": c.address, "gas": c.gas, "full_scale_lpm": c.full_scale_lpm,
-             "role": next((gas for gas, address in self._gas_addresses.items() if address == c.address), None)}
+             "role": next((gas for gas, address in self._gas_addresses.items() if address == c.address), None),
+             "label": label(normalise_gas_key(c.gas) or c.gas)}
             for c in self._gateway.channels
         ]
         return {
@@ -254,10 +288,12 @@ class MultiDeviceExperimentGateway:
 
 def comm_config_from_settings(*, simulation: bool, temp_port: str, temp_slave_id: int, temp_baudrate: int,
                               mfc_port: str, mfc_baudrate: int, mfc_channels: list[tuple[int, str, float]],
-                              balance_port: str, balance_protocol: str, balance_baudrate: int) -> CommConfig:
+                              balance_port: str, balance_protocol: str, balance_baudrate: int,
+                              temp_segment_seconds: float = 60.0) -> CommConfig:
     return CommConfig(
         simulation_mode=simulation, temp_port=temp_port, temp_slave_id=temp_slave_id, temp_baudrate=temp_baudrate,
         mfc_port=mfc_port, mfc_baudrate=mfc_baudrate,
         mfc_channels=tuple(MfcChannelConfig(address, gas, full_scale) for address, gas, full_scale in mfc_channels),
         balance_port=balance_port, balance_protocol=balance_protocol, balance_baudrate=balance_baudrate,
+        temp_segment_seconds=temp_segment_seconds,
     )
