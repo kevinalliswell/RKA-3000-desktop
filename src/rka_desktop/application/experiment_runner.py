@@ -247,7 +247,7 @@ class ExperimentRunner:
                 raise RunConflict("上一次实验仍在收尾，请稍候")
             recipe = self._recipes.get_recipe(recipe_id)
             if recipe is None:
-                raise RecipeValidationError("配方不存在")
+                raise LookupError("配方不存在")
             steps = parse_steps(self._recipes.get_recipe_steps(recipe_id))
             mode = parse_gas_mode(gas_mode) if gas_mode is not None else self.settings.default_gas_mode
             temperature_mode = self.settings.temperature_mode

@@ -70,6 +70,10 @@ def promote_unreleased(version: str) -> None:
 
 
 def main(argv: list[str]) -> int:
+    # CHANGELOG is UTF-8 with Chinese text; the Windows console default (cp1252) cannot print it.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="RKA-3000 release helper: bumps every manifest and promotes CHANGELOG Unreleased")
     sub = parser.add_subparsers(dest="command", required=True)
 
