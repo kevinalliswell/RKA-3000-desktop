@@ -48,7 +48,9 @@ def main() -> None:
     for file in sorted(assets.iterdir()):
         with file.open("rb") as stream:
             checksums.append(f"{hashlib.file_digest(stream, 'sha256').hexdigest()}  {file.name}")
-    (assets / "SHA256SUMS.txt").write_text("\n".join(checksums) + "\n", encoding="utf-8")
+    # LF only: sha256sum --check on Linux (Release workflow) rejects CRLF file names.
+    with (assets / "SHA256SUMS.txt").open("w", encoding="utf-8", newline="\n") as stream:
+        stream.write("\n".join(checksums) + "\n")
     print(f"Release assets: {assets}")
     print(f"Portable executable: {portable / 'rka3000-desktop.exe'}")
 
