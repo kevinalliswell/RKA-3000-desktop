@@ -8,11 +8,11 @@
   const W = 800;
   const PAD = { top: 14, right: 56, bottom: 30, left: 56 };
 
-  function extent(values: number[]): [number, number] {
+  function extent(values: number[], padded = true): [number, number] {
     if (!values.length) return [0, 1];
     let min = Math.min(...values), max = Math.max(...values);
     if (min === max) { min -= 1; max += 1; }
-    const pad = (max - min) * 0.06;
+    const pad = padded ? (max - min) * 0.06 : 0;
     return [min - pad, max + pad];
   }
 
@@ -30,7 +30,7 @@
   const plotW = W - PAD.left - PAD.right;
   const plotH = $derived(height - PAD.top - PAD.bottom);
   const xs = $derived(series.flatMap((s) => s.points.map((p) => p[0])));
-  const xExt = $derived(extent(xs));
+  const xExt = $derived(extent(xs, false));
   const leftExt = $derived(extent(series.filter((s) => s.axis !== 'right').flatMap((s) => s.points.map((p) => p[1]))));
   const rightExt = $derived(extent(series.filter((s) => s.axis === 'right').flatMap((s) => s.points.map((p) => p[1]))));
   const hasRight = $derived(series.some((s) => s.axis === 'right'));
@@ -67,7 +67,7 @@
   <line class="axis" x1={PAD.left} x2={PAD.left} y1={PAD.top} y2={PAD.top + plotH} />
   {#if yLabel}<text x={PAD.left} y={10}>{yLabel}</text>{/if}
   {#if hasRight && y2Label}<text x={W - PAD.right} y={10}>{y2Label}</text>{/if}
-  {#if xLabel}<text x={W - PAD.right} y={height - 10} text-anchor="end">{xLabel}</text>{/if}
+  {#if xLabel}<text x={W - PAD.right + 8} y={height - 10}>{xLabel}</text>{/if}
   {#if empty}
     <text x={W / 2} y={height / 2} text-anchor="middle">暂无数据</text>
   {:else}

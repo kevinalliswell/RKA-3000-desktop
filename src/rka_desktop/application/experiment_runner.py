@@ -571,7 +571,7 @@ class ExperimentRunner:
         self._interlock_active_word = 0
         self._estop_active = False
         self._run_control_feedback_inconsistent = False
-        self._last_feedback_text = "控制反馈: --"
+        self._last_feedback_text = "控制反馈: --" if self._gateway.capabilities.run_control_word else "控制反馈: 不适用"
         self._last_run_control_word = 0
         self._last_estop_status = 0
         self._degraded_since = {}
