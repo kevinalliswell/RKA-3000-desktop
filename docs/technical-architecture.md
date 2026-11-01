@@ -72,27 +72,29 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> idle
-    idle --> starting: POST /api/run/start
-    starting --> running: 温度程序下发、首步配气、run-control start 成功
-    starting --> stopping: 任一下发失败（faulted）
-    running --> paused: pause
-    paused --> running: resume
-    running --> interrupted: 报警联锁位 / 联锁字 / 急停
-    interrupted --> running: 报警解除 + 已确认 + 联锁解除后 resume
-    running --> stopping: 步骤全部完成 / stop / 超时 / 采集异常 / 设备持续无响应
-    paused --> stopping: stop
-    interrupted --> stopping: stop
-    stopping --> stopped
+    idle --> starting: POST /api/run/start（预检通过）
+    starting --> running: 温度程序下发、首段配气成功
+    starting --> stopping: 下发失败（尽力吹扫后 faulted）
+    running --> purging: 进入最后（纯惰性）段 / 提前结束 / 紧急停气 / 报警 / 执行故障
+    running --> interrupted: PLC 报警位 / 联锁字 / 急停
+    interrupted --> running: 解除 + 确认后 resume
+    interrupted --> purging: 提前结束 / 紧急停气
+    purging --> stopping: 吹扫满时长且炉温 < 安全温度
+    running --> stopping: 采集失败（尽力吹扫）
     stopping --> completed
+    stopping --> stopped
     stopping --> faulted
 ```
 
+- 终态后实验进入“待核查”，复核归档后才能开始下一次实验；见 [experiment-lifecycle.md](experiment-lifecycle.md)。
 - `stopping` 表示终态已决定但采集线程尚未刷写缓冲测量数据；只有刷写完成才进入终态，终态不会被迟到的请求改写。
-- 配气模式 `auto`：步骤切换时下发该步骤 N₂/H₂/CO；`manual`：软件不下发，操作员通过 `/api/run/manual-gas` 下发。
-  运行中切换必须 `confirm: true`，否则返回 `409 confirmation_required`；切回 `auto` 立即按当前步骤重新下发。
-- 温度模式 `program`：启动时把每个步骤映射为 TAIE 的升温段 + 保温段写入程序组（最多 8 段 = 4 步），过程中不写温度；
-  `setpoint`：每步写 SP 与升温速率（PLC contract_v1）。
-- 实验、测量、报警、审计写入 SQLite；运行快照与最近 1800 个采样点保留在内存供页面轮询。
+- 配气模式 `auto`：阶段切换时下发该阶段全部气体并读回 MFC 设定；`manual`：操作者通过 `/api/run/manual-gas`
+  下发（原因必填、三态确认、回读不一致回退）。运行中切换必须 `confirm: true`。
+- 温度模式 `program`：启动时把每个阶段映射为 TAIE 的升温段 + 保温段写入程序组（最多 8 段 = 4 阶段），过程中不写温度；
+  阶段跟随仪表当前运行段（`SEG`）。`setpoint`：每阶段写 SP 与升温速率（PLC contract_v1）。
+- 软件报警规则（`domain/safety.py`）每个采样评估；回读过期不停机，只是该段不入库并禁止控制。
+- 实验、测量（含 `phase`）、报警、审计、配方版本、使用上限策略、报告记录写入 SQLite（schema v3）；
+  运行快照与最近 3600 个采样点保留在内存供页面轮询。
 
 ## 数据与安全边界
 
