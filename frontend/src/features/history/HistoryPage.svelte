@@ -1,137 +1,169 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import ConfirmDialog from '../../components/ConfirmDialog.svelte';
   import Badge from '../../components/Badge.svelte';
+  import Seg from '../../components/Seg.svelte';
+  import ConfirmDialog from '../../components/ConfirmDialog.svelte';
   import * as api from '../../lib/api/endpoints';
-  import type { ExperimentDetail, ExperimentSummary, MeasurementPoint, Task } from '../../lib/api/types';
-  import { awaitTask } from '../../lib/state/tasks';
-  import { notifier } from '../../lib/state/notify.svelte';
   import { errorMessage, revealExport } from '../../lib/api/client';
-  import { experimentStatusLabel, fmt, fmtTime, taskStatusLabel } from '../../lib/format';
+  import type { ExperimentCategory, ExperimentDetail, ExperimentList } from '../../lib/api/types';
+  import { awaitTask } from '../../lib/state/tasks';
+  import { nav } from '../../lib/state/nav.svelte';
+  import { notifier } from '../../lib/state/notify.svelte';
+  import {
+    ACTION_LABEL, categoryLabel, categoryTone, durationBetween, END_REASON, fmt, fmtClock, fmtMass, fmtShort, fmtTime, TYPE_SHORT,
+    TYPE_TONE,
+  } from '../../lib/format';
 
-  let { online, activeExperimentId }: { online: boolean; activeExperimentId: number | null } = $props();
+  let { online }: { online: boolean } = $props();
 
-  const PAGE = 200;
-  let experiments: ExperimentSummary[] = $state([]);
-  let selected = $state<ExperimentDetail | null>(null);
-  let rows: MeasurementPoint[] = $state([]);
-  let total = $state(0);
-  let offset = $state(0);
+  let filter = $state<'all' | ExperimentCategory>('all');
+  let query = $state('');
+  let list = $state<ExperimentList | null>(null);
+  let selectedId = $state<number | null>(nav.experimentId);
+  let detail = $state<ExperimentDetail | null>(null);
   let error = $state('');
-  let busy = $state<string | null>(null);
-  let renaming = $state(false);
-  let newName = $state('');
+  let exporting = $state<string | null>(null);
   let confirmDelete = $state(false);
-  let lastTask = $state<Task | null>(null);
-
-  const statusTone = (status: string) => status === 'COMPLETED' ? 'ok' : status === 'FAULTED' ? 'danger' : status === 'RUNNING' || status === 'PAUSED' || status === 'INTERRUPTED' ? 'busy' : 'neutral';
 
   async function load() {
-    try { experiments = await api.listExperiments(500); error = ''; const current = selected; if (current && !experiments.some((e) => e.id === current.id)) { selected = null; rows = []; } }
-    catch (e) { error = errorMessage(e); }
-  }
-
-  async function select(id: number, page = 0) {
     try {
-      selected = await api.getExperiment(id);
-      offset = page * PAGE;
-      const result = await api.experimentMeasurements(id, PAGE, offset);
-      rows = result.items; total = result.total; error = '';
+      list = await api.listExperiments({ category: filter === 'all' ? null : filter, q: query.trim() || undefined, limit: 300 });
+      error = '';
+      if (selectedId === null || !list.experiments.some((e) => e.id === selectedId)) selectedId = list.experiments[0]?.id ?? null;
     } catch (e) { error = errorMessage(e); }
   }
 
-  async function exportKind(kind: 'measurements_csv' | 'measurements_xlsx' | 'summary_csv') {
-    if (!selected || busy) return;
-    busy = kind;
-    try {
-      lastTask = await awaitTask(await api.startExport(selected.id, kind), (t) => (lastTask = t));
-      if (lastTask.status === 'completed') notifier.push('ok', '导出完成', lastTask.result?.filename as string);
-      else notifier.push('danger', '导出未完成', lastTask.error ?? taskStatusLabel[lastTask.status]);
-    } catch (e) { error = errorMessage(e); } finally { busy = null; }
+  async function loadDetail(id: number | null) {
+    if (id === null) { detail = null; return; }
+    try { detail = await api.getExperiment(id); } catch (e) { error = errorMessage(e); }
   }
 
-  async function rename() {
-    if (!selected) return;
-    try { selected = await api.renameExperiment(selected.id, newName); renaming = false; notifier.push('ok', '实验已重命名'); await load(); }
-    catch (e) { error = errorMessage(e); }
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    void filter; void query;
+    clearTimeout(searchTimer);
+    if (online) searchTimer = setTimeout(load, 200);
+  });
+  $effect(() => { void loadDetail(selectedId); });
+
+  const total = $derived(list ? Object.values(list.counts).reduce((a, b) => a + b, 0) : 0);
+  const kpiText = $derived.by(() => {
+    const k = detail?.kpi;
+    if (!k) return '—';
+    const word = k.degree_kind === 'oxidation' ? '氧化度' : '还原度';
+    return `终态${word} ${fmt(k.final_degree_pct, 1)}% · t₄₀ ${fmt(k.time_to_40_min, 1)} min · t₆₀ ${fmt(k.time_to_60_min, 1)} min${k.best_fit ? ` · ${k.best_fit.name} R² ${k.best_fit.r2.toFixed(3)}` : ''}`;
+  });
+
+  async function exportData(kind: 'measurements_csv' | 'measurements_xlsx') {
+    if (!detail) return;
+    exporting = kind;
+    try {
+      const task = await awaitTask(await api.startExport(detail.id, kind));
+      if (task.status === 'completed' && task.result?.path) {
+        notifier.push('ok', '导出完成', task.result.filename);
+        await revealExport(task.result.path).catch(() => undefined);
+      } else notifier.push('danger', '导出失败', task.error ?? '');
+    } catch (e) { notifier.push('danger', '导出失败', errorMessage(e)); } finally { exporting = null; }
   }
 
   async function remove() {
-    confirmDelete = false;
-    if (!selected) return;
-    try { await api.deleteExperiment(selected.id); notifier.push('ok', '实验已删除'); selected = null; rows = []; await load(); }
-    catch (e) { error = errorMessage(e); }
+    if (!detail) return;
+    try {
+      await api.deleteExperiment(detail.id);
+      notifier.push('ok', '实验已删除', detail.code);
+      selectedId = null;
+      await load();
+    } catch (e) { notifier.push('danger', '删除失败', errorMessage(e)); } finally { confirmDelete = false; }
   }
-
-  onMount(() => { void load(); });
-  $effect(() => { if (online) void load(); });
-  const pages = $derived(Math.max(1, Math.ceil(total / PAGE)));
-  const currentPage = $derived(Math.floor(offset / PAGE));
 </script>
 
-<div class="grid sidebar">
-  <section class="panel">
-    <div class="panel-head"><h2>历史实验</h2><button class="btn sm" type="button" onclick={load} disabled={!online}>刷新</button></div>
-    <div class="panel-body">
-      {#if experiments.length}
-        <div class="table-wrap" style="max-height:70vh"><table><thead><tr><th>#</th><th>名称</th><th>状态</th><th>开始</th></tr></thead><tbody>
-          {#each experiments as exp}
-            <tr class="clickable" aria-selected={exp.id === selected?.id} onclick={() => select(exp.id)}>
-              <td class="mono">{exp.id}</td><td>{exp.name}</td><td><Badge tone={statusTone(exp.status)}>{experimentStatusLabel[exp.status] ?? exp.status}</Badge></td><td class="mono small">{fmtTime(exp.started_at)}</td>
+<div class="page-head">
+  <div>
+    <h1>历史实验</h1>
+    <p>每次实验归档后只读：原始采样、配方版本快照、事件与报警、操作记录一并保存。待核查的实验需先在分析与归档中完成复核。</p>
+  </div>
+  <div class="actions">
+    {#if list?.counts.pending}<Badge tone="warn">{list.counts.pending} 次待核查</Badge>{/if}
+    <Badge>共 {total} 次 · 已归档 {list?.counts.archived ?? 0} · 已中止 {list?.counts.aborted ?? 0}</Badge>
+  </div>
+</div>
+{#if error}<div class="callout danger">{error}</div>{/if}
+
+<section class="card row" style="align-items:flex-end;gap:14px">
+  <label class="field" style="flex:1 1 260px"><span>搜索 · 实验编号 / 样品 / 配方</span><input bind:value={query} placeholder="例如 A-19 或 RKA-2026-1101-019" /></label>
+  <div class="field"><span>状态</span>
+    <Seg label="状态" value={filter} onselect={(id) => (filter = id as typeof filter)} options={[
+      { id: 'all', label: '全部' }, { id: 'archived', label: '已归档' }, { id: 'pending', label: '待核查' }, { id: 'aborted', label: '已中止' },
+      { id: 'running', label: '运行中' },
+    ]} /></div>
+</section>
+
+<div class="grid main-side">
+  <section class="card flush">
+    <div class="table-wrap" style="max-height:68vh">
+      <table class="data">
+        <thead><tr><th>实验编号</th><th>样品</th><th>配方 · 版本</th><th>类型</th><th>开始</th><th>时长</th><th class="num">t₄₀ min</th><th class="num">终态 %</th><th>状态</th></tr></thead>
+        <tbody>
+          {#each list?.experiments ?? [] as row (row.id)}
+            <tr class="pick" aria-selected={row.id === selectedId} onclick={() => (selectedId = row.id)}>
+              <td class="mono nowrap">{row.code}</td>
+              <td>{row.sample_name ?? row.name}</td>
+              <td>{row.recipe_name ?? '—'}{row.recipe_version ? ` v${row.recipe_version}` : ''}</td>
+              <td>{#if row.experiment_type}<Badge tone={TYPE_TONE[row.experiment_type]}>{TYPE_SHORT[row.experiment_type]}</Badge>{:else}—{/if}</td>
+              <td class="mono nowrap">{fmtShort(row.started_at)}</td>
+              <td class="mono">{durationBetween(row.started_at, row.finished_at)}</td>
+              <td class="num mono">{fmt(row.kpi?.time_to_40_min, 1)}</td>
+              <td class="num mono">{fmt(row.kpi?.final_degree_pct, 1)}</td>
+              <td><Badge tone={categoryTone[row.category]}>{categoryLabel[row.category]}</Badge></td>
             </tr>
-          {/each}
-        </tbody></table></div>
-      {:else}<div class="empty"><strong>暂无历史实验</strong>完成一次实验后会在此列出。</div>{/if}
+          {:else}<tr><td colspan="9"><div class="empty"><strong>没有匹配的实验</strong>调整搜索或状态筛选。</div></td></tr>{/each}
+        </tbody>
+      </table>
     </div>
+    <p class="tiny soft" style="padding:10px 14px;margin:0;border-top:1px solid var(--line-soft)">显示 {list?.experiments.length ?? 0} 条 · 点击行查看详情 · 指标在归档时冻结</p>
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="row"><h2>{selected ? `实验 #${selected.id} ${selected.name}` : '实验详情'}</h2>{#if selected}<Badge tone={statusTone(selected.status)}>{experimentStatusLabel[selected.status] ?? selected.status}</Badge>{/if}</div>
-      {#if selected}
+  <section class="card">
+    {#if detail}
+      <div class="row between" style="margin-bottom:6px"><h2 class="mono">{detail.code}</h2><Badge tone={categoryTone[detail.category]}>{categoryLabel[detail.category]}</Badge></div>
+      <p class="small soft" style="margin-bottom:12px">{detail.sample_name ?? detail.name} · {detail.recipe_name ?? '—'}{detail.recipe_version ? ` v${detail.recipe_version}` : ''} · {detail.experiment_type ? TYPE_SHORT[detail.experiment_type] : '—'}</p>
+      <dl class="kv">
+        <dt>开始 / 时长</dt><dd>{fmtTime(detail.started_at)} · {durationBetween(detail.started_at, detail.finished_at)}</dd>
+        <dt>初始 / 终态质量</dt><dd class="mono">{fmtMass(detail.initial_mass_g)} → {fmtMass(detail.final_mass_g)} g</dd>
+        <dt>关键指标</dt><dd>{kpiText}</dd>
+        <dt>结束方式</dt><dd>{END_REASON[detail.end_reason ?? ''] ?? detail.status}{detail.end_detail && detail.end_reason !== 'completed' ? `：${detail.end_detail}` : ''}</dd>
+        <dt>安全完成</dt><dd>{detail.purge_required_s ? `吹扫 ${Math.round(detail.purge_done_s ?? 0)} / ${Math.round(detail.purge_required_s)} s · 炉温 ${fmt(detail.final_temperature_c, 0)} ℃` : '—'}</dd>
+        <dt>数据</dt><dd>{detail.measurement_count} 点 · 报警 {detail.alarms.length} 条</dd>
+        <dt>操作者</dt><dd>{detail.operator ?? '—'}{detail.archived_by ? ` · 归档 ${detail.archived_by} ${fmtShort(detail.archived_at)}` : ''}</dd>
+      </dl>
+      {#if detail.category === 'pending'}
+        <div class="callout warn" style="margin-top:12px">尚未归档：使用上限策略仍锁定，不能开始下一次实验。请到分析与归档完成复核。</div>
+      {:else if detail.archive_note}
+        <div class={`callout ${detail.category === 'aborted' ? 'danger' : 'good'}`} style="margin-top:12px">复核备注：{detail.archive_note}</div>
+      {/if}
+      <h3 style="margin:14px 0 4px">事件摘要</h3>
+      <div class="events" style="max-height:220px">
+        {#each detail.events.slice(0, 12) as event}
+          <div class="ev"><time>{fmtClock(event.created_at)}</time><strong>{ACTION_LABEL[event.action] ?? event.action}</strong><span>{event.detail}{event.reason ? ` · 原因：${event.reason}` : ''}</span></div>
+        {:else}<p class="soft small">没有事件记录（旧版本实验）。</p>{/each}
+      </div>
+      <div class="stack tight" style="margin-top:12px">
+        {#if detail.category === 'pending'}<button class="btn primary" type="button" onclick={() => nav.go('analysis', detail!.id)}>前往分析与归档</button>
+        {:else if detail.category !== 'running'}<button class="btn" type="button" onclick={() => nav.go('analysis', detail!.id)}>查看分析（{detail.category === 'archived' || detail.category === 'aborted' ? '只读' : ''}）</button>{/if}
         <div class="row">
-          <button class="btn sm" type="button" onclick={() => { newName = selected!.name; renaming = true; }} disabled={!online}>重命名</button>
-          <button class="btn sm danger" type="button" onclick={() => (confirmDelete = true)} disabled={!online || selected.id === activeExperimentId}>删除</button>
-          <button class="btn sm" type="button" onclick={() => exportKind('measurements_csv')} disabled={!online || busy !== null}>导出 CSV</button>
-          <button class="btn sm" type="button" onclick={() => exportKind('measurements_xlsx')} disabled={!online || busy !== null}>导出 Excel</button>
-          <button class="btn sm" type="button" onclick={() => exportKind('summary_csv')} disabled={!online || busy !== null}>导出摘要</button>
+          <button class="btn sm" type="button" disabled={!online || exporting !== null || !detail.measurement_count} onclick={() => exportData('measurements_csv')}>{exporting === 'measurements_csv' ? '导出中…' : `导出 CSV${detail.category === 'aborted' ? '（不完整）' : ''}`}</button>
+          <button class="btn sm" type="button" disabled={!online || exporting !== null || !detail.measurement_count} onclick={() => exportData('measurements_xlsx')}>{exporting === 'measurements_xlsx' ? '导出中…' : '导出 Excel'}</button>
+          {#if detail.review_state === 'archived'}<button class="btn sm" type="button" onclick={() => nav.go('reports')}>生成报告</button>{/if}
+          {#if detail.alarms.length}<button class="btn sm" type="button" onclick={() => nav.go('alarms')}>查看报警</button>{/if}
+          <span class="fill"></span>
+          <button class="btn sm danger-ghost" type="button" disabled={!online || detail.category === 'running'} onclick={() => (confirmDelete = true)}>删除</button>
         </div>
-      {/if}
-    </div>
-    <div class="panel-body stack">
-      {#if error}<div class="notice" data-tone="danger" role="alert"><div><div class="title">操作未完成</div><div>{error}</div></div><button class="close" type="button" aria-label="关闭" onclick={() => (error = '')}>×</button></div>{/if}
-      {#if renaming}
-        <div class="row"><input class="input" style="max-width:360px" bind:value={newName} maxlength="100" aria-label="新的实验名称" /><button class="btn primary sm" type="button" onclick={rename} disabled={!newName.trim()}>保存</button><button class="btn sm" type="button" onclick={() => (renaming = false)}>取消</button></div>
-      {/if}
-      {#if lastTask}
-        <div class="notice" data-tone={lastTask.status === 'completed' ? 'ok' : lastTask.status === 'failed' ? 'danger' : 'info'} role="status">
-          <div style="flex:1"><div class="title">导出任务：{taskStatusLabel[lastTask.status]}</div>
-            {#if lastTask.result?.path}<div class="mono small" style="margin-top:4px">{lastTask.result.path} <button class="btn sm" type="button" onclick={() => revealExport(lastTask!.result!.path as string).then((ok) => { if (!ok) notifier.push('info', '文件已保存', lastTask!.result!.path as string); })}>打开所在目录</button></div>{/if}
-            {#if lastTask.error}<div>{lastTask.error}</div>{/if}</div>
-        </div>
-      {/if}
-      {#if selected}
-        <dl class="kv">
-          <dt>配方</dt><dd>{selected.recipe_name ?? '--'}</dd>
-          <dt>开始 / 结束</dt><dd>{fmtTime(selected.started_at)} → {fmtTime(selected.finished_at)}</dd>
-          <dt>样本数</dt><dd>{selected.measurement_count}</dd>
-          {#if selected.summary}
-            <dt>温度范围</dt><dd>{fmt(selected.summary.min_temperature_c, 1)} ~ {fmt(selected.summary.max_temperature_c, 1)} ℃</dd>
-            <dt>重量范围</dt><dd>{fmt(selected.summary.min_weight_g, 3)} ~ {fmt(selected.summary.max_weight_g, 3)} g</dd>
-          {/if}
-          <dt>试样参数</dt><dd>m₀ {fmt(selected.initial_mass_g, 3)} g · TFe {fmt(selected.tfe_pct)} % · FeO {fmt(selected.feo_pct)} %</dd>
-        </dl>
-        <div class="row between"><h3>测量数据</h3>
-          <div class="row small"><button class="btn sm" type="button" onclick={() => select(selected!.id, currentPage - 1)} disabled={currentPage === 0}>上一页</button><span>第 {currentPage + 1} / {pages} 页 · 共 {total} 条</span><button class="btn sm" type="button" onclick={() => select(selected!.id, currentPage + 1)} disabled={currentPage + 1 >= pages}>下一页</button></div>
-        </div>
-        {#if rows.length}
-          <div class="table-wrap"><table><thead><tr><th>时间</th><th class="num">温度 ℃</th><th class="num">重量 g</th><th class="num">N₂</th><th class="num">H₂</th><th class="num">CO</th></tr></thead><tbody>
-            {#each rows as row}<tr><td class="mono">{fmtTime(row.sampled_at)}</td><td class="num">{fmt(row.temperature_c, 1)}</td><td class="num">{fmt(row.weight_g, 3)}</td><td class="num">{fmt(row.n2_lpm)}</td><td class="num">{fmt(row.h2_lpm)}</td><td class="num">{fmt(row.co_lpm)}</td></tr>{/each}
-          </tbody></table></div>
-        {:else}<div class="empty">该实验没有测量数据。</div>{/if}
-      {:else}<div class="empty"><strong>请选择实验</strong>在左侧列表选择一个实验查看详情、导出数据或管理记录。</div>{/if}
-    </div>
+      </div>
+    {:else}
+      <div class="empty"><strong>选择一条实验</strong>右侧会显示详情、事件摘要与可用操作。</div>
+    {/if}
   </section>
 </div>
 
-<ConfirmDialog open={confirmDelete} title="删除实验" message={`删除实验 #${selected?.id} 及其全部测量与报警数据？此操作不可撤销。`} confirmLabel="删除" tone="danger" onconfirm={remove} oncancel={() => (confirmDelete = false)} />
+<ConfirmDialog open={confirmDelete} tone="danger" title="删除实验？" confirmLabel="永久删除"
+  message={`将删除 ${detail?.code ?? ''} 的原始采样、报警与报告记录，无法撤销。操作审计中的记录保留。`}
+  onconfirm={remove} oncancel={() => (confirmDelete = false)} />

@@ -1,111 +1,132 @@
-/* Semantic design tokens. Components never use raw colours; both themes are defined here. */
+/*
+ * Semantic design tokens (design canvas DS-1/DS-2). Components reference names such as
+ * --surface or --good, never raw colours. Status colours have fixed meanings:
+ *   good   = normal / passed
+ *   warn   = needs attention, does not block by itself
+ *   danger = the system acted automatically, or the action is forbidden
+ * Themes: light (default), dark, blue (科技蓝). Without data-theme the app follows the OS
+ * light/dark preference; Settings can pin any of the three.
+ */
 :root {
-  color-scheme: light dark;
-  --font-sans: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  --font-mono: Consolas, "SFMono-Regular", "Menlo", monospace;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --text-xs: 11px;
-  --text-sm: 12.5px;
-  --text-md: 14px;
-  --text-lg: 17px;
-  --text-xl: 22px;
-  --text-value: 26px;
+  color-scheme: light;
+  --font-ui: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --fs-h1: 24px;
+  --fs-h2: 15px;
+  --fs-body: 13px;
+  --fs-table: 12px;
+  --fs-label: 11px;
+  --fs-badge: 10px;
+  --fs-readout: 24px;
+  --fs-readout-sm: 20px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 28px;
+  --sp-7: 48px;
+  --r-card: 10px;
+  --r-ctl: 8px;
+  --r-field: 7px;
+  --r-pill: 99px;
+  --sidebar-w: 232px;
+  --topbar-h: 68px;
+  --brand-h: 78px;
+  --btn-h: 40px;
+  --btn-h-sm: 32px;
+  --field-h: 38px;
 
-  --bg: #eef2f5;
-  --bg-elevated: #ffffff;
-  --bg-sunken: #f5f8fa;
-  --bg-hover: #f1f5f8;
-  --ink: #15202b;
-  --ink-muted: #5b6b78;
-  --ink-faint: #8a98a4;
-  --line: #d7e0e6;
-  --line-strong: #b9c6cf;
-  --brand: #122b45;
-  --brand-ink: #ffffff;
-  --accent: #0f766e;
-  --accent-soft: #dcf3ef;
-  --accent-ink: #0b5a54;
-  --warn: #b45309;
-  --warn-soft: #fff1dc;
-  --danger: #b42318;
-  --danger-soft: #fde8e6;
-  --info: #1d4ed8;
-  --info-soft: #e3ebfd;
-  --focus: #0f766e;
-  --shadow: 0 10px 28px rgba(18, 43, 69, 0.08);
-  --chart-1: #0f766e;
-  --chart-2: #c2410c;
-  --chart-3: #1d4ed8;
-  --chart-4: #7c3aed;
-  --chart-grid: #e2e8ee;
+  --canvas: #ebebeb;
+  --nav: #e2e2e2;
+  --nav-line: #cfcfcf;
+  --nav-ink: #3d3d3d;
+  --nav-hover: #d8d8d8;
+  --surface: #f7f7f7;
+  --soft: #efefef;
+  --field: #ffffff;
+  --line: #d6d6d6;
+  --line-soft: #e3e3e3;
+  --line-strong: #bdbdbd;
+  --ink: #171717;
+  --ink-soft: #525252;
+  --muted: #6b6b6b;
+  --brand: #171717;
+  --on-brand: #ffffff;
+  --ring: rgba(23, 23, 23, 0.14);
+  --badge-bg: #e0e0e0;
+  --topbar: rgba(247, 247, 247, 0.92);
+  --nav-shadow: rgba(0, 0, 0, 0.07);
+  --hero: #2b2b2b;
+  --hero-side: #1f1f1f;
+  --hero-ink: #ffffff;
+  --hero-muted: #c8c8c8;
+  --good: #166534;
+  --good-soft: #eaf6ee;
+  --good-ink: #14532d;
+  --warn: #92400e;
+  --warn-soft: #faf3e4;
+  --warn-ink: #5c2a0a;
+  --danger: #b91c1c;
+  --danger-soft: #faeaea;
+  --danger-ink: #7f1d1d;
+  --danger-line: #e3b4b4;
+  --tred: #1d4f91;
+  --tred-soft: #e2ecf8;
+  --tox: #93430a;
+  --tox-soft: #fbe7d6;
+  --chart: #f1f1f1;
+  --chart-band: #e4e4e4;
+  --c1: #171717;
+  --c2: #7a7a7a;
+  --c3: #1d4f91;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08), 0 24px 60px rgba(0, 0, 0, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1720;
-    --bg-elevated: #172230;
-    --bg-sunken: #121b26;
-    --bg-hover: #1d2a3a;
-    --ink: #e6edf3;
-    --ink-muted: #a3b1bf;
-    --ink-faint: #74838f;
-    --line: #27364a;
-    --line-strong: #3a4c63;
-    --brand: #0b1a2c;
-    --brand-ink: #e6edf3;
-    --accent: #3fc1b0;
-    --accent-soft: #11332f;
-    --accent-ink: #8fe3d6;
-    --warn: #f3b25a;
-    --warn-soft: #3a2a12;
-    --danger: #f08b82;
-    --danger-soft: #3d1a17;
-    --info: #8ab4ff;
-    --info-soft: #182742;
-    --focus: #3fc1b0;
-    --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-    --chart-1: #3fc1b0;
-    --chart-2: #f39a6b;
-    --chart-3: #8ab4ff;
-    --chart-4: #c3a2ff;
-    --chart-grid: #27364a;
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --canvas: #0f0f0f; --nav: #0a0a0a; --nav-line: #262626; --nav-ink: #a3a3a3; --nav-hover: #1c1c1c;
+    --surface: #171717; --soft: #1c1c1c; --field: #0f0f0f; --line: #262626; --line-soft: #222222; --line-strong: #404040;
+    --ink: #f5f5f5; --ink-soft: #a3a3a3; --muted: #8a8a8a; --brand: #e5e5e5; --on-brand: #171717;
+    --ring: rgba(229, 229, 229, 0.18); --badge-bg: #262626; --topbar: rgba(23, 23, 23, 0.92); --nav-shadow: rgba(255, 255, 255, 0.06);
+    --hero: #262626; --hero-side: #1c1c1c; --hero-ink: #f5f5f5; --hero-muted: #a3a3a3;
+    --good: #4ade80; --good-soft: rgba(74, 222, 128, 0.12); --good-ink: #86efac;
+    --warn: #fbbf24; --warn-soft: rgba(251, 191, 36, 0.12); --warn-ink: #fcd34d;
+    --danger: #f87171; --danger-soft: rgba(248, 113, 113, 0.12); --danger-ink: #fca5a5; --danger-line: #5a2a2e;
+    --tred: #7fb2f0; --tred-soft: #15263b; --tox: #f2a35e; --tox-soft: #3a2412;
+    --chart: #111111; --chart-band: #1f1f1f; --c1: #f5f5f5; --c2: #8a8a8a; --c3: #7fb2f0;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3); --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.35), 0 24px 60px rgba(0, 0, 0, 0.45);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0f1720;
-  --bg-elevated: #172230;
-  --bg-sunken: #121b26;
-  --bg-hover: #1d2a3a;
-  --ink: #e6edf3;
-  --ink-muted: #a3b1bf;
-  --ink-faint: #74838f;
-  --line: #27364a;
-  --line-strong: #3a4c63;
-  --brand: #0b1a2c;
-  --brand-ink: #e6edf3;
-  --accent: #3fc1b0;
-  --accent-soft: #11332f;
-  --accent-ink: #8fe3d6;
-  --warn: #f3b25a;
-  --warn-soft: #3a2a12;
-  --danger: #f08b82;
-  --danger-soft: #3d1a17;
-  --info: #8ab4ff;
-  --info-soft: #182742;
-  --focus: #3fc1b0;
-  --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-  --chart-1: #3fc1b0;
-  --chart-2: #f39a6b;
-  --chart-3: #8ab4ff;
-  --chart-4: #c3a2ff;
-  --chart-grid: #27364a;
+  color-scheme: dark;
+  --canvas: #0f0f0f; --nav: #0a0a0a; --nav-line: #262626; --nav-ink: #a3a3a3; --nav-hover: #1c1c1c;
+  --surface: #171717; --soft: #1c1c1c; --field: #0f0f0f; --line: #262626; --line-soft: #222222; --line-strong: #404040;
+  --ink: #f5f5f5; --ink-soft: #a3a3a3; --muted: #8a8a8a; --brand: #e5e5e5; --on-brand: #171717;
+  --ring: rgba(229, 229, 229, 0.18); --badge-bg: #262626; --topbar: rgba(23, 23, 23, 0.92); --nav-shadow: rgba(255, 255, 255, 0.06);
+  --hero: #262626; --hero-side: #1c1c1c; --hero-ink: #f5f5f5; --hero-muted: #a3a3a3;
+  --good: #4ade80; --good-soft: rgba(74, 222, 128, 0.12); --good-ink: #86efac;
+  --warn: #fbbf24; --warn-soft: rgba(251, 191, 36, 0.12); --warn-ink: #fcd34d;
+  --danger: #f87171; --danger-soft: rgba(248, 113, 113, 0.12); --danger-ink: #fca5a5; --danger-line: #5a2a2e;
+  --tred: #7fb2f0; --tred-soft: #15263b; --tox: #f2a35e; --tox-soft: #3a2412;
+  --chart: #111111; --chart-band: #1f1f1f; --c1: #f5f5f5; --c2: #8a8a8a; --c3: #7fb2f0;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3); --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.35), 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+:root[data-theme="blue"] {
+  color-scheme: dark;
+  --canvas: #0b0f15; --nav: #10141d; --nav-line: #252d43; --nav-ink: #9fabc4; --nav-hover: #1b2231;
+  --surface: #151a24; --soft: #1b2231; --field: #0b0f15; --line: #252d43; --line-soft: #1f2638; --line-strong: #38445f;
+  --ink: #e8edf6; --ink-soft: #9fabc4; --muted: #8a99b2; --brand: #38bdf8; --on-brand: #0b0f15;
+  --ring: rgba(56, 189, 248, 0.3); --badge-bg: #232c40; --topbar: rgba(16, 20, 29, 0.92); --nav-shadow: rgba(255, 255, 255, 0.06);
+  --hero: #121c2b; --hero-side: #192637; --hero-ink: #e8edf6; --hero-muted: #9fabc4;
+  --good: #4ade80; --good-soft: rgba(74, 222, 128, 0.12); --good-ink: #86efac;
+  --warn: #fbbf24; --warn-soft: rgba(251, 191, 36, 0.12); --warn-ink: #fcd34d;
+  --danger: #f87171; --danger-soft: rgba(248, 113, 113, 0.12); --danger-ink: #fca5a5; --danger-line: #5a2a2e;
+  --tred: #93c5fd; --tred-soft: #1e3a5f; --tox: #fdba74; --tox-soft: #412514;
+  --chart: #10141d; --chart-band: #1b2231; --c1: #7dd3fc; --c2: #8a99b2; --c3: #fdba74;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3); --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.35), 0 24px 60px rgba(0, 0, 0, 0.45);
 }

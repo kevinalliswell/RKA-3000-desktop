@@ -1,5 +1,8 @@
 <script lang="ts">
-  let { tone = 'neutral', children }: { tone?: 'neutral' | 'ok' | 'warn' | 'danger' | 'info' | 'busy'; children: import('svelte').Snippet } = $props();
+  import type { Tone } from '../lib/format';
+  let { tone = '', dot = false, live = false, children }: {
+    tone?: Tone; dot?: boolean; live?: boolean; children: import('svelte').Snippet;
+  } = $props();
 </script>
 
-<span class="badge" data-tone={tone}>{@render children()}</span>
+<span class={`badge ${tone}${live ? ' live' : ''}`}>{#if dot || live}<span class="dot" aria-hidden="true"></span>{/if}{@render children()}</span>
