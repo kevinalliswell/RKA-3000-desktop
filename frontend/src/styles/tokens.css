@@ -1,0 +1,111 @@
+/* Semantic design tokens. Components never use raw colours; both themes are defined here. */
+:root {
+  color-scheme: light dark;
+  --font-sans: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --font-mono: Consolas, "SFMono-Regular", "Menlo", monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --text-xs: 11px;
+  --text-sm: 12.5px;
+  --text-md: 14px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --text-value: 26px;
+
+  --bg: #eef2f5;
+  --bg-elevated: #ffffff;
+  --bg-sunken: #f5f8fa;
+  --bg-hover: #f1f5f8;
+  --ink: #15202b;
+  --ink-muted: #5b6b78;
+  --ink-faint: #8a98a4;
+  --line: #d7e0e6;
+  --line-strong: #b9c6cf;
+  --brand: #122b45;
+  --brand-ink: #ffffff;
+  --accent: #0f766e;
+  --accent-soft: #dcf3ef;
+  --accent-ink: #0b5a54;
+  --warn: #b45309;
+  --warn-soft: #fff1dc;
+  --danger: #b42318;
+  --danger-soft: #fde8e6;
+  --info: #1d4ed8;
+  --info-soft: #e3ebfd;
+  --focus: #0f766e;
+  --shadow: 0 10px 28px rgba(18, 43, 69, 0.08);
+  --chart-1: #0f766e;
+  --chart-2: #c2410c;
+  --chart-3: #1d4ed8;
+  --chart-4: #7c3aed;
+  --chart-grid: #e2e8ee;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1720;
+    --bg-elevated: #172230;
+    --bg-sunken: #121b26;
+    --bg-hover: #1d2a3a;
+    --ink: #e6edf3;
+    --ink-muted: #a3b1bf;
+    --ink-faint: #74838f;
+    --line: #27364a;
+    --line-strong: #3a4c63;
+    --brand: #0b1a2c;
+    --brand-ink: #e6edf3;
+    --accent: #3fc1b0;
+    --accent-soft: #11332f;
+    --accent-ink: #8fe3d6;
+    --warn: #f3b25a;
+    --warn-soft: #3a2a12;
+    --danger: #f08b82;
+    --danger-soft: #3d1a17;
+    --info: #8ab4ff;
+    --info-soft: #182742;
+    --focus: #3fc1b0;
+    --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    --chart-1: #3fc1b0;
+    --chart-2: #f39a6b;
+    --chart-3: #8ab4ff;
+    --chart-4: #c3a2ff;
+    --chart-grid: #27364a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f1720;
+  --bg-elevated: #172230;
+  --bg-sunken: #121b26;
+  --bg-hover: #1d2a3a;
+  --ink: #e6edf3;
+  --ink-muted: #a3b1bf;
+  --ink-faint: #74838f;
+  --line: #27364a;
+  --line-strong: #3a4c63;
+  --brand: #0b1a2c;
+  --brand-ink: #e6edf3;
+  --accent: #3fc1b0;
+  --accent-soft: #11332f;
+  --accent-ink: #8fe3d6;
+  --warn: #f3b25a;
+  --warn-soft: #3a2a12;
+  --danger: #f08b82;
+  --danger-soft: #3d1a17;
+  --info: #8ab4ff;
+  --info-soft: #182742;
+  --focus: #3fc1b0;
+  --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --chart-1: #3fc1b0;
+  --chart-2: #f39a6b;
+  --chart-3: #8ab4ff;
+  --chart-4: #c3a2ff;
+  --chart-grid: #27364a;
+}

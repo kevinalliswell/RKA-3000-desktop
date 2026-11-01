@@ -1,9 +1,9 @@
-from rka_desktop.comm.adapters.sim_adapters import (
+from rka_desktop.infrastructure.comm.adapters.sim_adapters import (
     SimBalanceAdapter,
     SimMfcBusAdapter,
     SimTemperatureAdapter,
 )
-from rka_desktop.comm.config import default_mfc_channels
+from rka_desktop.infrastructure.comm.config import default_mfc_channels
 
 
 def test_temperature_pv_approaches_setpoint():

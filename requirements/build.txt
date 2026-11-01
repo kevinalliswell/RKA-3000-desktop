@@ -1,0 +1,2 @@
+# Windows x64 release tooling. Use Python 3.12; npm and Cargo use the committed lockfiles.
+pyinstaller==6.16.0

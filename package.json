@@ -1,0 +1,16 @@
+{
+  "name": "rka3000-desktop",
+  "private": true,
+  "version": "0.8.0",
+  "description": "RKA-3000 iron-ore reduction kinetics experiment system desktop (Tauri 2 + Svelte 5 + Python sidecar)",
+  "scripts": {
+    "tauri": "tauri",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:check": "npm --prefix frontend run check",
+    "frontend:test": "npm --prefix frontend run test"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4"
+  }
+}

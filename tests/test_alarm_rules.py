@@ -1,4 +1,4 @@
-from rka_desktop.core.alarm_rules import (
+from rka_desktop.domain.alarm_rules import (
     alarm_text_from_word,
     decode_alarm_word,
     decode_interlock_word,

@@ -1,140 +1,145 @@
-# RKA Desktop Scaffold
+# RKA-3000 铁矿石氧化/还原动力学实验系统（上位机）
 
-基于 Python3.10+、PySide6、SQLite3、RS-485/Modbus RTU 的桌面端项目脚手架。
+面向实验室实验人员的 Windows 10/11 x64 桌面软件：按配方自动配气并采集炉温、重量与气体流量，
+记录与查询历史实验，计算失重法还原动力学指标并生成报表。
 
-## 1. 快速开始
+**技术栈**：桌面窗口 **Tauri 2**（Rust 壳）+ **Svelte 5 / TypeScript / Vite**；业务、数据、计算与设备通信
+全部在 **Python** 中，以随包交付的 sidecar（`rka3000-backend.exe`）运行，窗口通过受限、鉴权的本地
+JSON API 调用它。终端用户不需要安装 Python、Node.js 或 Rust。
+
+> 版本以 `rka_desktop.__version__`（当前 0.8.0）为准；`scripts/check_version.py` 保证 Python、Rust、
+> npm 清单与 CHANGELOG 一致。变更详见 [CHANGELOG.md](CHANGELOG.md)。
+
+## 功能
+
+| 页面 | 能力 |
+| --- | --- |
+| 运行监控 | 选择配方启动实验；暂停/恢复/停止；实时炉温、重量、N₂/H₂/CO 曲线；报警确认与联锁复位；**配气模式自动/手动切换（运行中需二次确认）**；手动模式下下发气体设定 |
+| 配方 | 多步骤配方（目标温度、升温速率、保温、N₂/H₂/CO）新建、编辑、删除、排序；JSON 导入/导出 |
+| 设备 | TAIE 温控仪 PV、6 路 Azbil MFC 流量、天平重量；空闲时手动下发流量/温度/去皮（需确认） |
+| 数据分析 | 录入并保存试样参数（m₀/TFe/FeO）；计算还原度 R(t)、速率 dR/dt、终态还原度、t40/t60、40% 速率；生成 Excel 报告 |
+| 历史 | 实验查询、分页浏览测量数据、重命名、删除；CSV / Excel / 摘要导出（后台任务，可取消） |
+| 报警与日志 | 报警历史、操作审计、后台任务列表、后端日志查看/下载 |
+| 设置 | 仿真/实机、设备通路、温度与配气模式、串口与通道、存储与日志保留；配置 JSON 导入/导出 |
+
+**控制语义**：实验按配方逐步自动配气；温度控制默认为“仪表程序”模式——启动时把配方温度曲线一次性下发到
+温控仪程序段，由仪表自动执行，过程中软件不再调整温度（仪表不支持远程启动，需在面板上启动程序）。
+PLC 通路保留迁移前的“逐步下发设定值”模式。详见 [docs/technical-architecture.md](docs/technical-architecture.md)。
+
+## 下载与安装
+
+发行版见 [GitHub Releases](https://github.com/kevinalliswell/RKA-3000-desktop/releases)。
+
+| 资产 | 用途 |
+| --- | --- |
+| `RKA3000-desktop_<版本>_windows-x64_setup.exe` | 当前用户 NSIS 安装器，内含 Python 后端；缺少 WebView2 时**联网**下载安装 |
+| `RKA3000-desktop_<版本>_windows-x64_portable.zip` | 便携包：完整解压后运行 `rka3000-desktop.exe`，`rka3000-backend.exe` 必须同目录；需已安装 WebView2 Runtime |
+| `SHA256SUMS.txt` | 两个资产的 SHA-256，可用 `Get-FileHash <文件> -Algorithm SHA256` 核对 |
+
+要求：Windows 10/11 x64 与 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+（Windows 11 自带）。离线机器请先安装 WebView2 后再使用便携包。当前**未配置代码签名**，系统可能提示未知
+发布者；SHA-256 只用于核对下载完整性，不等同于签名。**未实现自动更新**，升级请下载新版本覆盖安装；
+升级与卸载默认保留用户数据。
+
+## 用户数据与日志
+
+| 内容 | Windows 位置 | 说明 |
+| --- | --- | --- |
+| 配置 | `%LOCALAPPDATA%\RKA3000\config.json` | 原子写入的 JSON；未知字段与损坏文件会报错而不是被覆盖 |
+| 数据库 | `%LOCALAPPDATA%\RKA3000\data\rka3000.db` | SQLite（schema v2，与 v0.7 兼容） |
+| 导出与报告 | `%LOCALAPPDATA%\RKA3000\exports\` | CSV / Excel / 报告 |
+| 日志 | `%LOCALAPPDATA%\RKA3000\logs\backend.log`、`desktop.log` | 后端 5 MB 轮转×3；桌面壳启动诊断 |
+| 备份 | `%LOCALAPPDATA%\RKA3000\backups\` | 导入旧数据库时的自动备份 |
+
+macOS 对应 `~/Library/Application Support/RKA3000/`，Linux 为 `~/.local/share/rka3000/`；
+环境变量 `RKA3000_DATA_DIR` 可覆盖。日志不记录令牌与密码。
+
+旧版本（v0.7 及以前）的 `.env` 与 `data/rka.db` 迁移方法见 [docs/migration.md](docs/migration.md)。
+
+## 开发
+
+需要 Python ≥ 3.10（发布用 3.12）、Node.js ≥ 20（CI 用 22）、Rust stable；Windows 另需
+Visual Studio C++ Build Tools、Windows SDK 与 WebView2 Runtime。
 
 ```bash
-python3.10 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install -e ".[dev]"
-cp .env.example .env
-python -m rka_desktop.main
+python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+npm ci && npm --prefix frontend ci
+npm run tauri dev
 ```
 
-## 2. 当前能力
+`npm run tauri dev` 启动 Vite 与 Tauri 开发窗口；开发构建使用仓库 `.venv` 中的 Python（或
+`RKA3000_PYTHON` 指定的解释器）运行 `python -m rka_desktop.adapters.api`，不会回退到 PATH 上的任意解释器。
+发布构建只运行随包的 `rka3000-backend.exe`。
 
-> 版本以 `rka_desktop.__version__`（当前 0.5.0）为准，变更详见 [CHANGELOG.md](CHANGELOG.md)。
+### 无原生工具链时在浏览器联调
 
-### 功能总览（上位机 MVP）
+```bash
+export RKA3000_API_TOKEN=local-development-only-token-change-me   # PowerShell: $env:RKA3000_API_TOKEN=...
+python -m rka_desktop.adapters.api --port 8765        # 终端一
+npm --prefix frontend run dev                          # 终端二，同样设置 RKA3000_API_TOKEN
+```
 
-面向铁矿石氧化还原动力学试验的上位机软件，按标签页组织：
+打开 <http://127.0.0.1:5174>。令牌只由 Python 与 Vite 代理读取，不进入前端包。浏览器模式**不能**验证
+Tauri 的窗口与进程生命周期。
 
-- **配方**：多步骤实验配方的新建/编辑/选择执行。
-- **监控**：实时实验监控；内含「设备状态」子页（6× MFC + 温控 + 天平，通讯作为支撑服务）。
-- **数据分析**：失重法还原动力学——录入试样参数（m₀/TFe/FeO），计算还原度 R(t)、还原速率 dR/dt 及关键指标（终态还原度、t40/t60、40% 速率）。
-- **历史**：历史实验查询，CSV/Excel 导出，实验**重命名/删除**管理。
-- **报警**：报警入库、确认与联锁复位。
-- **日志**：操作审计日志查看。
-- **报告**：一键生成 Excel 实验报告（摘要 + 数据 + R(t) 图）。
-- **帮助**：使用帮助与关于（版本信息）。
+### 命令行
 
-### 实现要点
+```bash
+python -m rka_desktop paths                      # 数据目录、数据库、日志位置
+python -m rka_desktop recipes list
+python -m rka_desktop export 12 --kind measurements_csv
+python -m rka_desktop kinetics 12 --m0 50 --tfe 60 --feo 0 --report
+python -m rka_desktop import-legacy-db data/rka.db
+```
 
-- 仿真优先的多设备通讯层（6× Azbil MFC + TAIE 温控 + 电子天平），经 `MultiDeviceGateway` 以 `SnapshotSource` 接入现有采集链路
-- 应用主窗口（设备状态、实时采样、最近数据）
-- 配方编辑器（多步骤、新建、更新、选择执行）
-- 实时曲线（温度/重量）
-- 报警入库与确认流
-- 实验数据导出（CSV / Excel）
-- 实验摘要导出（CSV）
-- SQLite 自动建库建表
-- measurements 已补充批量写入入口，迁移测试与历史查询测试已拆分
-- 数据层已增加轻量迁移入口、历史实验查询、报警历史查询和审计日志查询
-- Modbus RTU 客户端封装（支持模拟模式）
-- 通信层已开始拆分寄存器定义与设备映射，便于后续对接正式寄存器表
-- UI 已拆分为配方、监控、报警、设置四个页面，主窗口只负责流程编排
-- 执行引擎已接入基础状态机，支持步骤上下文、暂停、恢复、终止和完成判定骨架
-- 执行步骤已接入控制下发骨架，启动、恢复和步切换时会触发设定点下发
-- 执行链路已补充报警联锁中断/确认后恢复，以及设定点下发失败时的回退与故障停机
-- 执行保护已补充步骤升温超时、步骤总超时、采集异常故障停机，以及报警字典/等级/联锁配置
-- 已接入 `contract_v1` 映射 profile，寄存器表和报警位定义可按 profile 切换
-- `0x0060` 运行控制字 MVP 已接通，支持 start/stop/pause/resume/reset 脉冲下发
-- 已保留 `0x0051` 联锁状态字展示、联锁复位按钮和恢复前置条件相关基础实现，当前冻结版本不以联锁闭环作为交付承诺
-- 已完成执行引擎与运行控制字联动、采集链路批量落库、控制字与设备反馈字一致性校核的基础实现
-- Sprint 2 已引入 `controllers/` 和 `hardware/` 最小骨架，主流程正从 UI 层向控制层迁移
-- 当前主流程已开始按 MVC 收敛：`MainWindow` 负责交互与对话框，`MainWindowPresenter` 负责页面状态分发，`ExperimentController` 负责实验流程编排，`RecipeController` 负责配方加载与 CRUD 业务，`HistoryExportController` 负责历史查询与导出编排，`DeviceGateway` 负责设备访问入口
-- `DialogService` 已统一接管消息框与文件对话框，`MainWindow` 不再直接调用 Qt 对话框实现
-- `RuntimeCoordinator` 已统一接管采集线程生命周期，`MainWindow` 不再直接创建或停止 worker
-- `LogService` 已统一接管 UI 日志输出，`MainWindow` 不再直接写监控页日志控件
-- 当前已引入轻量 `repositories/` 层，controller 不再直接依赖 `DatabaseManager`
-- 配方页面当前只提供原始输入，数值解析与基础校验已迁入 `RecipeController`
-- 已补齐 Windows 打包资产：PyInstaller spec、PowerShell 打包脚本、bundle 校验脚本和 Windows smoke workflow
-- 后台采集线程与实时 UI 刷新
-- 数据持久化与基础实验记录
+## 验证
 
-## 3. 目录
+```bash
+python -m pytest -q
+python -m ruff check .
+python scripts/check_version.py
+python scripts/smoke_backend.py                  # 源码后端：握手、鉴权、健康、配方、关闭
+npm --prefix frontend run check
+npm --prefix frontend run test
+npm --prefix frontend run build
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo check --locked --manifest-path src-tauri/Cargo.toml
+```
 
-- `docs/`：PRD、硬件规格、技术栈文档
-- `docs/需求确认清单_v1.0.md`：可直接逐项填写的需求确认清单
-- `docs/需求冻结记录_v1.0.md`：根据已确认口径整理出的正式需求冻结记录
-- `docs/功能边界表_v1.0.md`：当前版本必须做、后续做、不做的功能边界表
-- `docs/RKA架构重整建议_v1.0.md`：从当前代码平滑过渡到控制层/硬件层分离架构的建议
-- `docs/多Agent组织与职责_v2.0.md`：按产品经理主导与架构先行重写的多 agent 组织基线
-- `docs/多Agent任务拆解_v2.0.md`：按冻结需求和新组织方式重写的当前执行任务拆解
-- `docs/Sprint2后续路线图_v1.0.md`：结构收敛、最小闭环稳定与 Windows 准备的后续路线图
-- `docs/Sprint2_阶段收口报告_v1.0.md`：按冻结口径完成 Sprint 2 的阶段收口结果
-- `docs/Windows交付准备清单_v1.0.md`：Windows 打包前置检查、风险与最小交付验证清单
-- `docs/MVC分层说明_v1.0.md`：当前 View / Controller / Model-Service-Hardware 的边界说明
-- `docs/多Agent并行开发清单_v1.0.md`：多 agent 并行开发任务拆解
-- `docs/Sprint1_任务分解与验收_v1.0.md`：Sprint 1 并行任务包与 Alex 验收标准
-- `docs/Sprint1_并行Checklist_v1.0.md`：Sprint 1 各 agent 可直接执行的 checklist
-- `docs/Sprint1_阶段验收报告_v1.0.md`：Sprint 1 阶段验收结果与下一阶段建议
-- `docs/Sprint1_尾项闭环报告_v1.0.md`：Sprint 1 尾项收口结果
-- `docs/Sprint2_联锁流程MVP验收报告_v1.0.md`：Sprint 2 联锁流程 MVP 验收结果
-- `docs/Sprint2_执行引擎控制联动验收报告_v1.0.md`：Sprint 2 执行引擎与运行控制字联动验收结果
-- `docs/Sprint2_采集批量落库验收报告_v1.0.md`：Sprint 2 采集线程批量落库验收结果
-- `docs/Sprint2_控制反馈一致性验收报告_v1.0.md`：Sprint 2 控制字与反馈字一致性验收结果
-- `docs/Emma_阶段验收报告_v1.0.md`：Emma 执行引擎阶段验收结果
-- `docs/Emma_安全加固阶段验收报告_v1.0.md`：Emma 执行安全加固阶段验收结果
-- `docs/正式映射Profile_contract_v1.md`：当前正式寄存器与报警位 profile 定义
-- `docs/Leo_正式映射接入验收报告_v1.0.md`：Leo 正式映射接入验收结果
-- `docs/Leo_运行控制字MVP验收报告_v1.0.md`：Leo 运行控制字 MVP 验收结果
-- `docs/安装部署手册_v1.0.md`：环境安装与首次启动说明
-- `docs/环境依赖与串口配置_v1.0.md`：依赖与串口配置说明
-- `docs/联调SOP_v1.0.md`：现场联调标准流程
-- `docs/打包发布说明_v1.0.md`：PyInstaller 打包与发布流程
-- `docs/发布说明模板_v1.0.md`：版本发布说明模板
-- `scripts/packaging/build_pyinstaller.sh`：桌面端打包脚本
-- `scripts/packaging/build_windows.ps1`：Windows 本机打包脚本
-- `scripts/packaging/verify_windows_bundle.ps1`：Windows bundle 校验脚本
-- `scripts/packaging/rka_desktop.spec`：PyInstaller 打包 spec
-- `src/rka_desktop/`：应用源码
-- `tests/`：测试代码
+GitHub Actions `Checks` 在 PR 与 `main` 推送时运行上述检查，并在 Windows runner 上冻结 Python 后端、
+构建 NSIS 安装器与便携包、执行后端/桌面/安装卸载冒烟并上传资产；`Release` 在 `v*` 标签上复用同一流程，
+校验资产后创建 GitHub Release。详见 [docs/releasing.md](docs/releasing.md)。
 
-## 4. 说明
+## 文档导航
 
-- 设备参数冲突项已按合同附件冻结，详见 `docs/硬件规格书_v1.0.md`。
-- 默认开启 `SIMULATION_MODE=true`，便于离线开发。
-- 现场部署、串口配置、联调和打包流程已补充到 `docs/` 与 `scripts/packaging/`。
+| 文档 | 内容 |
+| --- | --- |
+| [docs/technical-architecture.md](docs/technical-architecture.md) | 组件关系、请求与数据流、进程生命周期、鉴权边界、构建分发 |
+| [docs/layered-design.md](docs/layered-design.md) | 六层职责、依赖方向、组合根、新增功能步骤、测试对应 |
+| [docs/api.md](docs/api.md) | 本地 JSON API：请求/响应结构、错误语义、任务与运行状态、版本 |
+| [docs/protocols.md](docs/protocols.md) | 设备通路：TAIE 程序段、Azbil CPL、天平、PLC contract_v1 |
+| [docs/migration.md](docs/migration.md) | 旧结构到新结构的映射、配置与数据兼容、回退与剩余风险 |
+| [docs/releasing.md](docs/releasing.md) | 工具链、本地构建、CI/CD、版本与标签、资产验收 |
+| [docs/analysis/current-state-2026-10-31.md](docs/analysis/current-state-2026-10-31.md) | 迁移前的现状分析 |
+| [docs/legacy/](docs/legacy/) | PySide6 时代的架构与部署文档（存档） |
 
-## 5. Release 工作流
+产品需求、硬件规格与联调 SOP 等历史文档仍在 `docs/` 下保留。
 
-- 仓库已配置 GitHub Actions CI：`.github/workflows/ci.yml`
-- 仓库已配置 GitHub Actions 自动 release：`.github/workflows/release.yml`
-- 仓库已配置 GitHub Actions Windows 打包 smoke：`.github/workflows/windows-package-smoke.yml`
-- PR 和 `main` push 会自动执行测试与编译检查
-- 当推送形如 `v0.1.0`、`v1.0.0` 的 tag 时，工作流会安装依赖、执行 `pytest`，然后自动创建 GitHub Release
-- release 前会校验 git tag 版本与 `pyproject.toml` 中的版本号一致
-- 也支持在 GitHub Actions 页面手动触发
+## 已知限制
 
-## 6. 协作约束
+- 仅发布并验证 Windows x64；macOS/Linux 可从源码运行但未提供构建产物。
+- CI 冒烟覆盖冻结后端、窗口启动/退出、安装/卸载，**不替代真机设备验收**；TAIE 程序段时间单位、
+  MFC 满量程与串口参数需在现场确认。
+- 多设备通路没有 PLC 报警/联锁字，报警联锁功能仅在 PLC 通路有效；断电或后端被强杀时无法保证
+  最后一条设备命令送达。
+- 未签名、无自动更新、安装器补齐 WebView2 需要联网。
 
-- 任何分支合并都必须同步更新 README
-- README 需要反映最新的功能、工作流、开发与发布方式
+## 协作约束
 
-## 7. 多 Agent 协作
+- 任何分支合并都必须同步更新 README。
+- README 需要反映最新的功能、工作流、开发与发布方式。
 
-- 当前建议采用“产品经理主导 + 架构先行 + 领域分工”的组织方式
-- 主控 Agent：`Alex`，负责需求拆解、集成协调和阶段验收
-- 新增建议角色：`Iris`（架构）、`Nina`（算法）、`Evan`（构建发布）
-- 模块 Agent：`Leo`（通信）、`Emma`（控制与业务服务）、`Mia`（UI）、`Ryan`（数据）、`Lily`（测试 CI）、`Owen`（文档交付）
-- 当前组织基线见 `docs/多Agent组织与职责_v2.0.md`
-- 当前执行任务基线见 `docs/多Agent任务拆解_v2.0.md`
-- 当前路线图见 `docs/Sprint2后续路线图_v1.0.md`
-- 历史任务拆解仍保留在 `docs/多Agent并行开发清单_v1.0.md`
+## 许可
 
-## 8. 许可
-
-- 本项目为商业项目，采用保留所有权利的专有许可，详见 `LICENSE`
+商业项目，保留所有权利，详见 [LICENSE](LICENSE)；第三方组件许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

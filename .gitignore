@@ -1,22 +1,37 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
 .pytest_cache/
+.ruff_cache/
 .venv/
 *.egg-info/
-.env
+pytest-report.xml
 
-# macOS
-.DS_Store
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
 
-# Local runtime artifacts
-logs/
-exports/
-data/*.db
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/
+
+# Build outputs
 build/
 dist/
-*.spec
-!scripts/packaging/*.spec
-pytest-report.xml
+output/
+
+# Local runtime artifacts (pre-migration layout and local runs)
+/logs/
+/exports/
+/data/*.db
+*.log
+*.log.*
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

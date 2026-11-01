@@ -1,8 +1,8 @@
-from rka_desktop.comm.adapters.azbil_mfc_adapter import AzbilMfcAdapter
-from rka_desktop.comm.adapters.balance_adapter import BalanceAdapter
-from rka_desktop.comm.adapters.taie_temp_adapter import TaieTempAdapter
-from rka_desktop.comm.config import default_mfc_channels
-from rka_desktop.comm.exceptions import DeviceCommError
+from rka_desktop.infrastructure.comm.adapters.azbil_mfc_adapter import AzbilMfcAdapter
+from rka_desktop.infrastructure.comm.adapters.balance_adapter import BalanceAdapter
+from rka_desktop.infrastructure.comm.adapters.taie_temp_adapter import TaieTempAdapter
+from rka_desktop.infrastructure.comm.config import default_mfc_channels
+from rka_desktop.infrastructure.comm.exceptions import DeviceCommError
 
 
 class _FakeBusManager:

@@ -1,13 +1,13 @@
-from rka_desktop.comm.adapters.sim_adapters import (
+from rka_desktop.domain.entities import DeviceSnapshot, MultiDeviceSnapshot
+from rka_desktop.infrastructure.comm.adapters.sim_adapters import (
     SimBalanceAdapter,
     SimMfcBusAdapter,
     SimTemperatureAdapter,
 )
-from rka_desktop.comm.config import CommConfig, default_mfc_channels
-from rka_desktop.comm.exceptions import DeviceCommError
-from rka_desktop.comm.multi_device_gateway import MultiDeviceGateway
-from rka_desktop.comm.ports import SnapshotSource
-from rka_desktop.models.entities import DeviceSnapshot, MultiDeviceSnapshot
+from rka_desktop.infrastructure.comm.config import CommConfig, default_mfc_channels
+from rka_desktop.infrastructure.comm.exceptions import DeviceCommError
+from rka_desktop.infrastructure.comm.multi_device_gateway import MultiDeviceGateway
+from rka_desktop.infrastructure.comm.ports import SnapshotSource
 
 
 def _sim_gateway() -> MultiDeviceGateway:
