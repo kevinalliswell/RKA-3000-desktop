@@ -407,3 +407,50 @@ def test_program_mode_without_segment_does_not_stall_when_furnace_cools_early(ru
     runner.process_snapshot(snap(400.0), sampled_at=clock.now())
     assert runner.snapshot()["status"] == "purging"  # hold counted by time, not stuck in "heating"
     finish_purge(runner, gateway, clock)
+
+
+def test_failed_purge_set_points_do_not_count_as_purge_time(runner_factory, recipe_id, stores, clock):
+    runner, gateway = runner_factory(FakeGateway(run_control=False), poll_interval_ms=60_000)
+    state = runner.start(start_payload(recipe_id))
+    gateway.fail_gas = True
+    s = runner.stop("测试吹扫失败")
+    assert s["purge"]["apply_error"] and s["purge"]["elapsed_s"] == 0
+    finish_purge(runner, gateway, clock, seconds=3)  # cool, but nothing was purged
+    assert runner.snapshot()["status"] == "purging" and runner.snapshot()["purge"]["elapsed_s"] == 0
+    clock.advance(5)
+    runner.process_snapshot(gateway.snapshot, sampled_at=clock.now())  # retry still fails
+    assert runner.snapshot()["status"] == "purging"
+    gateway.fail_gas = False
+    clock.advance(5)
+    runner.process_snapshot(gateway.snapshot, sampled_at=clock.now())  # retry succeeds: purge starts now
+    assert gateway.last_gas == {"N2": 4.0} and runner.snapshot()["purge"]["apply_error"] is None
+    finish_purge(runner, gateway, clock, seconds=2.5)
+    wait_status(runner, "stopped")
+    detail = stores["experiments"].get_experiment_detail(state["experiment_id"])
+    assert 2 <= detail["purge_done_s"] < 4
+
+
+def test_cooling_between_reaction_steps_is_not_over_temperature(runner_factory, stores, clock):
+    steps = [
+        {"name": "惰性置换", "target_temp_c": 150, "ramp_rate_cpm": 10, "hold_seconds": 2, "n2_lpm": 4},
+        {"name": "高温还原", "target_temp_c": 900, "ramp_rate_cpm": 10, "hold_seconds": 3, "n2_lpm": 3, "co_lpm": 0.8},
+        {"name": "低温还原", "target_temp_c": 500, "ramp_rate_cpm": 10, "hold_seconds": 3, "n2_lpm": 3, "co_lpm": 0.8},
+        {"name": "惰性处置", "target_temp_c": 200, "ramp_rate_cpm": 0, "hold_seconds": 2, "n2_lpm": 4},
+    ]
+    recipe = stores["recipes"].create_recipe("降温段", steps, RECIPE_META)
+    runner, gateway = runner_factory(FakeGateway(run_control=False), poll_interval_ms=60_000)
+    runner.start(start_payload(recipe))
+    for segment, temp in ((3, 900.0), (5, 890.0), (5, 880.0), (6, 600.0), (6, 520.0)):
+        snapshot = snap(temp, flows={"N2": 3.0, "CO": 0.8})
+        snapshot.program_segment = segment
+        clock.advance(1)
+        runner.process_snapshot(snapshot, sampled_at=clock.now())
+        assert runner.snapshot()["status"] == "running", (segment, temp)
+    assert runner.snapshot()["pending_alarms"] == []
+    # Once the step has cooled into its band, its own target applies again.
+    snapshot = snap(560.0, flows={"N2": 3.0, "CO": 0.8})
+    snapshot.program_segment = 6
+    clock.advance(1)
+    runner.process_snapshot(snapshot, sampled_at=clock.now())
+    assert runner.snapshot()["end_reason"] == "alarm"
+    finish_purge(runner, gateway, clock)

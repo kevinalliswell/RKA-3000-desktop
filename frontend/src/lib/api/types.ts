@@ -567,6 +567,8 @@ export interface Overview {
 
 export interface Rules {
   alarm_rules: { code: string; name: string; condition: string; level: string; action: string }[];
+  process_gases: Record<ExperimentType, GasKey[]>;
+  inert_gases: GasKey[];
   checklist: { key: string; label: string; detail: string }[];
   safe_temperature_c: number;
   stale_warning_seconds: number;

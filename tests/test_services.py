@@ -261,3 +261,18 @@ def test_device_service_guards_writes(stores):
         service.tare(confirmed=True)
     with pytest.raises(DeviceBusy):
         service.set_mfc_setpoints([{"address": 1, "lpm": 1.0}], confirmed=True)
+
+
+def test_review_counts_every_unacknowledged_alarm_not_just_the_display_page(stores, tmp_path):
+    tasks = TaskRegistry()
+    review = ReviewService(stores["experiments"], stores["alarms"], stores["audit"], _analysis(stores, tmp_path, tasks),
+                           poll_interval_s=0.5, safe_temperature_c=200.0, is_active=lambda eid: False)
+    exp_id = stores["experiments"].create_experiment("exp", fields={"review_state": "pending"})
+    stores["experiments"].finish_experiment(exp_id, "COMPLETED")
+    stores["alarms"].create_alarm(exp_id, "SW-OLD", "WARNING", "最早的一条，未确认")
+    for i in range(200):
+        stores["alarms"].acknowledge_alarm(stores["alarms"].create_alarm(exp_id, f"SW-{i}", "WARNING", "x"), "A", "已处理")
+    result = review.review(exp_id)
+    alarms = next(c for c in result["checks"] if c["key"] == "alarms")
+    assert alarms["severity"] == "block" and not result["can_archive"]
+    tasks.close()

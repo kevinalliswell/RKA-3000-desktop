@@ -8,9 +8,10 @@
   import type { RunSession } from '../../lib/state/run.svelte';
   import { nav } from '../../lib/state/nav.svelte';
   import { prefs } from '../../lib/state/prefs.svelte';
+  import { rules } from '../../lib/state/rules.svelte';
   import { notifier } from '../../lib/state/notify.svelte';
   import {
-    DASH, DEVICE_LABEL, flowsText, fmtDuration, fmtFlow, fmtMass, fmtTemp, GAS_LABEL, PROCESS_GASES, stepFlows, TYPE_LABEL,
+    DASH, DEVICE_LABEL, flowsText, fmtDuration, fmtFlow, fmtMass, fmtTemp, GAS_LABEL, stepFlows, TYPE_LABEL,
   } from '../../lib/format';
 
   let { run, online }: { run: RunSession; online: boolean } = $props();
@@ -28,20 +29,21 @@
   let deviceTimer: ReturnType<typeof setInterval> | undefined;
 
   const visible = $derived(recipes.filter((r) => r.experiment_type === type));
-  const allowedGases = $derived<string[]>(recipe ? [recipe.inert_gas, ...PROCESS_GASES[recipe.experiment_type]] : PROCESS_GASES[type]);
+  const allowedGases = $derived<string[]>(recipe ? [recipe.inert_gas, ...rules.processGases(recipe.experiment_type)] : rules.processGases(type));
   const items = $derived(result?.checklist_items ?? []);
   const checkedCount = $derived(items.filter((item) => checklist[item.key]).length);
-  const sampleErrors = $derived.by(() => {
-    const errors: Record<string, string> = {};
-    if (!sample.name.trim()) errors.name = '必填';
-    if (!sample.operator.trim()) errors.operator = '必填';
-    if (sample.initial_mass_g === null || !(sample.initial_mass_g > 0)) errors.initial_mass_g = '须大于 0';
-    if (sample.tfe_pct === null || !(sample.tfe_pct > 0 && sample.tfe_pct <= 100)) errors.tfe_pct = '0–100 之间';
-    if (sample.feo_pct === null || !(sample.feo_pct >= 0 && sample.feo_pct <= 100)) errors.feo_pct = '0–100 之间';
-    else if (type === 'oxidation' && sample.feo_pct <= 0) errors.feo_pct = '氧化实验按 FeO 计算，须大于 0';
-    return errors;
+  // Sample validity is decided by Python (preflight "sample" check), never re-implemented here.
+  const sampleCheck = $derived(result?.checks.find((c) => c.key === 'sample') ?? null);
+  const sampleTouched = $derived(Boolean(sample.name || sample.initial_mass_g !== null || sample.tfe_pct !== null || sample.feo_pct !== null));
+  const step1Ok = $derived(recipe !== null && recipe.assessment.runnable && sampleCheck?.ok === true);
+  let sampleTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    void JSON.stringify(sample);
+    void recipeId;
+    if (step !== 0) return;
+    clearTimeout(sampleTimer);
+    sampleTimer = setTimeout(() => void check(), 400);
   });
-  const step1Ok = $derived(Object.keys(sampleErrors).length === 0 && recipe !== null && recipe.assessment.runnable);
   const blockedByRun = $derived(run.active);
   const estimated = $derived.by(() => {
     if (!recipe) return null;
@@ -57,8 +59,9 @@
 
   onMount(() => {
     sample.operator = prefs.operator;
+    void rules.load();
     void load();
-    return () => clearInterval(deviceTimer);
+    return () => { clearInterval(deviceTimer); clearTimeout(sampleTimer); };
   });
 
   async function load() {
@@ -167,16 +170,14 @@
       <section class="card">
         <div class="card-head"><h2>样品信息</h2></div>
         <div class="form-grid three">
-          <label class="field"><span>样品名称</span><input bind:value={sample.name} placeholder="例如 球团矿 A-19" aria-invalid={Boolean(sampleErrors.name) && sample.name !== ''} /></label>
-          <label class="field"><span>初始质量 · g</span><input class="mono" inputmode="decimal" value={sample.initial_mass_g ?? ''} oninput={(e) => (sample.initial_mass_g = num(e.currentTarget.value))} aria-invalid={Boolean(sampleErrors.initial_mass_g) && sample.initial_mass_g !== null} />
-            {#if sampleErrors.initial_mass_g && sample.initial_mass_g !== null}<span class="error">{sampleErrors.initial_mass_g}</span>{/if}</label>
+          <label class="field"><span>样品名称</span><input bind:value={sample.name} placeholder="例如 球团矿 A-19" /></label>
+          <label class="field"><span>初始质量 · g</span><input class="mono" inputmode="decimal" value={sample.initial_mass_g ?? ''} oninput={(e) => (sample.initial_mass_g = num(e.currentTarget.value))} /></label>
           <label class="field"><span>操作者</span><input bind:value={sample.operator} placeholder="姓名" /></label>
-          <label class="field"><span>TFe · %</span><input class="mono" inputmode="decimal" value={sample.tfe_pct ?? ''} oninput={(e) => (sample.tfe_pct = num(e.currentTarget.value))} />
-            {#if sampleErrors.tfe_pct && sample.tfe_pct !== null}<span class="error">{sampleErrors.tfe_pct}</span>{/if}</label>
-          <label class="field"><span>FeO · %</span><input class="mono" inputmode="decimal" value={sample.feo_pct ?? ''} oninput={(e) => (sample.feo_pct = num(e.currentTarget.value))} />
-            {#if sampleErrors.feo_pct && sample.feo_pct !== null}<span class="error">{sampleErrors.feo_pct}</span>{/if}</label>
+          <label class="field"><span>TFe · %</span><input class="mono" inputmode="decimal" value={sample.tfe_pct ?? ''} oninput={(e) => (sample.tfe_pct = num(e.currentTarget.value))} /></label>
+          <label class="field"><span>FeO · %</span><input class="mono" inputmode="decimal" value={sample.feo_pct ?? ''} oninput={(e) => (sample.feo_pct = num(e.currentTarget.value))} /></label>
           <label class="field"><span>粒径范围 · mm（可选）</span><input bind:value={sample.particle_size} placeholder="例如 10–12.5" /></label>
         </div>
+        {#if sampleTouched && sampleCheck && !sampleCheck.ok}<p class="error tiny" style="margin-top:10px;color:var(--danger)" role="status">{sampleCheck.detail}</p>{/if}
         <p class="tiny soft" style="margin-top:10px">初始质量以启动前天平稳定读数为准；与天平读数偏差 &gt; 0.5% 时，第 3 步会提示复核。</p>
       </section>
 

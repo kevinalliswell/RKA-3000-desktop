@@ -55,11 +55,11 @@
     if (manual && Object.keys(draft).length === 0 && editableGases.length) openManual();
   });
 
+  /** Only checks that each field holds a number; limits and allowed gases are validated by Python on submit. */
   function draftValid(): string | null {
     for (const gas of editableGases) {
       const value = draft[gas.gas];
-      if (value === undefined || value === null || Number.isNaN(value) || value < 0) return `${gas.label} 请输入非负数字`;
-      if (gas.usage_limit !== null && value > gas.usage_limit) return `${gas.label} 超出使用上限 ${fmtFlow(gas.usage_limit)}`;
+      if (value === undefined || value === null || Number.isNaN(value)) return `${gas.label} 请输入数字`;
     }
     return null;
   }
@@ -212,8 +212,7 @@
               <div class="pv">{fmtFlow(gas.pv)}<small>L/min 实测</small></div>
               {#if manual && gas.allowed}
                 <label class="field"><span>目标流量 · 上限 {fmtFlow(gas.usage_limit)}</span>
-                  <input class="mono" type="number" min="0" step="0.01" max={gas.usage_limit ?? undefined} value={draft[gas.gas] ?? ''}
-                    aria-invalid={(draft[gas.gas] ?? 0) > (gas.usage_limit ?? Infinity)}
+                  <input class="mono" type="number" step="0.01" value={draft[gas.gas] ?? ''}
                     oninput={(e) => (draft = { ...draft, [gas.gas]: e.currentTarget.value === '' ? NaN : Number(e.currentTarget.value) })}
                     disabled={!allowed?.manual_gas || run.busy !== null} /></label>
               {:else}

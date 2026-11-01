@@ -68,7 +68,7 @@ from rka_desktop.domain.preflight import (
 from rka_desktop.domain.recipe import Recipe, RecipeStep, RecipeValidationError
 from rka_desktop.domain.recipe_rules import RecipeAssessment, is_reaction_step
 from rka_desktop.domain.review import END_REASON_LABELS, GAP_PERIODS
-from rka_desktop.domain.safety import DEVICE_LABELS, AlarmEvent, SafetyMonitor
+from rka_desktop.domain.safety import DEVICE_LABELS, OVER_TEMP_MARGIN_C, AlarmEvent, SafetyMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,7 @@ OUTCOME_BY_REASON = {
 }
 READBACK_TOLERANCE_RATIO = 0.02
 READBACK_TOLERANCE_LPM = 0.01
+PURGE_RETRY_SECONDS = 5.0
 
 RecipeLoader = Callable[[int], tuple[Recipe, RecipeAssessment]]
 LimitsProvider = Callable[[], tuple[int, dict[str, float]]]
@@ -133,7 +134,16 @@ class _Purge:
     heating: str  # "program_last_step" | "setpoint_written" | "manual_required" | "plc_stop"
     elapsed_s: float = 0.0
     temperature_ok: bool = False
-    apply_error: str | None = None
+    # Purge time only counts while the purge set-points are known to be applied.
+    gas_since: float | None = None
+    gas_error: str | None = None
+    heat_error: str | None = None
+    last_retry: float | None = None
+
+    @property
+    def apply_error(self) -> str | None:
+        parts = [text for text in (self.gas_error, self.heat_error) if text]
+        return "；".join(parts) if parts else None
 
 
 @dataclass
@@ -170,6 +180,7 @@ class _RunRecord:
     reaction_start_weight: float | None = None
     last_command: dict[str, Any] | None = None
     program_segment: int | None = None
+    cooled_steps: set[int] = field(default_factory=set)
     events: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=300))
 
     @property
@@ -798,12 +809,7 @@ class ExperimentRunner:
             self._update_alarm_state(snapshot)
             self._update_interlock_state(snapshot)
 
-            step = run.engine.current_step if run.status in RUN_STATUSES else None
-            target = step.target_temp_c if step is not None else None
-            instrument_step = self._instrument_step(snapshot.program_segment)
-            if step is not None and instrument_step is not None and instrument_step > run.engine.current_step_index:
-                # The instrument is already in a later step (its ramp may legitimately exceed the old target).
-                target = max(target or 0.0, run.recipe.steps[min(instrument_step, len(run.recipe.steps) - 1)].target_temp_c)
+            target = self._overtemp_reference(run, snapshot, degraded_now) if run.status in RUN_STATUSES else None
             events = self._monitor.observe(
                 mono, temperature_c=snapshot.temperature_c, target_temp_c=target,
                 gas_pv={gas: value for gas, value in flows.items() if gas in run.device_limits},
@@ -834,6 +840,29 @@ class ExperimentRunner:
                 n2_lpm=flows.get("N2", 0.0), h2_lpm=flows.get("H2", 0.0), co_lpm=flows.get("CO", 0.0),
             )
             self._process_measurement(measurement, snapshot.program_segment)
+
+    def _overtemp_reference(self, run: _RunRecord, snapshot: DeviceSnapshot, degraded: set[str]) -> float | None:
+        """Target the over-temperature rule compares against.
+
+        Uses the later of the engine's and the instrument's step. While a step that is cooler than
+        the previous one has not yet cooled down to its own target band, the previous (higher) target
+        still applies, so a normal cooling ramp is not mistaken for over-temperature.
+        """
+        steps = run.recipe.steps
+        index = run.engine.current_step_index
+        instrument_step = self._instrument_step(snapshot.program_segment)
+        if instrument_step is not None:
+            index = max(index, instrument_step)
+        if not steps or index >= len(steps):
+            return None
+        target = steps[index].target_temp_c
+        previous = steps[index - 1].target_temp_c if index > 0 else None
+        if previous is None or previous <= target or index in run.cooled_steps:
+            return target
+        if "temp" not in degraded and snapshot.temperature_c <= target + OVER_TEMP_MARGIN_C:
+            run.cooled_steps.add(index)
+            return target
+        return previous
 
     def _instrument_step(self, segment: int | None) -> int | None:
         """Recipe step the temperature controller is executing (two program segments per step)."""
@@ -949,14 +978,7 @@ class ExperimentRunner:
     def _apply_purge(self, run: _RunRecord, *, emergency: bool = False, completed: bool = False) -> None:
         purge = run.purge
         assert purge is not None
-        try:
-            self._gateway.apply_gas_setpoints(purge.flows)
-            run.commanded_gas = dict(purge.flows)
-            purge.apply_error = None
-        except Exception as exc:  # noqa: BLE001
-            purge.apply_error = str(exc)
-            logger.exception("purge set-points failed")
-            self._raise_software_alarm(AlarmEvent("SW-PURGE-FAILED", "warning", f"惰性吹扫设定下发失败，请现场手动切换惰性气：{exc}"))
+        self._apply_purge_gas(run, alarm=True)
         try:
             if run.temperature_mode == TemperatureControlMode.SETPOINT:
                 last = run.recipe.steps[-1]
@@ -971,9 +993,30 @@ class ExperimentRunner:
                 self._sync_run_control("stop", "处置停机")
                 purge.heating = "plc_stop"
         except Exception as exc:  # noqa: BLE001
-            purge.apply_error = f"{purge.apply_error + '；' if purge.apply_error else ''}停止加热失败：{exc}"
+            purge.heat_error = f"停止加热失败：{exc}"
             purge.heating = "manual_required"
             self._raise_software_alarm(AlarmEvent("SW-HEAT-STOP-FAILED", "warning", f"停止加热命令失败，请在温控器上手动停止：{exc}"))
+
+    def _apply_purge_gas(self, run: _RunRecord, *, alarm: bool) -> bool:
+        purge = run.purge
+        assert purge is not None
+        purge.last_retry = self._clock.monotonic()
+        try:
+            self._gateway.apply_gas_setpoints(purge.flows)
+        except Exception as exc:  # noqa: BLE001
+            purge.gas_error = f"吹扫设定下发失败：{exc}"
+            logger.exception("purge set-points failed")
+            if alarm:
+                self._raise_software_alarm(AlarmEvent("SW-PURGE-FAILED", "warning",
+                                                      f"惰性吹扫设定下发失败，请现场手动切换惰性气：{exc}"))
+            return False
+        run.commanded_gas = dict(purge.flows)
+        if purge.gas_error:
+            self._event("safety", "惰性吹扫设定已下发", "重试成功，吹扫时间从现在开始计")
+        purge.gas_error = None
+        if purge.gas_since is None:
+            purge.gas_since = self._clock.monotonic()
+        return True
 
     @staticmethod
     def _heating_text(heating: str) -> str:
@@ -994,7 +1037,9 @@ class ExperimentRunner:
         run = self._run
         assert run is not None and run.purge is not None
         purge = run.purge
-        purge.elapsed_s = mono - purge.started_mono
+        if purge.gas_since is None and (purge.last_retry is None or mono - purge.last_retry >= PURGE_RETRY_SECONDS):
+            self._apply_purge_gas(run, alarm=False)  # keep retrying; the alarm was raised on the first failure
+        purge.elapsed_s = mono - purge.gas_since if purge.gas_since is not None else 0.0
         purge.temperature_ok = temperature_c is not None and temperature_c < self.settings.purge_exit_temperature_c
         if purge.elapsed_s >= purge.required_s and purge.temperature_ok:
             self._event("stage", "处置完成", f"吹扫 {purge.elapsed_s:.0f} s · 炉温 {temperature_c:.1f} ℃")
@@ -1014,7 +1059,7 @@ class ExperimentRunner:
             final_mass_g = latest.weight_g
         purge = run.purge
         if purge is not None:
-            purge.elapsed_s = self._clock.monotonic() - purge.started_mono
+            purge.elapsed_s = self._clock.monotonic() - purge.gas_since if purge.gas_since is not None else 0.0
         detail = run.end_detail or ""
         if note:
             detail = f"{detail}；{note}" if detail else note
@@ -1252,7 +1297,9 @@ class ExperimentRunner:
         if run is None or run.purge is None:
             return None
         purge = run.purge
-        elapsed = purge.elapsed_s if run.status != "purging" else self._clock.monotonic() - purge.started_mono
+        elapsed = purge.elapsed_s
+        if run.status == "purging" and purge.gas_since is not None:
+            elapsed = self._clock.monotonic() - purge.gas_since
         return {
             "required_s": purge.required_s, "elapsed_s": elapsed, "flows": purge.flows, "summary": format_flows(purge.flows),
             "safe_temperature_c": self.settings.purge_exit_temperature_c, "temperature_ok": purge.temperature_ok,

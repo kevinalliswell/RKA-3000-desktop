@@ -31,11 +31,12 @@ class ReviewService:
         if detail is None:
             raise LookupError("实验不存在")
         stats = sampling_stats(self._experiments.fetch_measurement_timestamps(experiment_id), self._poll)
-        alarms = self._alarms.list_alarm_history(experiment_id=experiment_id, limit=200)
-        unacked = sum(1 for alarm in alarms if not alarm.get("acknowledged_at"))
+        alarms = self._alarms.list_alarm_history(experiment_id=experiment_id, limit=200)  # display only
+        # Archive eligibility never depends on the display page: count every alarm of the experiment.
+        unacked = len(self._alarms.list_unacknowledged_alarms(experiment_id))
         assessment = assess_review(
             review_state=detail.get("review_state"), active=self._is_active(experiment_id), stats=stats,
-            alarms_total=len(alarms), alarms_unacknowledged=unacked, recipe_version=detail.get("recipe_version"),
+            alarms_total=self._alarms.count_alarms(experiment_id), alarms_unacknowledged=unacked, recipe_version=detail.get("recipe_version"),
             has_recipe_snapshot=bool(detail.get("recipe_snapshot")),
             audit_count=self._audit.count_audit(experiment_id),
             manual_gas_count=self._audit.count_audit(experiment_id, "MANUAL_GAS_SET"),

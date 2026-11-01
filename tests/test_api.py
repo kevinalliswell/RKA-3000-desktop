@@ -116,7 +116,8 @@ def test_experiment_lifecycle_over_http(api):
     assert request("POST", "/api/recipes/import", {"document": document, "name": "副本"})[0] == 201
     assert request("GET", f"/api/recipes/{recipe_id}/versions")[1]["versions"][0]["version"] == 1
     assert request("GET", "/api/limits")[1]["policy"]["version"] == 1
-    assert request("GET", "/api/rules")[1]["alarm_rules"]
+    rules = request("GET", "/api/rules")[1]
+    assert rules["alarm_rules"] and rules["process_gases"]["oxidation"] == ["CO2", "O2"] and rules["inert_gases"] == ["N2", "AR"]
 
     status, preflight, _ = request("POST", "/api/run/preflight", {"recipe_id": recipe_id})
     assert status == 200 and not preflight["ready"] and preflight["checklist_items"]

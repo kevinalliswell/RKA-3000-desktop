@@ -42,14 +42,11 @@
     }
     return out;
   });
-  const invalid = $derived((limits?.gases ?? []).filter((g) => g.available).find((g) => {
-    const v = Number(proposed[g.gas]);
-    return !Number.isFinite(v) || v <= 0 || v > (g.device_limit ?? 0);
-  }));
   const hasChanges = $derived(Object.keys(changes).length > 0);
 
   async function doPreview() {
-    try { preview = await api.previewLimits(changes); limitsError = ''; } catch (e) { limitsError = errorMessage(e); }
+    // Python validates the values (0 < value ≤ device limit) and reports the reason.
+    try { preview = await api.previewLimits(changes); limitsError = ''; } catch (e) { preview = null; limitsError = errorMessage(e); }
   }
 
   async function apply() {
@@ -172,7 +169,6 @@
                 <td class="num mono">{fmtFlow(gas.usage_limit)}</td>
                 <td>{#if gas.available}
                   <input aria-label={`${gas.label} 使用上限`} inputmode="decimal" value={proposed[gas.gas] ?? ''} disabled={Boolean(limits?.locked)}
-                    aria-invalid={!(Number(proposed[gas.gas]) > 0 && Number(proposed[gas.gas]) <= (gas.device_limit ?? 0))}
                     oninput={(e) => { proposed = { ...proposed, [gas.gas]: e.currentTarget.value }; preview = null; }} />
                 {:else}<span class="soft">—</span>{/if}</td>
               </tr>
@@ -181,12 +177,11 @@
         </table>
       </div>
       <div style="padding:12px 16px 16px" class="stack tight">
-        {#if invalid}<div class="callout danger">{invalid.label} 使用上限须大于 0 且不超过设备上限 {fmtFlow(invalid.device_limit)}。</div>{/if}
         <label class="field"><span>变更原因（必填，写入审计）</span>
           <input bind:value={reason} placeholder="例如 可燃气安全评审结论" disabled={Boolean(limits?.locked)} maxlength="200" /></label>
         <div class="row">
-          <button class="btn" type="button" disabled={!online || !hasChanges || Boolean(invalid)} onclick={doPreview}>预览变更影响</button>
-          <button class="btn primary" type="button" disabled={!online || !preview || Boolean(limits?.locked) || reason.trim().length < 2 || Boolean(invalid)}
+          <button class="btn" type="button" disabled={!online || !hasChanges} onclick={doPreview}>预览变更影响</button>
+          <button class="btn primary" type="button" disabled={!online || !preview || Boolean(limits?.locked) || !reason.trim()}
             onclick={() => (confirmApply = true)}>确认应用 · 生成策略 v{(limits?.policy.version ?? 0) + 1}</button>
           {#if hasChanges}<button class="btn" type="button" onclick={loadLimits}>取消修改</button>{/if}
         </div>

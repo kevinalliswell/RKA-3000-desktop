@@ -20,6 +20,7 @@ from rka_desktop.application.recipe_service import RecipeService
 from rka_desktop.application.review_service import ReviewService
 from rka_desktop.application.tasks import TaskRegistry
 from rka_desktop.domain.control import GasControlMode, TemperatureControlMode
+from rka_desktop.domain.gases import INERT_GASES, PROCESS_GASES
 from rka_desktop.domain.preflight import SITE_CHECKLIST
 from rka_desktop.domain.safety import ALARM_RULES
 from rka_desktop.infrastructure.comm.multi_device_gateway import MultiDeviceGateway
@@ -180,6 +181,8 @@ class AppContainer:
 
     def rules(self) -> dict[str, Any]:
         return {"alarm_rules": list(ALARM_RULES),
+                "process_gases": {kind.value: list(gases) for kind, gases in PROCESS_GASES.items()},
+                "inert_gases": list(INERT_GASES),
                 "checklist": [{"key": i.key, "label": i.label, "detail": i.detail} for i in SITE_CHECKLIST],
                 "safe_temperature_c": self.config.purge_exit_temperature_c,
                 "stale_warning_seconds": self.config.degraded_fault_seconds,

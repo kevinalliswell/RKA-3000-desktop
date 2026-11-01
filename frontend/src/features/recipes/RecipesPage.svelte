@@ -8,8 +8,9 @@
   import { prefs } from '../../lib/state/prefs.svelte';
   import { nav } from '../../lib/state/nav.svelte';
   import { errorMessage } from '../../lib/api/client';
+  import { rules } from '../../lib/state/rules.svelte';
   import {
-    downloadText, flowsText, fmtFlow, fmtShort, fmtTemp, GAS_COLUMN, GAS_KEYS, GAS_LABEL, PROCESS_GASES, stepFlows, TYPE_LABEL,
+    downloadText, flowsText, fmtFlow, fmtShort, fmtTemp, GAS_COLUMN, GAS_KEYS, GAS_LABEL, stepFlows, TYPE_LABEL,
     TYPE_SHORT, TYPE_TONE,
   } from '../../lib/format';
 
@@ -77,7 +78,8 @@
     };
   }
 
-  const draftGases = $derived(draft ? [draft.inert_gas as GasKey, ...PROCESS_GASES[draft.experiment_type]] : []);
+  $effect(() => { void rules.load(); });
+  const draftGases = $derived(draft ? [draft.inert_gas as GasKey, ...(rules.processGases(draft.experiment_type) as GasKey[])] : []);
   const hiddenNonZero = $derived(draft ? draft.steps.some((s) => GAS_KEYS.some((g) => !draftGases.includes(g) && Number((s as unknown as Record<string, number>)[GAS_COLUMN[g]]) > 0)) : false);
 
   function setInert(gas: 'N2' | 'AR') {

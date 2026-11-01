@@ -59,10 +59,6 @@ export const GAS_COLUMN: Record<GasKey, string> = {
   N2: 'n2_lpm', AR: 'ar_lpm', H2: 'h2_lpm', CO: 'co_lpm', CO2: 'co2_lpm', CH4: 'ch4_lpm', O2: 'o2_lpm',
 };
 export const GAS_KEYS: GasKey[] = ['N2', 'AR', 'H2', 'CO', 'CO2', 'CH4', 'O2'];
-export const PROCESS_GASES: Record<'reduction' | 'oxidation', GasKey[]> = {
-  reduction: ['CO', 'CO2', 'H2', 'CH4'],
-  oxidation: ['CO2', 'O2'],
-};
 
 export function flowsText(flows: Partial<Record<GasKey, number>> | null | undefined): string {
   if (!flows) return DASH;
