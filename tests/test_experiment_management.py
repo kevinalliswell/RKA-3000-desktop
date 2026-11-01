@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from rka_desktop.db.database import DatabaseManager
-from rka_desktop.models.entities import Measurement
-from rka_desktop.repositories import ExperimentRepository
+from rka_desktop.domain.entities import Measurement
+from rka_desktop.infrastructure.sqlite.database import DatabaseManager
+from rka_desktop.infrastructure.sqlite.repositories import SqliteExperimentStore
 
 
 def _db(tmp_path):
@@ -25,7 +25,7 @@ def _measurement(exp_id):
 
 
 def test_rename_experiment(tmp_path):
-    repo = ExperimentRepository(_db(tmp_path))
+    repo = SqliteExperimentStore(_db(tmp_path))
     exp_id = repo.create_experiment("old-name")
     repo.rename_experiment(exp_id, "new-name")
     assert repo.get_experiment_detail(exp_id)["name"] == "new-name"
@@ -33,7 +33,7 @@ def test_rename_experiment(tmp_path):
 
 def test_delete_experiment_removes_experiment_and_measurements(tmp_path):
     db = _db(tmp_path)
-    repo = ExperimentRepository(db)
+    repo = SqliteExperimentStore(db)
     exp_id = repo.create_experiment("to-delete")
     db.insert_measurement(_measurement(exp_id))
     assert db.fetch_measurements(exp_id)
@@ -45,10 +45,10 @@ def test_delete_experiment_removes_experiment_and_measurements(tmp_path):
 
 
 def test_audit_log_records_actions(tmp_path):
-    from rka_desktop.repositories import AuditLogRepository
+    from rka_desktop.infrastructure.sqlite.repositories import SqliteAuditStore
 
     db = _db(tmp_path)
-    audit = AuditLogRepository(db)
+    audit = SqliteAuditStore(db)
     audit.log_action("operator", "EXPERIMENT_DELETE", "#1")
     logs = audit.list_audit_logs(limit=10)
     assert logs and logs[0]["action"] == "EXPERIMENT_DELETE"

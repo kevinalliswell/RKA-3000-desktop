@@ -2,7 +2,7 @@
 
 
 def test_azbil_public_api_imports():
-    from rka_desktop.comm._vendor.azbil_mfc import (
+    from rka_desktop.infrastructure.comm._vendor.azbil_mfc import (
         FULL_SCALE_COUNTS,
         MQVBusManager,
         MQVDevice,
@@ -16,7 +16,7 @@ def test_azbil_public_api_imports():
 
 
 def test_taie_public_api_imports():
-    from rka_desktop.comm._vendor.taie_temp import (
+    from rka_desktop.infrastructure.comm._vendor.taie_temp import (
         TaieTemperatureController,
         create_default_controller,
     )
@@ -26,7 +26,7 @@ def test_taie_public_api_imports():
 
 
 def test_balance_public_api_imports():
-    from rka_desktop.comm._vendor.balance_serial import BalanceClient, create_protocol
+    from rka_desktop.infrastructure.comm._vendor.balance_serial import BalanceClient, create_protocol
 
     assert BalanceClient is not None
     assert create_protocol("gs_cpa") is not None

@@ -1,7 +1,7 @@
 import sqlite3
 
-from rka_desktop.db.database import DatabaseManager
-from rka_desktop.db.migrations import SCHEMA_VERSION
+from rka_desktop.infrastructure.sqlite.database import DatabaseManager
+from rka_desktop.infrastructure.sqlite.migrations import SCHEMA_VERSION
 
 
 def test_init_schema_sets_schema_version(tmp_path):

@@ -6,8 +6,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
-INIT_PATH = Path("src/rka_desktop/__init__.py")
-CHANGELOG_PATH = Path("CHANGELOG.md")
+ROOT = Path(__file__).resolve().parents[1]
+INIT_PATH = ROOT / "src/rka_desktop/__init__.py"
+CHANGELOG_PATH = ROOT / "CHANGELOG.md"
+MANIFESTS = [ROOT / "package.json", ROOT / "frontend/package.json", ROOT / "src-tauri/tauri.conf.json",
+             ROOT / "package-lock.json", ROOT / "frontend/package-lock.json"]
+CARGO = [ROOT / "src-tauri/Cargo.toml", ROOT / "src-tauri/Cargo.lock"]
 
 
 def read_version() -> str:
@@ -27,6 +31,21 @@ def write_version(new_version: str) -> None:
         flags=re.MULTILINE,
     )
     INIT_PATH.write_text(content, encoding="utf-8")
+    for manifest in MANIFESTS:
+        if not manifest.is_file():
+            continue
+        text = manifest.read_text(encoding="utf-8")
+        text = re.sub(r'("version":\s*")[^"]+(")', rf"\g<1>{new_version}\g<2>", text, count=1)
+        if manifest.name == "package-lock.json":
+            text = re.sub(r'("":\s*\{\s*"name":\s*"[^"]+",\s*"version":\s*")[^"]+(")', rf"\g<1>{new_version}\g<2>", text, count=1)
+        manifest.write_text(text, encoding="utf-8")
+    cargo_toml = CARGO[0].read_text(encoding="utf-8")
+    cargo_toml = re.sub(r'^(version\s*=\s*")[^"]+(")', rf"\g<1>{new_version}\g<2>", cargo_toml, count=1, flags=re.MULTILINE)
+    CARGO[0].write_text(cargo_toml, encoding="utf-8")
+    if CARGO[1].is_file():
+        lock = CARGO[1].read_text(encoding="utf-8")
+        lock = re.sub(r'(\[\[package\]\]\nname = "rka3000-desktop"\nversion = ")[^"]+(")', rf"\g<1>{new_version}\g<2>", lock, count=1)
+        CARGO[1].write_text(lock, encoding="utf-8")
 
 
 def extract_notes(version: str) -> str:
@@ -51,7 +70,7 @@ def promote_unreleased(version: str) -> None:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="RKA release helper")
+    parser = argparse.ArgumentParser(description="RKA-3000 release helper: bumps every manifest and promotes CHANGELOG Unreleased")
     sub = parser.add_subparsers(dest="command", required=True)
 
     bump = sub.add_parser("bump", help="set version and promote Unreleased")

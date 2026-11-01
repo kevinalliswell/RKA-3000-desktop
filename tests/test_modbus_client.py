@@ -1,10 +1,10 @@
-from rka_desktop.core.modbus_client import (
+from rka_desktop.infrastructure.comm.plc.modbus_client import (
     ModbusConnectError,
     ModbusReadError,
     ModbusRtuClient,
     ModbusWriteError,
 )
-from rka_desktop.core.registers import RegisterField
+from rka_desktop.infrastructure.comm.plc.registers import RegisterField
 
 
 class _FakeResponse:
@@ -101,7 +101,7 @@ def test_hardware_read_raises_classified_error():
 
 
 def test_connect_sets_classified_error_when_driver_missing(monkeypatch):
-    import rka_desktop.core.modbus_client as modbus_module
+    import rka_desktop.infrastructure.comm.plc.modbus_client as modbus_module
 
     monkeypatch.setattr(modbus_module, "ModbusSerialClient", None)
     client = ModbusRtuClient(serial_port="loop://", baudrate=9600, unit_id=1, simulation_mode=False)

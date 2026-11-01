@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from rka_desktop.db.database import DatabaseManager
-from rka_desktop.models.entities import Measurement
+from rka_desktop.domain.entities import Measurement
+from rka_desktop.infrastructure.sqlite.database import DatabaseManager
 
 
 def test_database_init_and_insert(tmp_path):

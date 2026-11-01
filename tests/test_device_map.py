@@ -1,4 +1,4 @@
-from rka_desktop.core.device_map import get_device_map
+from rka_desktop.infrastructure.comm.plc.device_map import get_device_map
 
 
 def test_contract_v1_device_map_contains_formal_registers():

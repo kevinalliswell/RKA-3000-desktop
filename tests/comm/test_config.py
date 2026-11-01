@@ -1,4 +1,4 @@
-from rka_desktop.comm.config import CommConfig, default_mfc_channels
+from rka_desktop.infrastructure.comm.config import CommConfig, default_mfc_channels
 
 
 def test_default_channels_have_six_unique_addresses():

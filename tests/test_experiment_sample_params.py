@@ -1,6 +1,6 @@
-from rka_desktop.db.database import DatabaseManager
-from rka_desktop.db.migrations import SCHEMA_VERSION
-from rka_desktop.repositories import ExperimentRepository
+from rka_desktop.infrastructure.sqlite.database import DatabaseManager
+from rka_desktop.infrastructure.sqlite.migrations import SCHEMA_VERSION
+from rka_desktop.infrastructure.sqlite.repositories import SqliteExperimentStore
 
 
 def _db(tmp_path):
@@ -23,7 +23,7 @@ def test_schema_has_sample_param_columns(tmp_path):
 
 def test_sample_params_round_trip(tmp_path):
     db = _db(tmp_path)
-    repo = ExperimentRepository(db)
+    repo = SqliteExperimentStore(db)
     exp_id = repo.create_experiment("exp")
     repo.set_sample_params(exp_id, initial_mass_g=50.0, tfe_pct=60.0, feo_pct=10.0)
     detail = repo.get_experiment_detail(exp_id)
