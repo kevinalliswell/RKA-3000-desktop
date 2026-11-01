@@ -158,6 +158,7 @@ class MultiDeviceExperimentGateway:
     capabilities = GatewayCapabilities(
         temperature_program=True, temperature_setpoint=True, run_control_word=False,
         alarm_words=False, multi_device_status=True, balance_tare=True, gas_setpoint_readback=True,
+        program_position=True,
     )
 
     def __init__(self, gateway: MultiDeviceGateway, *, program_group: int = 0, time_unit: str = "min",
@@ -193,10 +194,16 @@ class MultiDeviceExperimentGateway:
         multi = self._gateway.read_multi_snapshot()
         self._last_degraded = multi.degraded_devices
         flows = self._by_gas(multi.mfc_flows_lpm)
+        segment = None
+        if "temp" not in multi.degraded_devices:
+            try:
+                segment = self._gateway.read_program_segment()
+            except DeviceCommError:
+                segment = None
         return DeviceSnapshot(
             temperature_c=multi.temperatures_c[0], weight_g=multi.weight_g, pressure_mpa=0.0,
             n2_lpm=flows.get("N2", 0.0), h2_lpm=flows.get("H2", 0.0), co_lpm=flows.get("CO", 0.0), alarm_word=0,
-            flows_lpm=flows, setpoints_lpm=self._by_gas(multi.mfc_setpoints_lpm),
+            flows_lpm=flows, setpoints_lpm=self._by_gas(multi.mfc_setpoints_lpm), program_segment=segment,
         )
 
     def degraded_devices(self) -> tuple[str, ...]:

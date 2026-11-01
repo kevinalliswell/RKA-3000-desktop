@@ -96,7 +96,30 @@ class ExperimentEngine:
         self.state = ExperimentState.FAULTED
         return self._build_update(reason, completed=True)
 
-    def on_measurement(self, measurement: Measurement) -> EngineUpdate:
+    def sync_to_step(self, index: int, at: datetime, temperature_c: float) -> EngineUpdate:
+        """Follow an external timeline (the instrument's running program): move forward to ``index``.
+
+        Never moves backwards; an index past the last step completes the recipe.
+        """
+        if self.state != ExperimentState.RUNNING or index <= self.current_step_index:
+            return self._build_update(f"执行第 {self.current_step_index + 1}/{self.total_steps} 步（跟随仪表程序）")
+        self.current_step_index = index
+        self._step_started_at = at
+        self._target_reached_at = None
+        self._step_start_temp_c = temperature_c
+        if self.current_step_index >= len(self.steps):
+            self.state = ExperimentState.COMPLETED
+            return self._build_update("实验步骤全部完成", completed=True, step_changed=True)
+        return self._build_update(f"仪表程序进入第 {index + 1} 步", step_changed=True)
+
+    def on_measurement(self, measurement: Measurement, *, advance: bool = True, hold_by_time: bool = False) -> EngineUpdate:
+        """Advance on measurements.
+
+        ``advance=False``: another timeline (the instrument program) decides step changes; this call
+        only updates the status. ``hold_by_time=True``: once a step has reached its target, the hold
+        counts down by time even if the temperature dips (the instrument keeps its own schedule and
+        may already be ramping to the next step).
+        """
         if self.state == ExperimentState.PAUSED:
             return self._build_update("实验暂停中")
         if self.state == ExperimentState.INTERRUPTED:
@@ -119,10 +142,18 @@ class ExperimentEngine:
         status_text = f"执行第 {step.step_no}/{self.total_steps} 步"
         step_elapsed = int((measurement.sampled_at - self._step_started_at).total_seconds())
 
+        if not advance:
+            if self._target_reached_at is None and measurement.temperature_c >= step.target_temp_c - self.target_tolerance_c:
+                self._target_reached_at = measurement.sampled_at
+            reached = self._target_reached_at is not None
+            return self._build_update(
+                f"第 {step.step_no} 步{'保温中' if reached else '升温中'}（跟随仪表程序）")
+
         if self._should_fault_step_total_timeout(step, step_elapsed):
             return self.fail(f"第 {step.step_no} 步执行超时，实验已故障停止")
 
-        if measurement.temperature_c >= step.target_temp_c - self.target_tolerance_c:
+        reached_before = hold_by_time and self._target_reached_at is not None
+        if reached_before or measurement.temperature_c >= step.target_temp_c - self.target_tolerance_c:
             if self._target_reached_at is None:
                 self._target_reached_at = measurement.sampled_at
                 status_text = f"第 {step.step_no} 步达到目标温度，开始保温"

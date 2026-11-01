@@ -35,6 +35,8 @@ class DeviceSnapshot:
     flows_lpm: dict[str, float] = field(default_factory=dict)
     # Set-point readback per gas key from the MFCs; None when the backend cannot read it back.
     setpoints_lpm: dict[str, float] | None = None
+    # Running segment of the temperature controller's program (1-based); None when unknown.
+    program_segment: int | None = None
 
     def flows(self) -> dict[str, float]:
         if self.flows_lpm:

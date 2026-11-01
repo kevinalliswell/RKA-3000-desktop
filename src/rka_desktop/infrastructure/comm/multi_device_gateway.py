@@ -112,6 +112,14 @@ class MultiDeviceGateway:
             raise DeviceCommError("温控仪适配器不支持选择程序组")
         selector(int(group))
 
+    def read_program_segment(self) -> int | None:
+        """Running program segment (1-based) when the temperature adapter can report it, else None."""
+        reader = getattr(self._temp, "read_program_segment", None)
+        if reader is None:
+            return None
+        value = reader()
+        return int(value) if value is not None else None
+
     def tare_balance(self) -> bool:
         return self._balance.tare()
 

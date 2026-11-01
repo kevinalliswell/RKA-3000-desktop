@@ -96,6 +96,7 @@ class GatewayCapabilities:
     multi_device_status: bool
     balance_tare: bool
     gas_setpoint_readback: bool = False
+    program_position: bool = False  # can report the running program segment
 
 
 class ExperimentGateway(Protocol):

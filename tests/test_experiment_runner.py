@@ -246,6 +246,9 @@ def test_stale_device_never_ends_the_run_but_blocks_manual_gas_and_skips_storage
     gateway = FakeGateway()
     runner, _ = runner_factory(gateway, poll_interval_ms=60_000, degraded_fault_seconds=10)
     state = runner.start(start_payload(recipe_id))
+    deadline = time.monotonic() + 5
+    while runner.snapshot()["latest"] is None and time.monotonic() < deadline:
+        time.sleep(0.005)  # let the acquisition thread finish its first (healthy) read
     gateway.degraded = ("balance",)
     runner.set_gas_mode("manual", confirmed=True)
     runner._flush_measurements()
@@ -363,3 +366,44 @@ def test_program_mode_requires_capability(runner_factory, recipe_id):
     runner, _ = runner_factory(FakeGateway(program=False))
     with pytest.raises(PreflightFailed, match="温度控制方式"):
         runner.start(start_payload(recipe_id))
+
+
+def test_program_mode_follows_instrument_segment(runner_factory, recipe_id, stores, clock):
+    runner, gateway = runner_factory(FakeGateway(run_control=False), poll_interval_ms=60_000)
+    runner.start(start_payload(recipe_id))
+
+    def at_segment(segment, temp=150.0, flows=None):
+        snapshot = snap(temp, flows=flows or {"N2": 4.0})
+        snapshot.program_segment = segment
+        clock.advance(1)
+        runner.process_snapshot(snapshot, sampled_at=clock.now())
+
+    clock.advance(30)  # far beyond the step-1 hold: without the instrument the engine would have moved on
+    at_segment(2)
+    assert runner.snapshot()["current_step_no"] == 1 and "跟随仪表程序" in runner.snapshot()["status_text"]
+    at_segment(3, temp=300.0)  # instrument starts step 2's ramp segment -> reaction gas now
+    state = runner.snapshot()
+    assert state["current_step_no"] == 2 and state["program_segment"] == 3
+    assert gateway.last_gas == {"N2": 3.0, "H2": 1.0, "CO": 0.8}
+    at_segment(1)  # a lower segment (program restarted / idle) never moves the run backwards
+    assert runner.snapshot()["current_step_no"] == 2
+    at_segment(5, temp=300.0)  # instrument reached the last step -> safe disposal
+    assert runner.snapshot()["status"] == "purging" and runner.snapshot()["end_reason"] == "completed"
+    finish_purge(runner, gateway, clock)
+    wait_status(runner, "completed")
+
+
+def test_program_mode_without_segment_does_not_stall_when_furnace_cools_early(runner_factory, recipe_id, clock):
+    runner, gateway = runner_factory(FakeGateway(run_control=False), poll_interval_ms=60_000)
+    runner.start(start_payload(recipe_id))
+    runner.process_snapshot(snap(150.0, flows={"N2": 4.0}), sampled_at=clock.now())
+    clock.advance(2.5)
+    runner.process_snapshot(snap(150.0, flows={"N2": 4.0}), sampled_at=clock.now())
+    assert runner.snapshot()["current_step_no"] == 2
+    runner.process_snapshot(snap(900.0), sampled_at=clock.now())  # step 2 reaches its target
+    clock.advance(2)
+    runner.process_snapshot(snap(600.0), sampled_at=clock.now())  # the instrument already cools toward step 3
+    clock.advance(2)
+    runner.process_snapshot(snap(400.0), sampled_at=clock.now())
+    assert runner.snapshot()["status"] == "purging"  # hold counted by time, not stuck in "heating"
+    finish_purge(runner, gateway, clock)

@@ -169,6 +169,7 @@ class _RunRecord:
     reaction_ended_at: str | None = None
     reaction_start_weight: float | None = None
     last_command: dict[str, Any] | None = None
+    program_segment: int | None = None
     events: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=300))
 
     @property
@@ -293,6 +294,7 @@ class ExperimentRunner:
                 "gas_mode": run.gas_mode.value if run else self.settings.default_gas_mode.value,
                 "temperature_mode": run.temperature_mode.value if run else self.settings.temperature_mode.value,
                 "temperature_program": run.temperature_program if run else None,
+                "program_segment": run.program_segment if run else None,
                 "manual_gas": run.manual_gas if run else None,
                 "experiment": self._experiment_payload(run),
                 "steps": self._steps_payload(run, current_index),
@@ -798,6 +800,10 @@ class ExperimentRunner:
 
             step = run.engine.current_step if run.status in RUN_STATUSES else None
             target = step.target_temp_c if step is not None else None
+            instrument_step = self._instrument_step(snapshot.program_segment)
+            if step is not None and instrument_step is not None and instrument_step > run.engine.current_step_index:
+                # The instrument is already in a later step (its ramp may legitimately exceed the old target).
+                target = max(target or 0.0, run.recipe.steps[min(instrument_step, len(run.recipe.steps) - 1)].target_temp_c)
             events = self._monitor.observe(
                 mono, temperature_c=snapshot.temperature_c, target_temp_c=target,
                 gas_pv={gas: value for gas, value in flows.items() if gas in run.device_limits},
@@ -827,13 +833,29 @@ class ExperimentRunner:
                 weight_g=snapshot.weight_g, pressure_mpa=snapshot.pressure_mpa,
                 n2_lpm=flows.get("N2", 0.0), h2_lpm=flows.get("H2", 0.0), co_lpm=flows.get("CO", 0.0),
             )
-            self._process_measurement(measurement)
+            self._process_measurement(measurement, snapshot.program_segment)
 
-    def _process_measurement(self, measurement: Measurement) -> None:
+    def _instrument_step(self, segment: int | None) -> int | None:
+        """Recipe step the temperature controller is executing (two program segments per step)."""
+        run = self._run
+        if run is None or run.temperature_mode != TemperatureControlMode.PROGRAM or not segment or segment < 1:
+            return None
+        return (segment - 1) // 2
+
+    def _process_measurement(self, measurement: Measurement, program_segment: int | None = None) -> None:
         run = self._run
         assert run is not None
         previous_index = run.engine.current_step_index
-        update = run.engine.on_measurement(measurement)
+        program_mode = run.temperature_mode == TemperatureControlMode.PROGRAM
+        instrument_step = self._instrument_step(program_segment)
+        if instrument_step is not None:
+            # The instrument runs the temperature program; gas switching follows its current segment.
+            run.program_segment = program_segment
+            update = run.engine.sync_to_step(instrument_step, measurement.sampled_at, measurement.temperature_c)
+            if not update.step_changed:
+                update = run.engine.on_measurement(measurement, advance=False)
+        else:
+            update = run.engine.on_measurement(measurement, hold_by_time=program_mode)
         self._remember_update(update)
         if update.state == ExperimentState.FAULTED:
             self._enter_purge("fault", update.status_text)

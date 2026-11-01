@@ -35,20 +35,34 @@ class SimTemperatureAdapter:
     def close(self) -> None:
         self._connected = False
 
-    def _program_sv(self) -> float | None:
+    def _position(self) -> tuple[int, float] | None:
+        """(1-based segment, SV) of the running curve, or None when no program runs."""
         if self._program_started is None:
             return None
-        segments = [value for _, value in sorted(self.program.get(self.program_group, {}).items()) if value[1] or value[0]]
+        segments = [(number, value) for number, value in sorted(self.program.get(self.program_group, {}).items())
+                    if value[1] or value[0]]
         elapsed = self._clock() - self._program_started
         previous = self._start_sv
-        for sv, time_raw in segments:
+        for number, (sv, time_raw) in segments:
             duration = time_raw * self._segment_seconds
             if elapsed < duration:
-                return previous + (sv - previous) * (elapsed / duration) if duration > 0 else sv
+                return number, previous + (sv - previous) * (elapsed / duration)
             elapsed -= duration
             previous = sv
         self._program_started = None  # curve finished: output off
-        return self._ambient
+        self._sv = self._ambient
+        return None
+
+    def _program_sv(self) -> float | None:
+        if self._program_started is None:
+            return None
+        position = self._position()
+        return position[1] if position is not None else self._ambient
+
+    def read_program_segment(self) -> int:
+        """0 when no program runs (simulation convention), else the running segment."""
+        position = self._position()
+        return position[0] if position is not None else 0
 
     def read_pv(self) -> float:
         program_sv = self._program_sv()
