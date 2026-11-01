@@ -16,13 +16,13 @@ def test_changelog_top_version_matches_package():
 
 
 def test_check_version_passes_and_rejects_wrong_tag():
-    ok = subprocess.run([sys.executable, "scripts/check_version.py"], capture_output=True, text=True, cwd=ROOT)
+    ok = subprocess.run([sys.executable, "scripts/check_version.py"], capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
     assert ok.returncode == 0, ok.stderr
-    bad = subprocess.run([sys.executable, "scripts/check_version.py", "--tag", "v0.0.0"], capture_output=True, text=True, cwd=ROOT)
+    bad = subprocess.run([sys.executable, "scripts/check_version.py", "--tag", "v0.0.0"], capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
     assert bad.returncode == 1 and "does not match" in bad.stderr
 
 
 def test_release_script_extract_notes():
-    result = subprocess.run([sys.executable, "scripts/release.py", "notes", "0.2.0"], capture_output=True, text=True, cwd=ROOT)
+    result = subprocess.run([sys.executable, "scripts/release.py", "notes", "0.2.0"], capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
     assert result.returncode == 0, result.stderr
     assert "multi-device" in result.stdout.lower()
