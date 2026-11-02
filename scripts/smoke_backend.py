@@ -65,13 +65,16 @@ def main() -> None:
                 assert request("POST", "/api/recipes", {"name": "", "steps": []})[0] == 400
                 assert request("DELETE", f"/api/recipes/{created['recipe']['id']}")[0] == 200
                 assert request("POST", "/api/run/start", {"recipe_id": 999})[0] == 404
+                assert request("GET", "/api/limits")[1]["policy"]["version"] == 1
+                assert request("GET", "/api/overview")[1]["run"]["status"] == "idle"
+                assert request("POST", "/api/run/preflight", {})[1]["ready"] is False
                 assert request("POST", "/api/shutdown")[0] == 202
                 exit_code = process.wait(timeout=30)
                 assert exit_code == 0, f"backend exit code {exit_code}"
                 log = (Path(temp) / "data" / "logs" / "backend.log").read_text(encoding="utf-8")
                 assert "backend exited cleanly" in log
                 assert token not in log, "token leaked into the log"
-                print("Backend smoke: handshake, auth, health, recipes, validation and shutdown passed.")
+                print("Backend smoke: handshake, auth, health, recipes, limits, preflight, validation and shutdown passed.")
             except BaseException:
                 errors.flush()
                 errors.seek(0)

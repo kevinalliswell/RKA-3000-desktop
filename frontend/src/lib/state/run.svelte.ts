@@ -1,10 +1,11 @@
 /** Run page state: polls the Python run snapshot, guards against double submits, tracks cancelling. */
 import * as api from '../api/endpoints';
-import type { MeasurementPoint, RunState } from '../api/types';
+import type { Flows, MeasurementPoint, RunState, StartRequest } from '../api/types';
 
 export interface RunDeps {
   runState: () => Promise<RunState>;
   measurements: (since: number) => Promise<{ seq: number; items: MeasurementPoint[] }>;
+  emergency: () => Promise<RunState>;
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
 }
@@ -12,12 +13,14 @@ export interface RunDeps {
 const defaultDeps: RunDeps = {
   runState: api.runState,
   measurements: api.runMeasurements,
+  emergency: api.emergencyStop,
   setTimer: (fn, ms) => setTimeout(fn, ms),
   clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
-export const ACTIVE: ReadonlySet<string> = new Set(['starting', 'running', 'paused', 'interrupted', 'stopping']);
-const MAX_POINTS = 1800;
+export const ACTIVE: ReadonlySet<string> = new Set(['starting', 'running', 'paused', 'interrupted', 'purging', 'stopping']);
+export const IN_RUN: ReadonlySet<string> = new Set(['running', 'paused', 'interrupted']);
+const MAX_POINTS = 3600;
 
 export class RunSession {
   state: RunState | null = $state(null);
@@ -26,7 +29,9 @@ export class RunSession {
   stopRequested = $state(false);
   error = $state('');
   pollError = $state('');
+  emergencyBusy = $state(false);
   active = $derived(this.state !== null && ACTIVE.has(this.state.status));
+  inRun = $derived(this.state !== null && IN_RUN.has(this.state.status));
   private seq = 0;
   private timer: unknown;
   private disposed = false;
@@ -99,9 +104,9 @@ export class RunSession {
     }
   }
 
-  startRun(recipeId: number, gasMode?: 'auto' | 'manual'): Promise<boolean> {
+  startRun(payload: StartRequest): Promise<boolean> {
     if (this.active) return Promise.resolve(false);
-    return this.act('start', () => api.startRun(recipeId, gasMode));
+    return this.act('start', () => api.startRun(payload));
   }
 
   pause(): Promise<boolean> {
@@ -112,17 +117,38 @@ export class RunSession {
     return this.act('resume', api.resumeRun);
   }
 
-  /** Stop is a request: the run shows "stopping" until buffered data is flushed. */
-  async stop(): Promise<boolean> {
+  /** Ending early is a request: the run goes through safe disposal before it becomes terminal. */
+  async stop(reason: string): Promise<boolean> {
     if (this.stopRequested) return false;
     this.stopRequested = true;
-    const ok = await this.act('stop', api.stopRun);
+    const ok = await this.act('stop', () => api.stopRun(reason));
     if (!ok) this.stopRequested = false;
     return ok;
   }
 
-  ackAlarm(): Promise<boolean> {
-    return this.act('ack', api.ackAlarm);
+  /**
+   * Emergency gas stop bypasses the one-command-at-a-time guard: it must never wait behind a slow
+   * command, and repeated clicks are harmless (the backend latches it).
+   */
+  async emergency(): Promise<boolean> {
+    if (this.emergencyBusy) return false;
+    this.emergencyBusy = true;
+    this.error = '';
+    try {
+      const next = await this.deps.emergency();
+      if (!this.disposed) this.state = next;
+      return true;
+    } catch (error) {
+      if (!this.disposed) this.error = error instanceof Error ? error.message : String(error);
+      return false;
+    } finally {
+      this.emergencyBusy = false;
+      void this.poll();
+    }
+  }
+
+  ackAlarm(id: number, note: string, operator?: string): Promise<boolean> {
+    return this.act('ack', () => api.ackAlarm(id, note, operator));
   }
 
   resetInterlock(): Promise<boolean> {
@@ -133,7 +159,7 @@ export class RunSession {
     return this.act('gas-mode', () => api.setGasMode(mode, true));
   }
 
-  setManualGas(values: { n2_lpm: number; h2_lpm: number; co_lpm: number }): Promise<boolean> {
-    return this.act('manual-gas', () => api.setManualGas(values));
+  setManualGas(flows: Flows, reason: string): Promise<boolean> {
+    return this.act('manual-gas', () => api.setManualGas(flows, reason));
   }
 }

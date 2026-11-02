@@ -1,6 +1,6 @@
 [package]
 name = "rka3000-desktop"
-version = "0.8.0"
+version = "0.9.0"
 description = "RKA-3000 iron-ore reduction kinetics experiment system - desktop shell"
 authors = ["RKA Team"]
 edition = "2021"

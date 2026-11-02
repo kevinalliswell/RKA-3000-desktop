@@ -1,170 +1,306 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import Badge from '../../components/Badge.svelte';
+  import Seg from '../../components/Seg.svelte';
   import ConfirmDialog from '../../components/ConfirmDialog.svelte';
   import * as api from '../../lib/api/endpoints';
-  import type { RecipeStep, RecipeSummary } from '../../lib/api/types';
+  import type { ExperimentType, GasKey, Recipe, RecipeStep, RecipeSummary } from '../../lib/api/types';
   import { notifier } from '../../lib/state/notify.svelte';
+  import { prefs } from '../../lib/state/prefs.svelte';
+  import { nav } from '../../lib/state/nav.svelte';
   import { errorMessage } from '../../lib/api/client';
-  import { downloadText, fmtTime } from '../../lib/format';
+  import { rules } from '../../lib/state/rules.svelte';
+  import {
+    downloadText, flowsText, fmtFlow, fmtShort, fmtTemp, GAS_COLUMN, GAS_KEYS, GAS_LABEL, stepFlows, TYPE_LABEL,
+    TYPE_SHORT, TYPE_TONE,
+  } from '../../lib/format';
 
   let { online, runActive }: { online: boolean; runActive: boolean } = $props();
 
-  type Draft = { name: string; steps: Partial<RecipeStep>[] };
-  const blankStep = (): Partial<RecipeStep> => ({ target_temp_c: 900, ramp_rate_cpm: 10, hold_seconds: 600, n2_lpm: 8, h2_lpm: 1, co_lpm: 0.8, notes: '' });
+  interface Draft {
+    id: number | null;
+    name: string;
+    experiment_type: ExperimentType;
+    inert_gas: 'N2' | 'AR';
+    purge_lpm: number;
+    purge_seconds: number;
+    description: string;
+    steps: RecipeStep[];
+  }
 
-  let recipes: RecipeSummary[] = $state([]);
+  let recipes = $state<RecipeSummary[]>([]);
   let selectedId = $state<number | null>(null);
-  let draft: Draft = $state({ name: '', steps: [blankStep()] });
-  let loading = $state(false);
+  let recipe = $state<Recipe | null>(null);
+  let draft = $state<Draft | null>(null);
   let saving = $state(false);
   let error = $state('');
+  let confirmSave = $state(false);
   let confirmDelete = $state(false);
   let fileInput: HTMLInputElement | undefined = $state();
 
-  async function load(keep?: number | null) {
-    loading = true;
+  async function load() {
     try {
       recipes = await api.listRecipes();
-      error = '';
-      const target = keep ?? selectedId;
-      if (target && recipes.some((r) => r.id === target)) await select(target);
-      else if (recipes[0] && !selectedId) await select(recipes[0].id);
-      else if (!recipes.length) { selectedId = null; draft = { name: '', steps: [blankStep()] }; }
-    } catch (e) { error = errorMessage(e); } finally { loading = false; }
-  }
-
-  async function select(id: number) {
-    try {
-      const recipe = await api.getRecipe(id);
-      selectedId = id;
-      draft = { name: recipe.name, steps: recipe.steps.map((s) => ({ ...s })) };
+      if (selectedId === null || !recipes.some((r) => r.id === selectedId)) selectedId = recipes[0]?.id ?? null;
       error = '';
     } catch (e) { error = errorMessage(e); }
   }
+  $effect(() => { if (online) void load(); });
+  $effect(() => {
+    const id = selectedId;
+    if (id === null) { recipe = null; return; }
+    api.getRecipe(id).then((r) => { if (selectedId === id) recipe = r; }).catch((e) => (error = errorMessage(e)));
+  });
 
-  function newRecipe() { selectedId = null; draft = { name: '', steps: [blankStep()] }; error = ''; }
-  function addStep() { draft.steps = [...draft.steps, { ...(draft.steps.at(-1) ?? blankStep()), notes: '' }]; }
-  function removeStep(index: number) { if (draft.steps.length > 1) draft.steps = draft.steps.filter((_, i) => i !== index); }
-  function moveStep(index: number, delta: number) {
-    const target = index + delta;
-    if (target < 0 || target >= draft.steps.length) return;
+  function blankStep(n: number, inert: GasKey, flow = 4): RecipeStep {
+    const step = { step_no: n, name: '', target_temp_c: 150, ramp_rate_cpm: 10, hold_seconds: 600, notes: '',
+      n2_lpm: 0, ar_lpm: 0, h2_lpm: 0, co_lpm: 0, co2_lpm: 0, ch4_lpm: 0, o2_lpm: 0 } as RecipeStep;
+    (step as unknown as Record<string, number>)[GAS_COLUMN[inert]] = flow;
+    return step;
+  }
+
+  function newDraft() {
+    draft = {
+      id: null, name: '', experiment_type: 'reduction', inert_gas: 'N2', purge_lpm: 4, purge_seconds: 600, description: '',
+      steps: [
+        { ...blankStep(1, 'N2'), name: '惰性置换' },
+        { ...blankStep(2, 'N2', 3), name: '等温反应', target_temp_c: 900, hold_seconds: 3600 },
+        { ...blankStep(3, 'N2'), name: '惰性处置', target_temp_c: 200, ramp_rate_cpm: 0, hold_seconds: 900 },
+      ],
+    };
+  }
+
+  function editDraft(copy = false) {
+    if (!recipe) return;
+    draft = {
+      id: copy ? null : recipe.id, name: copy ? `${recipe.name} 副本` : recipe.name, experiment_type: recipe.experiment_type,
+      inert_gas: recipe.inert_gas, purge_lpm: recipe.purge_lpm, purge_seconds: recipe.purge_seconds, description: recipe.description,
+      steps: recipe.steps.map((s) => ({ ...s })),
+    };
+  }
+
+  $effect(() => { void rules.load(); });
+  const draftGases = $derived(draft ? [draft.inert_gas as GasKey, ...(rules.processGases(draft.experiment_type) as GasKey[])] : []);
+  const hiddenNonZero = $derived(draft ? draft.steps.some((s) => GAS_KEYS.some((g) => !draftGases.includes(g) && Number((s as unknown as Record<string, number>)[GAS_COLUMN[g]]) > 0)) : false);
+
+  function setInert(gas: 'N2' | 'AR') {
+    if (!draft) return;
+    const from = GAS_COLUMN[draft.inert_gas];
+    const to = GAS_COLUMN[gas];
+    // Move the inert flow to the newly chosen inert gas so the steps stay pure-inert where they were.
+    draft.steps = draft.steps.map((s) => {
+      const copy = { ...s } as unknown as Record<string, number>;
+      copy[to] = copy[from] ?? 0;
+      copy[from] = 0;
+      return copy as unknown as RecipeStep;
+    });
+    draft.inert_gas = gas;
+  }
+
+  function addStep(index: number) {
+    if (!draft) return;
     const steps = [...draft.steps];
+    steps.splice(index + 1, 0, blankStep(index + 2, draft.inert_gas));
+    draft.steps = steps.map((s, i) => ({ ...s, step_no: i + 1 }));
+  }
+  function removeStep(index: number) {
+    if (!draft || draft.steps.length <= 1) return;
+    draft.steps = draft.steps.filter((_, i) => i !== index).map((s, i) => ({ ...s, step_no: i + 1 }));
+  }
+  function moveStep(index: number, delta: number) {
+    if (!draft) return;
+    const steps = [...draft.steps];
+    const target = index + delta;
+    if (target < 0 || target >= steps.length) return;
     [steps[index], steps[target]] = [steps[target]!, steps[index]!];
+    draft.steps = steps.map((s, i) => ({ ...s, step_no: i + 1 }));
+  }
+  function setFlow(index: number, gas: GasKey, value: string) {
+    if (!draft) return;
+    const steps = [...draft.steps];
+    steps[index] = { ...steps[index]!, [GAS_COLUMN[gas]]: Number(value) || 0 } as RecipeStep;
     draft.steps = steps;
   }
 
-  // Immediate feedback only; Python validation is authoritative.
-  const localErrors = $derived.by(() => {
-    const errors: string[] = [];
-    if (!draft.name.trim()) errors.push('请填写配方名称');
-    draft.steps.forEach((s, i) => {
-      if (s.target_temp_c === undefined || Number(s.target_temp_c) < 0 || Number(s.target_temp_c) > 1600) errors.push(`第 ${i + 1} 步目标温度须在 0–1600 ℃`);
-      if (Number(s.hold_seconds) < 0) errors.push(`第 ${i + 1} 步保温时间不能为负`);
-    });
-    return errors;
-  });
-
-  async function save() {
-    if (saving) return;
+  async function save(reason: string) {
+    if (!draft) return;
     saving = true;
     try {
-      const recipe = selectedId ? await api.updateRecipe(selectedId, draft.name, draft.steps) : await api.createRecipe(draft.name, draft.steps);
-      notifier.push('ok', selectedId ? '配方已更新' : '配方已保存', `#${recipe.id} ${recipe.name}`);
-      await load(recipe.id);
-    } catch (e) { error = errorMessage(e); } finally { saving = false; }
+      const payload = { name: draft.name, experiment_type: draft.experiment_type, inert_gas: draft.inert_gas, purge_lpm: Number(draft.purge_lpm),
+        purge_seconds: Number(draft.purge_seconds), description: draft.description, steps: draft.steps, reason, operator: prefs.operator || undefined };
+      const saved = draft.id ? await api.updateRecipe(draft.id, payload) : await api.createRecipe(payload);
+      notifier.push(saved.assessment.runnable ? 'ok' : 'warn', `已保存 ${saved.name} v${saved.version}`, saved.assessment.runnable ? '校验全部通过，可用于实验准备' : `暂不可执行：${saved.assessment.summary}`);
+      draft = null;
+      selectedId = saved.id;
+      recipe = saved;
+      await load();
+    } catch (e) { error = errorMessage(e); } finally { saving = false; confirmSave = false; }
   }
 
   async function remove() {
-    confirmDelete = false;
-    if (!selectedId) return;
+    if (!recipe) return;
     try {
-      await api.deleteRecipe(selectedId);
+      await api.deleteRecipe(recipe.id, prefs.operator || undefined);
       notifier.push('ok', '配方已删除');
       selectedId = null;
-      await load(null);
-    } catch (e) { error = errorMessage(e); }
+      await load();
+    } catch (e) { error = errorMessage(e); } finally { confirmDelete = false; }
   }
 
   async function exportCurrent() {
-    if (!selectedId) return;
-    try {
-      const document = await api.exportRecipe(selectedId);
-      downloadText(`recipe-${selectedId}-${document.name}.json`, JSON.stringify(document, null, 2));
-    } catch (e) { error = errorMessage(e); }
+    if (!recipe) return;
+    try { downloadText(`${recipe.name}.rka-recipe.json`, JSON.stringify(await api.exportRecipe(recipe.id), null, 2)); }
+    catch (e) { error = errorMessage(e); }
   }
-
   async function importFile(file: File) {
     try {
-      const document = JSON.parse(await file.text()) as unknown;
-      const recipe = await api.importRecipe(document);
-      notifier.push('ok', '配方已导入', `#${recipe.id} ${recipe.name}`);
-      await load(recipe.id);
+      const created = await api.importRecipe(JSON.parse(await file.text()) as unknown, undefined, prefs.operator || undefined);
+      notifier.push('ok', '配方已导入', created.assessment.runnable ? created.name : `${created.name}：${created.assessment.summary}`);
+      selectedId = created.id;
+      await load();
     } catch (e) { error = errorMessage(e); }
   }
 
-  onMount(() => { void load(); });
-  $effect(() => { if (online) void load(); });
+  const issues = $derived(recipe?.assessment.step_issues ?? {});
 </script>
 
-<div class="grid sidebar">
-  <section class="panel">
-    <div class="panel-head"><h2>配方列表</h2><div class="row"><button class="btn sm" type="button" onclick={() => load()} disabled={!online || loading}>刷新</button><button class="btn sm accent" type="button" onclick={newRecipe}>新建</button></div></div>
-    <div class="panel-body stack">
-      <div class="row">
-        <button class="btn sm" type="button" onclick={() => fileInput?.click()} disabled={!online}>导入 JSON</button>
-        <button class="btn sm" type="button" onclick={exportCurrent} disabled={!online || !selectedId}>导出 JSON</button>
-        <input class="sr-only" type="file" accept=".json,application/json" bind:this={fileInput} onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void importFile(f); e.currentTarget.value = ''; }} />
-      </div>
-      {#if recipes.length}
-        <div class="table-wrap"><table><thead><tr><th>#</th><th>名称</th><th>更新时间</th></tr></thead><tbody>
-          {#each recipes as recipe}
-            <tr class="clickable" aria-selected={recipe.id === selectedId} onclick={() => select(recipe.id)}><td class="mono">{recipe.id}</td><td>{recipe.name}</td><td class="mono small">{fmtTime(recipe.updated_at)}</td></tr>
-          {/each}
-        </tbody></table></div>
-      {:else}<div class="empty"><strong>还没有配方</strong>点击「新建」创建第一个多步骤配方，或导入 JSON 配方文件。</div>{/if}
+<div class="page-head">
+  <div>
+    <h1>实验配方</h1>
+    <p>配方是实验的输入模板。保存时校验参数范围并评估能否启动；每次保存生成新版本，实验启动时冻结快照，之后修改不影响已启动或已归档的实验。</p>
+  </div>
+  <div class="actions">
+    <button class="btn" type="button" onclick={() => fileInput?.click()} disabled={!online}>导入</button>
+    <input class="sr-only" type="file" accept=".json,application/json" bind:this={fileInput} onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) void importFile(f); e.currentTarget.value = ''; }} />
+    <button class="btn" type="button" disabled={!recipe || draft !== null} onclick={() => editDraft(true)}>复制所选为新配方</button>
+    <button class="btn primary" type="button" disabled={!online || draft !== null} onclick={newDraft}>新建配方</button>
+  </div>
+</div>
+{#if error}<div class="callout danger" role="alert">{error} <button class="linkish" type="button" onclick={() => (error = '')}>关闭</button></div>{/if}
+
+<div class="grid list-detail">
+  <section class="card flush">
+    <div class="card-head"><h2>配方列表 · {recipes.length}</h2></div>
+    <div class="stack tight" style="padding:0 12px 12px">
+      {#each recipes as item (item.id)}
+        <button type="button" class="check" class:on={item.id === selectedId} style="width:100%;text-align:left;grid-template-columns:minmax(0,1fr)"
+          onclick={() => { if (!draft) selectedId = item.id; }} disabled={draft !== null && item.id !== selectedId}>
+          <div>
+            <div class="row between"><strong>{item.name}</strong><Badge tone={item.runnable ? 'good' : 'danger'}>{item.runnable ? '可执行' : '不可执行'}</Badge></div>
+            <span><Badge tone={TYPE_TONE[item.experiment_type]}>{TYPE_SHORT[item.experiment_type]}</Badge> {GAS_LABEL[item.inert_gas]} · v{item.version} · {fmtShort(item.updated_at)}</span>
+          </div>
+        </button>
+      {:else}<div class="empty"><strong>还没有配方</strong>点击“新建配方”开始。</div>{/each}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><h2>{selectedId ? `编辑配方 #${selectedId}` : '新建配方'}</h2>
-      <div class="row">
-        {#if selectedId}<button class="btn sm danger" type="button" onclick={() => (confirmDelete = true)} disabled={!online || runActive}>删除</button>{/if}
-        <button class="btn primary" type="button" onclick={save} disabled={!online || saving || localErrors.length > 0 || (runActive && !!selectedId)}>
-          {#if saving}<span class="spinner" aria-hidden="true"></span>{/if}{selectedId ? '更新配方' : '保存新配方'}
-        </button>
+  {#if draft}
+    <section class="card">
+      <div class="card-head"><h2>{draft.id ? `编辑 ${draft.name}（保存为 v${(recipe?.version ?? 0) + 1}）` : '新建配方'}</h2>
+        <div class="row"><button class="btn" type="button" onclick={() => (draft = null)}>取消</button>
+          <button class="btn primary" type="button" disabled={!online || saving || !draft.name.trim()} onclick={() => (confirmSave = true)}>保存</button></div></div>
+      <div class="stack">
+        <div class="form-grid three">
+          <label class="field"><span>配方名称</span><input bind:value={draft.name} maxlength="100" placeholder="例如 900℃ 等温还原 · CO/H₂" /></label>
+          <div class="field"><span>实验类型</span><Seg label="实验类型" value={draft.experiment_type} onselect={(id) => (draft!.experiment_type = id as ExperimentType)} options={[{ id: 'reduction', label: '还原' }, { id: 'oxidation', label: '氧化' }]} /></div>
+          <div class="field"><span>惰性气（置换、吹扫、处置共用）</span><Seg label="惰性气" value={draft.inert_gas} onselect={(id) => setInert(id as 'N2' | 'AR')} options={[{ id: 'N2', label: 'N₂' }, { id: 'AR', label: 'Ar' }]} /></div>
+          <label class="field"><span>吹扫流量 · L/min</span><input class="mono" type="number" min="0" step="0.01" bind:value={draft.purge_lpm} /></label>
+          <label class="field"><span>置换时长 · s</span><input class="mono" type="number" min="0" step="1" bind:value={draft.purge_seconds} /><span class="hint">首尾纯惰性段须不短于此值</span></label>
+          <label class="field"><span>说明（可选）</span><input bind:value={draft.description} maxlength="500" /></label>
+        </div>
+        {#if hiddenNonZero}<div class="callout warn">部分阶段含有本类型不允许的气体流量，保存后将判为不可执行。切回对应实验类型可查看与修改。</div>{/if}
+        <div class="table-wrap">
+          <table class="data" style="min-width:1040px">
+            <thead><tr><th>#</th><th>阶段名称</th><th>目标 ℃</th><th>℃/min</th><th>保持 s</th>
+              {#each draftGases as gas}<th>{GAS_LABEL[gas]}{gas === draft.inert_gas ? '（惰性）' : ''}</th>{/each}<th></th></tr></thead>
+            <tbody>
+              {#each draft.steps as step, i}
+                <tr>
+                  <td class="mono">{step.step_no}</td>
+                  <td><input bind:value={step.name} maxlength="40" placeholder={i === 0 ? '惰性置换' : i === draft.steps.length - 1 ? '惰性处置' : '反应段'} style="font-family:var(--font-ui)" aria-label="阶段名称" /></td>
+                  <td><input type="number" min="0" max="1600" bind:value={step.target_temp_c} aria-label="目标温度" /></td>
+                  <td><input type="number" min="0" max="100" step="0.1" bind:value={step.ramp_rate_cpm} aria-label="升温速率" /></td>
+                  <td><input type="number" min="0" step="1" bind:value={step.hold_seconds} aria-label="保持时间" /></td>
+                  {#each draftGases as gas}
+                    <td><input type="number" min="0" step="0.01" value={(step as unknown as Record<string, number>)[GAS_COLUMN[gas]] ?? 0}
+                      oninput={(e) => setFlow(i, gas, e.currentTarget.value)} aria-label={`${GAS_LABEL[gas]} 流量`} /></td>
+                  {/each}
+                  <td class="nowrap" style="width:1%">
+                    <button class="btn sm" type="button" aria-label="上移" disabled={i === 0} onclick={() => moveStep(i, -1)}>↑</button>
+                    <button class="btn sm" type="button" aria-label="下移" disabled={i === draft.steps.length - 1} onclick={() => moveStep(i, 1)}>↓</button>
+                    <button class="btn sm" type="button" aria-label="在下方插入阶段" onclick={() => addStep(i)}>＋</button>
+                    <button class="btn sm" type="button" aria-label="删除阶段" disabled={draft.steps.length <= 1} onclick={() => removeStep(i)}>×</button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+        <p class="tiny soft">可执行规则：至少 3 段（惰性置换 · 反应 · 惰性收尾）；首尾段只开惰性气且不短于置换时长；每段 ≤ 使用上限；气体符合实验类型；温度程序模式下最多 4 段。不满足也可保存，但在实验准备中不可选。</p>
+      </div>
+    </section>
+  {:else if recipe}
+    <div class="stack">
+      <section class="card flush">
+        <div class="card-head">
+          <div><h2>{recipe.name}</h2>
+            <p>{TYPE_LABEL[recipe.experiment_type]} · 惰性气 {GAS_LABEL[recipe.inert_gas]} · 吹扫 {fmtFlow(recipe.purge_lpm)} L/min × {recipe.purge_seconds} s · v{recipe.version} · 更新 {fmtShort(recipe.updated_at)}</p></div>
+          <Badge tone={recipe.assessment.runnable ? 'good' : 'danger'}>{recipe.assessment.runnable ? '可执行' : '不可执行'}</Badge>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>#</th><th>阶段</th><th class="num">目标 ℃</th><th class="num">℃/min</th><th class="num">保持 s</th><th>气体 L/min</th><th>校验</th></tr></thead>
+            <tbody>
+              {#each recipe.steps as step}
+                <tr><td class="mono">{step.step_no}</td><td>{step.name || `第 ${step.step_no} 段`}</td><td class="num mono">{fmtTemp(step.target_temp_c)}</td>
+                  <td class="num mono">{step.ramp_rate_cpm}</td><td class="num mono">{step.hold_seconds}</td><td>{flowsText(stepFlows(step))}</td>
+                  <td>{#if issues[String(step.step_no)]}<Badge tone="danger">{issues[String(step.step_no)]!.join('；')}</Badge>{:else}<Badge tone="good">通过</Badge>{/if}</td></tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:12px 16px 16px" class="stack tight">
+          <div class={`callout ${recipe.assessment.runnable ? 'good' : 'danger'}`}>
+            {recipe.assessment.runnable ? '校验全部通过。' : recipe.assessment.summary}
+            {#if recipe.experiment_count}该配方已被 {recipe.experiment_count} 次实验引用；再次保存会生成 v{recipe.version + 1}，不影响这些实验的快照。{/if}
+          </div>
+          <div class="row">
+            <button class="btn" type="button" disabled={!online || runActive && recipe.running} onclick={() => editDraft(false)}>编辑阶段</button>
+            <button class="btn" type="button" onclick={exportCurrent}>导出</button>
+            <button class="btn primary" type="button" disabled={!recipe.assessment.runnable} onclick={() => nav.go('preflight')}>用于实验准备</button>
+            <span class="fill"></span>
+            <button class="btn sm danger-ghost" type="button" disabled={!online || recipe.running} onclick={() => (confirmDelete = true)}>删除</button>
+          </div>
+          {#if recipe.running}<p class="tiny soft">该配方正在被运行中的实验使用，不能修改或删除。</p>{/if}
+        </div>
+      </section>
+      <div class="grid halves">
+        <section class="card">
+          <h2 style="margin-bottom:6px">保存时的校验规则</h2>
+          <div class="checks">
+            {#each recipe.assessment.checks as check}
+              <div class="item"><div><strong>{check.label}</strong><span>{check.detail}</span></div><Badge tone={check.ok ? 'good' : 'danger'}>{check.ok ? '通过' : '未通过'}</Badge></div>
+            {/each}
+          </div>
+          <p class="tiny soft" style="margin-top:8px">按使用上限策略 v{recipe.limits_version} 评估。</p>
+        </section>
+        <section class="card">
+          <h2 style="margin-bottom:6px">版本历史</h2>
+          {#each recipe.versions as version}
+            <div class="ev"><time>v{version.version}</time><strong>{version.reason || '—'}</strong><span>{version.actor || '—'} · {fmtShort(version.created_at)}</span></div>
+          {/each}
+          <p class="tiny soft" style="margin-top:8px">历史实验引用的是版本快照，可在历史实验中查看该次实验使用的具体版本。</p>
+        </section>
       </div>
     </div>
-    <div class="panel-body stack">
-      {#if runActive}<div class="notice" data-tone="info">实验运行中：可以查看和新建配方，但正在使用的配方不能修改或删除。</div>{/if}
-      {#if error}<div class="notice" data-tone="danger" role="alert"><div><div class="title">操作未完成</div><div>{error}</div></div><button class="close" type="button" aria-label="关闭" onclick={() => (error = '')}>×</button></div>{/if}
-      <label class="field"><span>配方名称</span><input bind:value={draft.name} maxlength="100" placeholder="例如：高温还原-标准流程" aria-invalid={!draft.name.trim()} /></label>
-      <div class="table-wrap" style="max-height:none"><table>
-        <thead><tr><th>步骤</th><th>目标温度 ℃</th><th>升温速率 ℃/min</th><th>保温 s</th><th>N₂ L/min</th><th>H₂ L/min</th><th>CO L/min</th><th>备注</th><th></th></tr></thead>
-        <tbody>
-          {#each draft.steps as step, i}
-            <tr>
-              <td class="mono">{i + 1}</td>
-              <td><input type="number" min="0" max="1600" step="1" bind:value={step.target_temp_c} aria-label="目标温度" /></td>
-              <td><input type="number" min="0" max="100" step="0.1" bind:value={step.ramp_rate_cpm} aria-label="升温速率" /></td>
-              <td><input type="number" min="0" step="1" bind:value={step.hold_seconds} aria-label="保温秒" /></td>
-              <td><input type="number" min="0" max="50" step="0.01" bind:value={step.n2_lpm} aria-label="N2" /></td>
-              <td><input type="number" min="0" max="50" step="0.01" bind:value={step.h2_lpm} aria-label="H2" /></td>
-              <td><input type="number" min="0" max="50" step="0.01" bind:value={step.co_lpm} aria-label="CO" /></td>
-              <td><input bind:value={step.notes} maxlength="500" aria-label="备注" /></td>
-              <td style="white-space:nowrap">
-                <button class="btn sm" type="button" title="上移" aria-label="上移" onclick={() => moveStep(i, -1)} disabled={i === 0}>↑</button>
-                <button class="btn sm" type="button" title="下移" aria-label="下移" onclick={() => moveStep(i, 1)} disabled={i === draft.steps.length - 1}>↓</button>
-                <button class="btn sm" type="button" title="删除步骤" aria-label="删除步骤" onclick={() => removeStep(i)} disabled={draft.steps.length === 1}>×</button>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table></div>
-      <div class="row"><button class="btn sm" type="button" onclick={addStep}>新增步骤</button>
-        <span class="muted small">温度程序模式下，控温仪一次最多接收 4 个步骤（8 段）；更长的配方需在设置中改为逐步设定模式。</span></div>
-      {#if localErrors.length}<ul class="small" style="color:var(--danger);margin:0;padding-left:18px">{#each localErrors as item}<li>{item}</li>{/each}</ul>{/if}
-    </div>
-  </section>
+  {:else}
+    <section class="card"><div class="empty"><strong>选择或新建一个配方</strong></div></section>
+  {/if}
 </div>
 
-<ConfirmDialog open={confirmDelete} title="删除配方" message={`删除配方 #${selectedId}「${draft.name}」？历史实验仍保留，但不再关联此配方名称。`} confirmLabel="删除" tone="danger" onconfirm={remove} oncancel={() => (confirmDelete = false)} />
+<ConfirmDialog open={confirmSave} busy={saving} title={draft?.id ? `保存为 v${(recipe?.version ?? 0) + 1}？` : '新建配方？'} confirmLabel="保存"
+  message="保存后立即重新评估可执行性。运行中实验的配方快照不受影响。"
+  input={draft?.id ? { label: '修改原因（必填，记入版本历史）', minLength: 2, placeholder: '例如 等温段 H₂ 0.80 → 1.00' } : { label: '说明（可选）' }}
+  onconfirm={save} oncancel={() => (confirmSave = false)} />
+<ConfirmDialog open={confirmDelete} tone="danger" title="删除配方？" confirmLabel="删除"
+  message={`将删除 ${recipe?.name ?? ''} 及其版本历史。已运行实验保存了自己的配方快照，不受影响。`}
+  onconfirm={remove} oncancel={() => (confirmDelete = false)} />

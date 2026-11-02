@@ -5,23 +5,27 @@ import type { RunState } from '../api/types';
 function state(status: RunState['status'], extra: Partial<RunState> = {}): RunState {
   return {
     seq: 0, status, pending_terminal: null, engine_state: 'RUNNING', run_id: 'r1', experiment_id: 1, recipe_id: 1,
-    recipe_name: 'x', started_at: null, finished_at: null, error: null, current_step_no: 1, total_steps: 1,
+    recipe_name: 'x', started_at: null, finished_at: null, elapsed_s: 0, error: null, current_step_no: 1, total_steps: 3,
     current_step: null, status_text: '', setpoints_text: '', gas_mode: 'auto', temperature_mode: 'program',
-    temperature_program: null, manual_gas: null, alarm: { word: 0, text: '正常', active: [] },
+    temperature_program: null, manual_gas: null, experiment: null, steps: [], step_progress: null, purge: null,
+    end_reason: null, end_reason_text: null, end_detail: null, emergency: false, gases: [], live: null, last_command: null,
+    alarm: { word: 0, text: '正常', active: [] },
     interlock: { word: 0, text: '无联锁', estop: false, resettable: false, active: [] },
     control_feedback: { word: 0, estop_status: 0, consistent: true, message: '' }, pending_alarms: [],
-    degraded_devices: [], latest: null, allowed: {
-      start: false, pause: true, resume: false, stop: true, ack_alarm: false, reset_interlock: false, set_gas_mode: true, manual_gas: false,
-    }, connected: true, messages: [], ...extra,
+    degraded_devices: [], stale_devices: [], latest: null, allowed: {
+      start: false, pause: false, resume: false, stop: true, emergency: true, ack_alarm: false, reset_interlock: false,
+      set_gas_mode: true, manual_gas: false,
+    }, blocked: {}, connected: true, events: [], ...extra,
   };
 }
 
 const noTimers = { setTimer: () => 0, clearTimer: () => undefined };
+const noEmergency = { emergency: async () => state('purging', { emergency: true }) };
 
 describe('RunSession', () => {
   it('ignores a second command while one is in flight', async () => {
     let current = state('running');
-    const session = new RunSession({ runState: async () => current, measurements: async () => ({ seq: 0, items: [] }), ...noTimers });
+    const session = new RunSession({ runState: async () => current, measurements: async () => ({ seq: 0, items: [] }), ...noEmergency, ...noTimers });
     let resolve!: (value: RunState) => void;
     const first = session.act('pause', () => new Promise<RunState>((r) => { resolve = r; }));
     const second = await session.act('pause', async () => state('paused'));
@@ -34,10 +38,27 @@ describe('RunSession', () => {
     expect(session.state?.status).toBe('paused');
   });
 
+  it('sends the emergency stop even while another command is in flight', async () => {
+    let emergencyCalls = 0;
+    let backend = state('running');
+    const session = new RunSession({
+      runState: async () => backend, measurements: async () => ({ seq: 0, items: [] }), ...noTimers,
+      emergency: async () => { emergencyCalls += 1; backend = state('purging', { emergency: true }); return backend; },
+    });
+    const slow = session.act('manual-gas', () => new Promise<RunState>(() => undefined));
+    expect(session.busy).toBe('manual-gas');
+    expect(await session.emergency()).toBe(true);
+    expect(emergencyCalls).toBe(1);
+    expect(session.state?.status).toBe('purging');
+    expect(session.active).toBe(true);
+    expect(session.inRun).toBe(false);
+    void slow;
+  });
+
   it('keeps stopRequested until the run leaves the active set and surfaces failures', async () => {
-    let status: RunState['status'] = 'stopping';
-    const session = new RunSession({ runState: async () => state(status), measurements: async () => ({ seq: 0, items: [] }), ...noTimers });
-    await session.act('stop', async () => state('stopping'));
+    let status: RunState['status'] = 'purging';
+    const session = new RunSession({ runState: async () => state(status), measurements: async () => ({ seq: 0, items: [] }), ...noEmergency, ...noTimers });
+    await session.act('stop', async () => state('purging'));
     session.stopRequested = true;
     await session.poll();
     expect(session.stopRequested).toBe(true);
@@ -58,7 +79,7 @@ describe('RunSession', () => {
         const items = since < seq ? [{ seq, sampled_at: 't', temperature_c: 1, weight_g: 1, pressure_mpa: 0, n2_lpm: 0, h2_lpm: 0, co_lpm: 0 }] : [];
         return { seq, items };
       },
-      ...noTimers,
+      ...noEmergency, ...noTimers,
     });
     seq = 1;
     await session.poll();
@@ -75,7 +96,7 @@ describe('RunSession', () => {
     let fail = false;
     const session = new RunSession({
       runState: async () => { if (fail) throw new Error('unreachable'); return state('running'); },
-      measurements: async () => ({ seq: 0, items: [] }), ...noTimers,
+      measurements: async () => ({ seq: 0, items: [] }), ...noEmergency, ...noTimers,
     });
     await session.poll();
     fail = true;

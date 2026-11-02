@@ -2,116 +2,143 @@
   import { onMount } from 'svelte';
   import Toasts from './components/Toasts.svelte';
   import Badge from './components/Badge.svelte';
+  import Icon from './components/Icon.svelte';
   import { Connection } from './lib/state/connection.svelte';
   import { RunSession } from './lib/state/run.svelte';
-  import { runStatusLabel, runStatusTone } from './lib/format';
-  import RunPage from './features/run/RunPage.svelte';
+  import { prefs, THEMES } from './lib/state/prefs.svelte';
+  import { nav, NAV } from './lib/state/nav.svelte';
+  import * as api from './lib/api/endpoints';
+  import type { Overview } from './lib/api/types';
+  import { DEVICE_LABEL, runStatusLabel, runStatusTone } from './lib/format';
+  import OverviewPage from './features/overview/OverviewPage.svelte';
+  import PreflightPage from './features/preflight/PreflightPage.svelte';
+  import CurrentPage from './features/run/CurrentPage.svelte';
   import RecipesPage from './features/recipes/RecipesPage.svelte';
-  import DevicesPage from './features/devices/DevicesPage.svelte';
-  import AnalysisPage from './features/analysis/AnalysisPage.svelte';
   import HistoryPage from './features/history/HistoryPage.svelte';
-  import LogsPage from './features/logs/LogsPage.svelte';
+  import AlarmsPage from './features/alarms/AlarmsPage.svelte';
+  import DevicesPage from './features/devices/DevicesPage.svelte';
+  import AuditPage from './features/audit/AuditPage.svelte';
+  import AnalysisPage from './features/analysis/AnalysisPage.svelte';
+  import ReportsPage from './features/reports/ReportsPage.svelte';
   import SettingsPage from './features/settings/SettingsPage.svelte';
-
-  type Page = 'run' | 'recipes' | 'devices' | 'analysis' | 'history' | 'logs' | 'settings';
-  const pages: { id: Page; label: string }[] = [
-    { id: 'run', label: '运行监控' }, { id: 'recipes', label: '配方' }, { id: 'devices', label: '设备' },
-    { id: 'analysis', label: '数据分析' }, { id: 'history', label: '历史' }, { id: 'logs', label: '报警与日志' },
-    { id: 'settings', label: '设置' },
-  ];
 
   const connection = new Connection();
   const run = new RunSession();
-  let page: Page = $state('run');
-  let theme: 'light' | 'dark' | 'system' = $state('system');
+  let summary = $state<Overview | null>(null);
+  let now = $state(new Date());
+  let summaryTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function applyTheme(value: typeof theme) {
-    theme = value;
-    if (value === 'system') delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = value;
-    try { localStorage.setItem('rka3000-theme', value); } catch { /* ignore */ }
+  async function refreshSummary() {
+    clearTimeout(summaryTimer);
+    if (connection.online) {
+      try { summary = await api.overview(); } catch { /* shown by the connection banner */ }
+    }
+    summaryTimer = setTimeout(refreshSummary, 4000);
   }
 
   onMount(() => {
-    try {
-      const saved = localStorage.getItem('rka3000-theme') as typeof theme | null;
-      if (saved === 'light' || saved === 'dark') applyTheme(saved);
-    } catch { /* ignore */ }
+    prefs.load();
     void connection.start();
     run.start();
-    return () => { connection.dispose(); run.dispose(); };
+    void refreshSummary();
+    const clock = setInterval(() => (now = new Date()), 1000);
+    return () => { connection.dispose(); run.dispose(); clearInterval(clock); clearTimeout(summaryTimer); };
   });
 
-  const pendingAlarms = $derived(run.state?.pending_alarms.length ?? 0);
+  const pendingAlarms = $derived(run.state?.pending_alarms.length ?? summary?.pending_alarms.length ?? 0);
+  const pendingReview = $derived(summary?.counts.pending ?? 0);
+  const stale = $derived(run.state?.stale_devices ?? []);
   const connectionLabel = $derived(
-    connection.phase === 'online' ? (connection.health?.simulation_mode ? '本地服务在线 · 仿真' : '本地服务在线 · 实机')
-    : connection.phase === 'connecting' ? '正在连接本地服务…'
+    connection.phase === 'online' ? '' : connection.phase === 'connecting' ? '正在连接本地服务…'
     : connection.phase === 'retrying' ? `重连中 (${connection.attempts}/${connection.maxAttempts})`
     : connection.phase === 'exited' ? '业务服务已退出' : '本地服务不可用');
-  const connectionTone = $derived(connection.phase === 'online' ? 'ok' : connection.phase === 'connecting' || connection.phase === 'retrying' ? 'busy' : 'danger');
+  const themeName = $derived(THEMES.find((t) => t.id === prefs.effectiveTheme())?.label ?? '');
+  const nextTheme = $derived(({ light: '深色', dark: '科技蓝', blue: '浅色' } as const)[prefs.effectiveTheme()]);
+  const clock = $derived(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.toLocaleTimeString('zh-CN', { hour12: false })}`);
+  const limitsLocked = $derived(Boolean(run.active || pendingReview));
+  const navCount = (id: string) => id === 'alarms' ? pendingAlarms : id === 'analysis' ? pendingReview : 0;
 </script>
 
 <svelte:head><title>RKA-3000 实验系统</title></svelte:head>
 
 <div class="shell">
-  <header class="topbar">
+  <aside class="sidebar">
     <div class="brand">
-      <img src="/icon.png" alt="" />
-      <div>
-        <div class="eyebrow">USTB · RKA-3000</div>
-        <h1>铁矿石氧化/还原动力学实验系统</h1>
-      </div>
+      <div class="mark" aria-hidden="true">R</div>
+      <div><div class="name">RKA-3000</div><div class="sub">实验控制工作台</div></div>
     </div>
-    <div class="topbar-right">
-      {#if run.state && run.state.status !== 'idle'}
-        <Badge tone={runStatusTone[run.state.status]}>实验 {runStatusLabel[run.state.status]}</Badge>
+    <nav class="nav" aria-label="主导航">
+      {#each NAV as group}
+        <div class="group">
+          <p class="group-title">{group.title}</p>
+          {#each group.items as item}
+            <button type="button" aria-current={nav.page === item.id ? 'page' : undefined} onclick={() => nav.go(item.id)}>
+              <Icon name={item.id} />{item.label}
+              {#if navCount(item.id)}<b class={`count${item.id === 'analysis' ? ' warn' : ''}`}>{navCount(item.id)}</b>{/if}
+            </button>
+          {/each}
+        </div>
+      {/each}
+    </nav>
+    <div class="sidebar-foot">
+      <strong>{prefs.operator || '未设置操作者'}</strong> · 当前操作者<br />
+      使用上限策略 v{summary?.limits_version ?? '…'} · {limitsLocked ? '实验未归档，已锁定' : '待机可配置'}<br />
+      v{connection.health?.version ?? '…'}{connection.health?.simulation_mode ? ' · 仿真模式' : ''}
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="crumb">{nav.crumb()}</span>
+      <span class="fill"></span>
+      <button type="button" class="tgl" onclick={() => prefs.cycleTheme()} title={`当前：${themeName}`}><i aria-hidden="true"></i>切换：{nextTheme}</button>
+      {#if run.state && run.active}
+        <Badge tone={runStatusTone[run.state.status]} live={run.active}>{runStatusLabel[run.state.status]}</Badge>
       {/if}
-      <Badge tone={connectionTone}>{connectionLabel}</Badge>
-      <label class="small" style="display:flex;gap:6px;align-items:center;opacity:.85">主题
-        <select class="input" style="min-height:30px;padding:2px 6px;width:auto" value={theme} onchange={(e) => applyTheme(e.currentTarget.value as typeof theme)}>
-          <option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option>
-        </select>
-      </label>
-      <span class="small" style="opacity:.75">v{connection.health?.version ?? '…'}</span>
-    </div>
-  </header>
+      {#if !connection.online}
+        <Badge tone={connection.phase === 'exited' || connection.phase === 'offline' ? 'danger' : 'warn'} dot>{connectionLabel}</Badge>
+      {:else if stale.length}
+        <Badge tone="warn" dot>回读过期：{stale.map((d) => DEVICE_LABEL[d] ?? d).join('、')}</Badge>
+      {:else}
+        <Badge tone="good" dot>{run.active ? '回读正常' : '本地服务在线'}{connection.health?.simulation_mode ? ' · 仿真' : ''}</Badge>
+      {/if}
+      {#if pendingAlarms}
+        <button type="button" class="badge warn" style="border:0" onclick={() => nav.go('alarms')}>{pendingAlarms} 条待确认报警</button>
+      {/if}
+      <span class="clock mono">{clock}</span>
+    </header>
 
-  <nav class="nav" aria-label="功能页">
-    {#each pages as item}
-      <button type="button" aria-current={page === item.id ? 'page' : undefined} onclick={() => (page = item.id)}>
-        {item.label}{#if item.id === 'logs' && pendingAlarms}<span class="badge" data-tone="danger">{pendingAlarms}</span>{/if}
-      </button>
-    {/each}
-  </nav>
-
-  <main class="content">
-    {#if connection.phase !== 'online'}
-      <div class="notice" data-tone={connection.phase === 'exited' || connection.phase === 'offline' ? 'danger' : 'info'} role="alert" style="margin-bottom:16px">
-        <div>
-          <div class="title">{connectionLabel}</div>
+    <main class="content">
+      {#if !connection.online}
+        <div class={`callout ${connection.phase === 'exited' || connection.phase === 'offline' ? 'danger' : 'warn'}`} role="alert">
+          <strong>{connectionLabel}</strong>
           {#if connection.phase === 'offline' || connection.phase === 'exited'}
-            <div>{connection.error || '无法连接本地业务服务。'}</div>
-            <div class="small" style="margin-top:6px">
-              请检查程序目录中的 rka3000-backend 是否完整；日志位于用户数据目录的 logs 子目录。
-              {#if connection.phase === 'offline'}<button class="btn sm" type="button" style="margin-left:8px" onclick={() => connection.retry()}>重试连接</button>{/if}
-            </div>
+            <div>{connection.error || '无法连接本地业务服务。'} 请检查程序目录中的 rka3000-backend 是否完整；日志位于用户数据目录的 logs 子目录。</div>
+            {#if connection.phase === 'offline'}<div class="actions"><button class="btn sm" type="button" onclick={() => connection.retry()}>重试连接</button></div>{/if}
           {:else}
-            <div class="small">界面已就绪，等待业务服务响应；数据将在连接恢复后自动刷新。</div>
+            <div>界面已就绪，等待业务服务响应；数据将在连接恢复后自动刷新。</div>
           {/if}
         </div>
-      </div>
-    {/if}
-    {#if connection.health?.restart_required}
-      <div class="notice" data-tone="warn" role="status" style="margin-bottom:16px"><div><div class="title">设置已保存，需重启程序后生效</div><div class="small">设备通路、串口、存储与采集周期相关设置在下次启动时应用。</div></div></div>
-    {/if}
+      {/if}
+      {#if connection.health?.restart_required}
+        <div class="callout warn" role="status"><strong>设置已保存，需重启程序后生效。</strong> 设备通路、串口、存储与采集周期相关设置在下次启动时应用。</div>
+      {/if}
+      {#if connection.health?.notes?.length && nav.page === 'overview'}
+        <div class="callout" role="status">{#each connection.health.notes as note}<div>{note}</div>{/each}</div>
+      {/if}
 
-    {#if page === 'run'}<RunPage {run} online={connection.online} />
-    {:else if page === 'recipes'}<RecipesPage online={connection.online} runActive={run.active} />
-    {:else if page === 'devices'}<DevicesPage online={connection.online} runActive={run.active} />
-    {:else if page === 'analysis'}<AnalysisPage online={connection.online} />
-    {:else if page === 'history'}<HistoryPage online={connection.online} activeExperimentId={run.active ? run.state?.experiment_id ?? null : null} />
-    {:else if page === 'logs'}<LogsPage online={connection.online} {run} />
-    {:else}<SettingsPage online={connection.online} health={connection.health} runActive={run.active} onsaved={() => connection.probe()} />{/if}
-  </main>
+      {#if nav.page === 'overview'}<OverviewPage {run} {summary} online={connection.online} />
+      {:else if nav.page === 'preflight'}<PreflightPage {run} online={connection.online} />
+      {:else if nav.page === 'current'}<CurrentPage {run} online={connection.online} />
+      {:else if nav.page === 'recipes'}<RecipesPage online={connection.online} runActive={run.active} />
+      {:else if nav.page === 'history'}<HistoryPage online={connection.online} />
+      {:else if nav.page === 'alarms'}<AlarmsPage {run} online={connection.online} />
+      {:else if nav.page === 'devices'}<DevicesPage {run} online={connection.online} />
+      {:else if nav.page === 'audit'}<AuditPage online={connection.online} />
+      {:else if nav.page === 'analysis'}<AnalysisPage online={connection.online} onarchived={refreshSummary} />
+      {:else if nav.page === 'reports'}<ReportsPage online={connection.online} />
+      {:else}<SettingsPage online={connection.online} health={connection.health} runActive={run.active} onsaved={() => connection.probe()} />{/if}
+    </main>
+  </div>
 </div>
 <Toasts />

@@ -25,14 +25,17 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from rka_desktop import API_VERSION
-from rka_desktop.application.analysis_service import AnalysisError
+from rka_desktop.application.analysis_service import AnalysisError, ExperimentArchived
 from rka_desktop.application.device_service import DeviceBusy, DeviceUnsupported
-from rka_desktop.application.experiment_runner import RunConflict, RunStateError
+from rka_desktop.application.experiment_runner import PreflightFailed, RunConflict, RunStateError
 from rka_desktop.application.history_service import ExperimentBusy
+from rka_desktop.application.limits_service import LimitsLocked
 from rka_desktop.application.recipe_service import RecipeInUse
+from rka_desktop.application.review_service import ArchiveRefused
 from rka_desktop.application.tasks import TaskConflict
 from rka_desktop.bootstrap import RESTART_REQUIRED_KEYS, AppContainer, build_container, load_config
 from rka_desktop.domain.control import ConfirmationRequired, ControlModeError
+from rka_desktop.domain.limits import LimitError
 from rka_desktop.domain.recipe import RecipeValidationError
 from rka_desktop.infrastructure.comm.exceptions import DeviceCommError
 from rka_desktop.infrastructure.config import ConfigError
@@ -177,7 +180,10 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._error(exc.status, exc.code, exc.message, exc.detail)
         except ConfirmationRequired as exc:
             self._error(409, "confirmation_required", str(exc))
-        except (RunConflict, TaskConflict, DeviceBusy, RecipeInUse, ExperimentBusy) as exc:
+        except PreflightFailed as exc:
+            self._error(409, "preflight_failed", str(exc), exc.detail)
+        except (RunConflict, TaskConflict, DeviceBusy, RecipeInUse, ExperimentBusy, LimitsLocked, ArchiveRefused,
+                ExperimentArchived) as exc:
             self._error(409, "conflict", str(exc))
         except RunStateError as exc:
             self._error(409, "invalid_state", str(exc))
@@ -185,7 +191,8 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._error(409, "unsupported", str(exc))
         except LookupError as exc:
             self._error(404, "not_found", str(exc) or "资源不存在")
-        except (RecipeValidationError, ControlModeError, AnalysisError, ConfigError, ValueError, TypeError, KeyError) as exc:
+        except (RecipeValidationError, ControlModeError, AnalysisError, ConfigError, LimitError, ValueError, TypeError,
+                KeyError) as exc:
             self._error(400, "invalid_request", str(exc) or exc.__class__.__name__)
         except DeviceCommError as exc:
             logger.warning("device error: %s", exc)
@@ -214,13 +221,28 @@ def put_settings(h: ApiHandler, p, q) -> tuple[int, Any]:
     return 200, _container(h).update_config(h._read_object())
 
 
+def _actor(body: dict[str, Any]) -> str | None:
+    value = body.get("operator")
+    return value if isinstance(value, str) else None
+
+
+def _query_str(query: dict[str, list[str]], key: str) -> str | None:
+    values = query.get(key)
+    return values[0] if values and values[0] != "" else None
+
+
+def _query_opt_int(query: dict[str, list[str]], key: str) -> int | None:
+    value = _query_str(query, key)
+    return _int(value, key) if value is not None else None
+
+
 def list_recipes(h, p, q):
     return 200, {"recipes": _container(h).recipes.list_recipes()}
 
 
 def create_recipe(h, p, q):
     body = h._read_object()
-    return 201, {"recipe": _container(h).recipes.create_recipe(body.get("name"), body.get("steps"))}
+    return 201, {"recipe": _container(h).recipes.create_recipe(body, actor=_actor(body))}
 
 
 def get_recipe(h, p, q):
@@ -229,11 +251,12 @@ def get_recipe(h, p, q):
 
 def update_recipe(h, p, q):
     body = h._read_object()
-    return 200, {"recipe": _container(h).recipes.update_recipe(_int(p["id"], "id"), body.get("name"), body.get("steps"))}
+    return 200, {"recipe": _container(h).recipes.update_recipe(_int(p["id"], "id"), body, actor=_actor(body))}
 
 
 def delete_recipe(h, p, q):
-    _container(h).recipes.delete_recipe(_int(p["id"], "id"))
+    body = h._read_object(required=False)
+    _container(h).recipes.delete_recipe(_int(p["id"], "id"), actor=_actor(body))
     return 200, {"ok": True}
 
 
@@ -241,11 +264,37 @@ def export_recipe(h, p, q):
     return 200, {"document": _container(h).recipes.export_recipe(_int(p["id"], "id"))}
 
 
+def recipe_versions(h, p, q):
+    return 200, {"versions": _container(h).recipes.versions(_int(p["id"], "id"))}
+
+
 def import_recipe(h, p, q):
     body = h._read_object()
     document = body.get("document", body)
     name = body.get("name") if "document" in body else None
-    return 201, {"recipe": _container(h).recipes.import_recipe(document, name_override=name)}
+    return 201, {"recipe": _container(h).recipes.import_recipe(document, name_override=name, actor=_actor(body))}
+
+
+def get_limits(h, p, q):
+    return 200, _container(h).limits.describe()
+
+
+def preview_limits(h, p, q):
+    body = h._read_object()
+    return 200, _container(h).limits.preview(body.get("limits"))
+
+
+def put_limits(h, p, q):
+    body = h._read_object()
+    return 200, _container(h).limits.apply(body.get("limits"), body.get("reason"), actor=_actor(body))
+
+
+def get_overview(h, p, q):
+    return 200, _container(h).overview()
+
+
+def get_rules(h, p, q):
+    return 200, _container(h).rules()
 
 
 def run_state(h, p, q):
@@ -257,13 +306,17 @@ def run_measurements(h, p, q):
     return 200, runner.measurements_since(_query_int(q, "since", 0), limit=min(_query_int(q, "limit", 600), 1800))
 
 
+def run_preflight(h, p, q):
+    return 200, _container(h).runner.preflight(h._read_object(required=False))
+
+
 def run_start(h, p, q):
     body = h._read_object()
-    recipe_id = body.get("recipe_id")
-    if type(recipe_id) is not int:
+    if type(body.get("recipe_id")) is not int:
         raise ApiError(400, "invalid_request", "recipe_id 必须是整数")
-    gas_mode = body.get("gas_mode")
-    return 202, _container(h).runner.start(recipe_id, gas_mode=gas_mode if isinstance(gas_mode, str) else None)
+    if body.get("gas_mode") is not None and not isinstance(body.get("gas_mode"), str):
+        raise ApiError(400, "invalid_request", "gas_mode 必须是 auto 或 manual")
+    return 202, _container(h).runner.start(body)
 
 
 def run_pause(h, p, q):
@@ -275,11 +328,29 @@ def run_resume(h, p, q):
 
 
 def run_stop(h, p, q):
-    return 202, _container(h).runner.stop()
+    body = h._read_object(required=False)
+    if not _bool(body.get("confirm")):
+        raise ConfirmationRequired("提前结束实验需要确认")
+    reason = body.get("reason")
+    return 202, _container(h).runner.stop(reason if isinstance(reason, str) else None)
+
+
+def run_emergency(h, p, q):
+    # Deliberately no confirmation: the emergency gas stop executes on the first request.
+    return 202, _container(h).runner.emergency_stop()
 
 
 def run_ack(h, p, q):
-    return 200, _container(h).runner.acknowledge_alarm()
+    body = h._read_object(required=False)
+    alarm_id = body.get("alarm_id")
+    if alarm_id is not None and type(alarm_id) is not int:
+        raise ApiError(400, "invalid_request", "alarm_id 必须是整数")
+    return 200, _container(h).runner.acknowledge_alarm(alarm_id, str(body.get("note") or ""), _actor(body))
+
+
+def ack_alarm(h, p, q):
+    body = h._read_object()
+    return 200, _container(h).runner.acknowledge_alarm(_int(p["id"], "id"), str(body.get("note") or ""), _actor(body))
 
 
 def run_reset_interlock(h, p, q):
@@ -296,8 +367,11 @@ def run_gas_mode(h, p, q):
 
 def run_manual_gas(h, p, q):
     body = h._read_object()
-    return 200, _container(h).runner.set_manual_gas(
-        n2_lpm=body.get("n2_lpm"), h2_lpm=body.get("h2_lpm"), co_lpm=body.get("co_lpm"), confirmed=_bool(body.get("confirm")))
+    flows = body.get("flows")
+    if flows is None:  # pre-0.9 clients sent flat N2/H2/CO values
+        flows = {gas: body[key] for gas, key in (("N2", "n2_lpm"), ("H2", "h2_lpm"), ("CO", "co_lpm")) if key in body}
+    return 200, _container(h).runner.set_manual_gas(flows, reason=str(body.get("reason") or ""),
+                                                    confirmed=_bool(body.get("confirm")))
 
 
 def devices_describe(h, p, q):
@@ -331,7 +405,8 @@ def devices_tare(h, p, q):
 
 
 def list_experiments(h, p, q):
-    return 200, {"experiments": _container(h).history.list_experiments(_query_int(q, "limit", 100))}
+    return 200, _container(h).history.list_experiments(_query_int(q, "limit", 100), category=_query_str(q, "category"),
+                                                       query=_query_str(q, "q"))
 
 
 def get_experiment(h, p, q):
@@ -361,7 +436,8 @@ def get_sample_params(h, p, q):
 
 
 def put_sample_params(h, p, q):
-    return 200, _container(h).analysis.save_sample_params(_int(p["id"], "id"), h._read_object())
+    body = h._read_object()
+    return 200, _container(h).analysis.save_sample_params(_int(p["id"], "id"), body, actor=_actor(body))
 
 
 def compute_kinetics(h, p, q):
@@ -369,9 +445,28 @@ def compute_kinetics(h, p, q):
     return 200, _container(h).analysis.compute(_int(p["id"], "id"), body or None)
 
 
+def experiment_review(h, p, q):
+    return 200, _container(h).review.review(_int(p["id"], "id"))
+
+
+def experiment_archive(h, p, q):
+    body = h._read_object(required=False)
+    if not _bool(body.get("confirm")):
+        raise ConfirmationRequired("归档后数据只读且无法撤销，需要确认")
+    return 200, _container(h).review.archive(_int(p["id"], "id"), body.get("note"), actor=_actor(body))
+
+
+def experiment_compare(h, p, q):
+    return 200, {"items": _container(h).analysis.compare(_int(p["id"], "id"))}
+
+
 def start_report(h, p, q):
     body = h._read_object(required=False)
-    return 202, {"task": _container(h).analysis.start_report(_int(p["id"], "id"), body or None)}
+    return 202, {"task": _container(h).analysis.start_report(_int(p["id"], "id"), actor=_actor(body))}
+
+
+def list_reports(h, p, q):
+    return 200, {"items": _container(h).analysis.list_reports()}
 
 
 def start_export(h, p, q):
@@ -380,13 +475,25 @@ def start_export(h, p, q):
 
 
 def list_alarms(h, p, q):
-    experiment = q.get("experiment_id")
-    return 200, {"alarms": _container(h).history.alarm_history(
-        _int(experiment[0], "experiment_id") if experiment else None, _query_int(q, "limit", 100))}
+    state = _query_str(q, "state")
+    acknowledged = {"pending": False, "acked": True}.get(state or "")
+    return 200, {"alarms": _container(h).history.alarm_history(_query_opt_int(q, "experiment_id"), _query_int(q, "limit", 100),
+                                                               acknowledged=acknowledged)}
 
 
 def list_audit(h, p, q):
-    return 200, {"logs": _container(h).history.audit_logs(_query_int(q, "limit", 200))}
+    return 200, {"logs": _container(h).history.audit_logs(_query_int(q, "limit", 200), experiment_id=_query_opt_int(q, "experiment_id"),
+                                                          category=_query_str(q, "category"), actor=_query_str(q, "actor"))}
+
+
+def export_audit(h, p, q):
+    body = h._read_object(required=False)
+    experiment_id = body.get("experiment_id")
+    if experiment_id is not None and type(experiment_id) is not int:
+        raise ApiError(400, "invalid_request", "experiment_id 必须是整数")
+    category = body.get("category")
+    return 202, {"task": _container(h).history.start_audit_export(
+        experiment_id=experiment_id, category=category if isinstance(category, str) and category else None)}
 
 
 def list_tasks(h, p, q):
@@ -418,21 +525,34 @@ def shutdown(h, p, q):
     return 202, {"ok": True}
 
 
+def _by_method(**handlers: Handler) -> Handler:
+    return lambda h, p, q: handlers[h.command](h, p, q)
+
+
 HEX_ID = r"(?P<id>[0-9a-f]{32})"
+ID = r"(?P<id>\d+)"
+
 ROUTES: list[tuple[re.Pattern[str], frozenset[str], Handler]] = [
     (re.compile(r"/api/health"), frozenset({"GET"}), health),
-    (re.compile(r"/api/settings"), frozenset({"GET", "PUT"}), lambda h, p, q: (get_settings if h.command == "GET" else put_settings)(h, p, q)),
-    (re.compile(r"/api/recipes"), frozenset({"GET", "POST"}), lambda h, p, q: (list_recipes if h.command == "GET" else create_recipe)(h, p, q)),
+    (re.compile(r"/api/settings"), frozenset({"GET", "PUT"}), _by_method(GET=get_settings, PUT=put_settings)),
+    (re.compile(r"/api/overview"), frozenset({"GET"}), get_overview),
+    (re.compile(r"/api/rules"), frozenset({"GET"}), get_rules),
+    (re.compile(r"/api/limits"), frozenset({"GET", "PUT"}), _by_method(GET=get_limits, PUT=put_limits)),
+    (re.compile(r"/api/limits/preview"), frozenset({"POST"}), preview_limits),
+    (re.compile(r"/api/recipes"), frozenset({"GET", "POST"}), _by_method(GET=list_recipes, POST=create_recipe)),
     (re.compile(r"/api/recipes/import"), frozenset({"POST"}), import_recipe),
-    (re.compile(r"/api/recipes/(?P<id>\d+)"), frozenset({"GET", "PUT", "DELETE"}),
-     lambda h, p, q: {"GET": get_recipe, "PUT": update_recipe, "DELETE": delete_recipe}[h.command](h, p, q)),
-    (re.compile(r"/api/recipes/(?P<id>\d+)/export"), frozenset({"GET"}), export_recipe),
+    (re.compile(rf"/api/recipes/{ID}"), frozenset({"GET", "PUT", "DELETE"}),
+     _by_method(GET=get_recipe, PUT=update_recipe, DELETE=delete_recipe)),
+    (re.compile(rf"/api/recipes/{ID}/export"), frozenset({"GET"}), export_recipe),
+    (re.compile(rf"/api/recipes/{ID}/versions"), frozenset({"GET"}), recipe_versions),
     (re.compile(r"/api/run"), frozenset({"GET"}), run_state),
     (re.compile(r"/api/run/measurements"), frozenset({"GET"}), run_measurements),
+    (re.compile(r"/api/run/preflight"), frozenset({"POST"}), run_preflight),
     (re.compile(r"/api/run/start"), frozenset({"POST"}), run_start),
     (re.compile(r"/api/run/pause"), frozenset({"POST"}), run_pause),
     (re.compile(r"/api/run/resume"), frozenset({"POST"}), run_resume),
     (re.compile(r"/api/run/stop"), frozenset({"POST"}), run_stop),
+    (re.compile(r"/api/run/emergency"), frozenset({"POST"}), run_emergency),
     (re.compile(r"/api/run/ack-alarm"), frozenset({"POST"}), run_ack),
     (re.compile(r"/api/run/reset-interlock"), frozenset({"POST"}), run_reset_interlock),
     (re.compile(r"/api/run/gas-mode"), frozenset({"POST"}), run_gas_mode),
@@ -444,16 +564,22 @@ ROUTES: list[tuple[re.Pattern[str], frozenset[str], Handler]] = [
     (re.compile(r"/api/devices/temperature"), frozenset({"POST"}), devices_temperature),
     (re.compile(r"/api/devices/tare"), frozenset({"POST"}), devices_tare),
     (re.compile(r"/api/experiments"), frozenset({"GET"}), list_experiments),
-    (re.compile(r"/api/experiments/(?P<id>\d+)"), frozenset({"GET", "PATCH", "DELETE"}),
-     lambda h, p, q: {"GET": get_experiment, "PATCH": patch_experiment, "DELETE": delete_experiment}[h.command](h, p, q)),
-    (re.compile(r"/api/experiments/(?P<id>\d+)/measurements"), frozenset({"GET"}), experiment_measurements),
-    (re.compile(r"/api/experiments/(?P<id>\d+)/sample-params"), frozenset({"GET", "PUT"}),
-     lambda h, p, q: (get_sample_params if h.command == "GET" else put_sample_params)(h, p, q)),
-    (re.compile(r"/api/experiments/(?P<id>\d+)/kinetics"), frozenset({"POST"}), compute_kinetics),
-    (re.compile(r"/api/experiments/(?P<id>\d+)/report"), frozenset({"POST"}), start_report),
-    (re.compile(r"/api/experiments/(?P<id>\d+)/export"), frozenset({"POST"}), start_export),
+    (re.compile(rf"/api/experiments/{ID}"), frozenset({"GET", "PATCH", "DELETE"}),
+     _by_method(GET=get_experiment, PATCH=patch_experiment, DELETE=delete_experiment)),
+    (re.compile(rf"/api/experiments/{ID}/measurements"), frozenset({"GET"}), experiment_measurements),
+    (re.compile(rf"/api/experiments/{ID}/sample-params"), frozenset({"GET", "PUT"}),
+     _by_method(GET=get_sample_params, PUT=put_sample_params)),
+    (re.compile(rf"/api/experiments/{ID}/kinetics"), frozenset({"POST"}), compute_kinetics),
+    (re.compile(rf"/api/experiments/{ID}/review"), frozenset({"GET"}), experiment_review),
+    (re.compile(rf"/api/experiments/{ID}/archive"), frozenset({"POST"}), experiment_archive),
+    (re.compile(rf"/api/experiments/{ID}/compare"), frozenset({"GET"}), experiment_compare),
+    (re.compile(rf"/api/experiments/{ID}/report"), frozenset({"POST"}), start_report),
+    (re.compile(rf"/api/experiments/{ID}/export"), frozenset({"POST"}), start_export),
+    (re.compile(r"/api/reports"), frozenset({"GET"}), list_reports),
     (re.compile(r"/api/alarms"), frozenset({"GET"}), list_alarms),
+    (re.compile(rf"/api/alarms/{ID}/ack"), frozenset({"POST"}), ack_alarm),
     (re.compile(r"/api/audit"), frozenset({"GET"}), list_audit),
+    (re.compile(r"/api/audit/export"), frozenset({"POST"}), export_audit),
     (re.compile(r"/api/tasks"), frozenset({"GET"}), list_tasks),
     (re.compile(rf"/api/tasks/{HEX_ID}"), frozenset({"GET"}), get_task),
     (re.compile(rf"/api/tasks/{HEX_ID}/cancel"), frozenset({"POST"}), cancel_task),
@@ -508,6 +634,11 @@ def run_server(*, port: int, data_dir: Path | None, exit_on_stdin_eof: bool, tok
         logger.info("%s", note)
     token = token or os.environ.get(TOKEN_ENV) or secrets.token_urlsafe(32)
     container = build_container(config, paths, log_file=log_file, notes=notes)
+    recovered = container.db.recover_orphaned_experiments()
+    if recovered:
+        # Only the serving backend owns the run; anything still "active" in the database is left over from a crash.
+        container.notes.append(f"上次异常退出时未结束的实验已标记为中止待核查：{', '.join(map(str, recovered))}")
+        logger.warning("marked orphaned experiments as faulted: %s", recovered)
     server = ApiServer(("127.0.0.1", port), container, token)
     # Machine-readable handshake on stdout; everything else goes to stderr/log.
     print(json.dumps({"port": server.server_port, "api_version": API_VERSION, "pid": os.getpid()}), flush=True)

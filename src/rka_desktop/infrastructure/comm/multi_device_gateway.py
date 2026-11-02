@@ -47,9 +47,10 @@ class MultiDeviceGateway:
                 SimTemperatureAdapter,
             )
 
-            temperature: TemperaturePort = SimTemperatureAdapter()
-            mfc: MfcBusPort = SimMfcBusAdapter(cfg.mfc_channels)
-            balance: BalancePort = SimBalanceAdapter()
+            temperature: TemperaturePort = SimTemperatureAdapter(segment_seconds=cfg.temp_segment_seconds)
+            sim_mfc = SimMfcBusAdapter(cfg.mfc_channels)
+            mfc: MfcBusPort = sim_mfc
+            balance: BalancePort = SimBalanceAdapter(initial_g=50.0, flow_source=sim_mfc.flows_by_gas)
         else:
             from rka_desktop.infrastructure.comm.adapters.azbil_mfc_adapter import AzbilMfcAdapter
             from rka_desktop.infrastructure.comm.adapters.balance_adapter import BalanceAdapter
@@ -110,6 +111,14 @@ class MultiDeviceGateway:
         if selector is None:
             raise DeviceCommError("温控仪适配器不支持选择程序组")
         selector(int(group))
+
+    def read_program_segment(self) -> int | None:
+        """Running program segment (1-based) when the temperature adapter can report it, else None."""
+        reader = getattr(self._temp, "read_program_segment", None)
+        if reader is None:
+            return None
+        value = reader()
+        return int(value) if value is not None else None
 
     def tare_balance(self) -> bool:
         return self._balance.tare()

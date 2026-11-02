@@ -61,3 +61,10 @@ class TaieTempAdapter:
             self._ctrl.write_program_group(int(group))
         except Exception as exc:  # noqa: BLE001
             raise DeviceCommError(f"temperature program group select failed: {exc}") from exc
+
+    def read_program_segment(self) -> int:
+        """Running program segment from the SEG register (1-based). Behaviour while idle is unverified on site."""
+        try:
+            return int(self._ctrl.read_program_segment())
+        except Exception as exc:  # noqa: BLE001
+            raise DeviceCommError(f"temperature program segment read failed: {exc}") from exc

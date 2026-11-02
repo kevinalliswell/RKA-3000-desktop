@@ -24,11 +24,11 @@ def test_generates_excel_report_with_sheets_and_chart(tmp_path):
 
     assert out.exists()
     wb = load_workbook(out)
-    assert set(wb.sheetnames) == {"报告", "数据"}
+    assert set(wb.sheetnames) == {"报告", "数据", "报警与事件", "操作记录"}
 
     report = wb["报告"]
     # indices written to the summary sheet
-    labels = {report[f"A{i}"].value for i in range(3, 13)}
+    labels = {report[f"A{i}"].value for i in range(3, 30)}
     assert "终态还原度 (%)" in labels
     assert "40% 还原速率 (%/min)" in labels
 
@@ -47,3 +47,13 @@ def test_report_handles_single_point_without_chart(tmp_path):
     ReportService().generate_excel_report(experiment, result, out)
     wb = load_workbook(out)
     assert len(wb["数据"]._charts) == 0  # not enough points for a chart
+
+
+def test_oxidation_report_uses_oxidation_wording_and_fit_sheet(tmp_path):
+    out = tmp_path / "ox.xlsx"
+    fits = [{"name": "Avrami", "g_expr": "x", "k_per_min": 0.01, "n": 1.1, "r2": 0.99}]
+    ReportService().generate_excel_report({"id": 2, "code": "RKA-2026-0101-002"}, _result(), out,
+                                          {"degree_kind": "oxidation", "fits": fits, "report_version": 2})
+    wb = load_workbook(out)
+    assert wb["报告"]["A1"].value.startswith("铁矿石氧化") and wb["模型拟合"]["A2"].value == "Avrami"
+    assert {wb["报告"][f"A{i}"].value for i in range(3, 30)} >= {"终态氧化度 (%)", "报告版本"}

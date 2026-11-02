@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -12,6 +12,11 @@ class Measurement:
     n2_lpm: float
     h2_lpm: float
     co_lpm: float
+    ar_lpm: float = 0.0
+    co2_lpm: float = 0.0
+    ch4_lpm: float = 0.0
+    o2_lpm: float = 0.0
+    phase: str = "run"  # "run" while recipe steps execute, "purge" during safe disposal
 
 
 @dataclass
@@ -26,6 +31,17 @@ class DeviceSnapshot:
     interlock_word: int = 0
     run_control_word: int = 0
     estop_status: int = 0
+    # Measured flow per gas key; backends that only know N2/H2/CO leave it empty.
+    flows_lpm: dict[str, float] = field(default_factory=dict)
+    # Set-point readback per gas key from the MFCs; None when the backend cannot read it back.
+    setpoints_lpm: dict[str, float] | None = None
+    # Running segment of the temperature controller's program (1-based); None when unknown.
+    program_segment: int | None = None
+
+    def flows(self) -> dict[str, float]:
+        if self.flows_lpm:
+            return dict(self.flows_lpm)
+        return {"N2": self.n2_lpm, "H2": self.h2_lpm, "CO": self.co_lpm}
 
 
 @dataclass(frozen=True)

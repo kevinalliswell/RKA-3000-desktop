@@ -357,24 +357,31 @@ fn allowed(method: &str, path: &str) -> bool {
         (
             "GET",
             ["api", "health" | "settings" | "recipes" | "run" | "devices" | "experiments" | "alarms"
-            | "audit" | "tasks" | "log"],
+            | "audit" | "tasks" | "log" | "overview" | "rules" | "limits" | "reports"],
         ) => true,
-        ("PUT", ["api", "settings"]) => true,
+        ("PUT", ["api", "settings" | "limits"]) => true,
+        ("POST", ["api", "limits", "preview"]) => true,
         ("POST", ["api", "recipes"]) | ("POST", ["api", "recipes", "import"]) => true,
         ("GET" | "PUT" | "DELETE", ["api", "recipes", id]) => is_numeric(id),
-        ("GET", ["api", "recipes", id, "export"]) => is_numeric(id),
+        ("GET", ["api", "recipes", id, "export" | "versions"]) => is_numeric(id),
         ("GET", ["api", "run", "measurements"]) => true,
         (
             "POST",
-            ["api", "run", "start" | "pause" | "resume" | "stop" | "ack-alarm" | "reset-interlock" | "gas-mode"
-            | "manual-gas"],
+            ["api", "run", "preflight" | "start" | "pause" | "resume" | "stop" | "emergency" | "ack-alarm"
+            | "reset-interlock" | "gas-mode" | "manual-gas"],
         ) => true,
         ("GET", ["api", "devices", "status"]) => true,
         ("POST", ["api", "devices", "connect" | "mfc" | "temperature" | "tare"]) => true,
         ("GET" | "PATCH" | "DELETE", ["api", "experiments", id]) => is_numeric(id),
-        ("GET", ["api", "experiments", id, "measurements"]) => is_numeric(id),
+        ("GET", ["api", "experiments", id, "measurements" | "review" | "compare"]) => {
+            is_numeric(id)
+        }
         ("GET" | "PUT", ["api", "experiments", id, "sample-params"]) => is_numeric(id),
-        ("POST", ["api", "experiments", id, "kinetics" | "report" | "export"]) => is_numeric(id),
+        ("POST", ["api", "experiments", id, "kinetics" | "report" | "export" | "archive"]) => {
+            is_numeric(id)
+        }
+        ("POST", ["api", "alarms", id, "ack"]) => is_numeric(id),
+        ("POST", ["api", "audit", "export"]) => true,
         ("GET", ["api", "tasks", id]) => is_task_id(id),
         ("POST", ["api", "tasks", id, "cancel"]) => is_task_id(id),
         _ => false,
@@ -531,4 +538,38 @@ fn main() {
             stop_backend(&app.state::<Backend>());
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::allowed;
+
+    #[test]
+    fn allow_list_accepts_page_routes_and_rejects_shutdown() {
+        for (method, path) in [
+            ("GET", "/api/overview"),
+            ("GET", "/api/limits"),
+            ("PUT", "/api/limits"),
+            ("POST", "/api/limits/preview"),
+            ("POST", "/api/run/preflight"),
+            ("POST", "/api/run/emergency"),
+            ("GET", "/api/experiments/12/review"),
+            ("POST", "/api/experiments/12/archive"),
+            ("GET", "/api/experiments?category=pending&q=A-19"),
+            ("POST", "/api/alarms/3/ack"),
+            ("POST", "/api/audit/export"),
+            ("GET", "/api/recipes/4/versions"),
+        ] {
+            assert!(allowed(method, path), "{method} {path} should be allowed");
+        }
+        for (method, path) in [
+            ("POST", "/api/shutdown"),
+            ("POST", "/api/alarms/x/ack"),
+            ("DELETE", "/api/limits"),
+            ("GET", "/api/experiments/1/archive"),
+            ("POST", "/api/run/unknown"),
+        ] {
+            assert!(!allowed(method, path), "{method} {path} should be rejected");
+        }
+    }
 }
