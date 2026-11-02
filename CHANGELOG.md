@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.9.0] - 2026-11-01
 ### Added
 - **实验生命周期**：待机 → 预检 → 运行 → 惰性处置 → 待核查 → 已归档。预检阻断项：无运行实验、上一次已归档、
   配方可执行、设备回读新鲜、无待确认报警、样品信息、6 项现场检查。上一次实验归档前不能开始下一次。

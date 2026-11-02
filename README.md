@@ -7,7 +7,7 @@
 全部在 **Python** 中，以随包交付的 sidecar（`rka3000-backend.exe`）运行，窗口通过受限、鉴权的本地
 JSON API 调用它。终端用户不需要安装 Python、Node.js 或 Rust。
 
-> 版本以 `rka_desktop.__version__`（当前 0.8.0）为准；`scripts/check_version.py` 保证 Python、Rust、
+> 版本以 `rka_desktop.__version__`（当前 0.9.0）为准；`scripts/check_version.py` 保证 Python、Rust、
 > npm 清单与 CHANGELOG 一致。变更详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 功能

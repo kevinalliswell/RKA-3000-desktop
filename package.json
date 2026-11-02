@@ -1,7 +1,7 @@
 {
   "name": "rka3000-desktop",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "RKA-3000 iron-ore reduction kinetics experiment system desktop (Tauri 2 + Svelte 5 + Python sidecar)",
   "scripts": {
     "tauri": "tauri",
